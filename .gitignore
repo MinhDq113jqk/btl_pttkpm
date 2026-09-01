@@ -1,0 +1,9 @@
+# Project reference documents and personal-data files stay local.
+documents/
+
+# Microsoft Office temporary files
+~$*
+
+# Operating-system files
+Thumbs.db
+.DS_Store
