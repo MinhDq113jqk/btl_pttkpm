@@ -31,3 +31,15 @@ npm install
 npm run dev
 ```
 
+## Backend FastAPI — Phase 0–1
+
+Đã thêm nền tảng trong `backend/`: config bằng environment, SQLAlchemy/psycopg,
+PostgreSQL Aiven qua TLS, Alembic, model Tenant UUID/UTC, `/health`, correlation ID
+và test. Frontend vẫn dùng dữ liệu demo; chưa có JWT, API nghiệp vụ hoặc Gemini thật.
+
+- [Audit repo, các phần thiếu và kế hoạch Phase 2–8](backend/PHASE_0_AUDIT.md).
+- [Cài đặt, environment, Aiven, migration, chạy server/Swagger, frontend, seed và testing](backend/README.md).
+
+## Bảo vệ dữ liệu cục bộ
+
+Thư mục `documents/` chỉ chứa tài liệu tham khảo và danh sách thành viên, được giữ cục bộ và không đưa lên GitHub (`.gitignore`). Không thêm mật khẩu, token hoặc dữ liệu cá nhân vào repository.

@@ -7,3 +7,21 @@ documents/
 # Operating-system files
 Thumbs.db
 .DS_Store
+
+# Local credentials (including the supplied resource documents)
+.env
+.env.*
+!.env.example
+Tài_nguyên.md
+Tài_nguyên.txt
+*.pem
+*.key
+
+# Python backend outputs
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
