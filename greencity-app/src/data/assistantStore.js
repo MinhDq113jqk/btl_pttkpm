@@ -82,13 +82,13 @@ export function restoreAssistantState(raw) {
   };
 }
 
-export function loadAssistantHistory(storage) {
-  const raw = storage.getItem(ASSISTANT_STORAGE_KEY);
+export function loadAssistantHistory(storage, key = ASSISTANT_STORAGE_KEY) {
+  const raw = storage.getItem(key);
   return raw ? restoreAssistantState(raw) : createAssistantState();
 }
 
-export function persistAssistantHistory(storage, state) {
-  storage.setItem(ASSISTANT_STORAGE_KEY, JSON.stringify(state));
+export function persistAssistantHistory(storage, state, key = ASSISTANT_STORAGE_KEY) {
+  storage.setItem(key, JSON.stringify(state));
 }
 
 export function shouldSendOnEnter(event) {

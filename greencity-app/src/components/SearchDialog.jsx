@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { Search, ArrowUpRight } from 'lucide-react';
 import { Dialog } from './Dialog';
-import { navItems } from '../data/mockData';
-import { tasks, normalizeSearch } from '../data/desktopData';
+import { navItems as defaultNav } from '../data/mockData';
+import { tasks as defaultTasks, normalizeSearch } from '../data/desktopData';
 
-export function SearchDialog({ open, onClose, onNavigate, onSelectTask }) {
+export function SearchDialog({ open, onClose, onNavigate, onSelectTask, navItems = defaultNav, tasks = defaultTasks }) {
   const [query, setQuery] = useState('');
   const normalized = normalizeSearch(query);
   const modules = navItems.filter(item => normalizeSearch(item.label).includes(normalized));

@@ -1,9 +1,9 @@
 import React from 'react';
 import { ArrowRight, AlertTriangle, Briefcase, Clock, CheckSquare } from 'lucide-react';
-import { tasks } from '../data/desktopData';
+import { tasks as defaultTasks } from '../data/desktopData';
 import { StatusBadge } from './TasksDesktopView';
 
-export const DashboardView = ({ onSelectTask, onViewAll, onFilterTasks }) => {
+export const DashboardView = ({ onSelectTask, onViewAll, onFilterTasks, tasks = defaultTasks }) => {
   const pending = tasks.filter(task => task.status === 'Chờ duyệt').length;
   const overdue = tasks.filter(task => task.status === 'Quá hạn').length;
   const metrics = [

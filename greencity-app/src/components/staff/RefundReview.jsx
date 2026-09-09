@@ -1,0 +1,14 @@
+import React from 'react';
+import { Eye, ShieldCheck, ArrowLeft } from 'lucide-react';
+import { sampleRefundCase } from '../../data/mockData';
+import { createRefundForm, formatVND } from '../../data/refundForm';
+import { canApproveRefund } from '../../data/staffRoles';
+
+export function RefundReview({ account, onBack, onApprove }) {
+  const data = sampleRefundCase;
+  const canApprove = canApproveRefund(account);
+  return <div className="desktop-page refund-page"><div className="page-heading"><div><p className="eyebrow">Tài chính · {data.caseCode}</p><h1>{canApprove ? 'Kiểm tra & phê duyệt hoàn tiền' : 'Xem chứng từ hoàn tiền'}</h1><p>{canApprove ? 'Đối chiếu phiếu do Kế toán lập. Thông tin gốc không sửa tại bước phê duyệt.' : 'Chỉ đọc theo vai trò. Không có thao tác sửa, trình hoặc duyệt phiếu.'}</p></div><span className="staff-permission-pill"><Eye size={15} aria-hidden="true" />{canApprove ? 'Người kiểm tra' : 'Chỉ đọc'}</span></div>
+    <div className="refund-layout"><div className="refund-sections"><section className="surface form-section"><h2>Hồ sơ gốc</h2><dl className="profile-grid"><div><dt>Cư dân</dt><dd>{data.resident.name}</dd></div><div><dt>Căn hộ</dt><dd>{data.resident.unitCode} · {data.resident.building}</dd></div><div><dt>Người lập phiếu</dt><dd>Phạm Ngọc Linh · Kế toán</dd></div><div><dt>Phạm vi</dt><dd>GreenCity Central</dd></div></dl><p className="context-note">{data.reason.description}</p></section><section className="surface form-section"><h2>Thông tin thụ hưởng</h2><dl className="profile-grid"><div><dt>Ngân hàng</dt><dd>{data.beneficiaryAccount.bankName}</dd></div><div><dt>Chủ tài khoản</dt><dd>{data.beneficiaryAccount.accountHolder}</dd></div><div><dt>Số tài khoản</dt><dd>{data.beneficiaryAccount.accountNumber}</dd></div><div><dt>Trạng thái xác minh</dt><dd>Dữ liệu mẫu · Chưa xác minh thực tế</dd></div></dl></section><section className="surface form-section"><h2>Chứng từ mẫu</h2><ul className="staff-evidence">{data.attachments.map(file => <li key={file.id}><span>{file.name}</span><small>{file.size} · Tệp minh họa</small></li>)}</ul></section></div><aside className="surface refund-summary"><p className="eyebrow">Đối chiếu</p><h2>Số tiền đề nghị hoàn</h2><div className="refund-total"><strong>{formatVND(data.financials.currentRefundAmount)}</strong></div><p className="context-note">Người lập và người duyệt là hai vai trò khác nhau. Bản giao diện không chuyển tiền, ghi sổ hoặc tạo phê duyệt thật.</p></aside></div>
+    <footer className="form-action-bar"><button className="button-secondary" onClick={onBack}><ArrowLeft size={16} />Quay lại</button><span className="form-save-status">{canApprove ? 'Phê duyệt không cho phép sửa nội dung phiếu gốc.' : 'Hồ sơ chỉ đọc.'}</span>{canApprove && <button className="button-primary" onClick={() => onApprove({ ...createRefundForm(), refundAmount: data.financials.currentRefundAmount })}><ShieldCheck size={16} />Kiểm tra phê duyệt mẫu</button>}</footer>
+  </div>;
+}

@@ -31,9 +31,9 @@ export function validateRefund(data) {
   return errors;
 }
 
-export function loadRefundDraft(storage) {
+export function loadRefundDraft(storage, key = DRAFT_KEY) {
   try {
-    const saved = JSON.parse(storage.getItem(DRAFT_KEY));
+    const saved = JSON.parse(storage.getItem(key));
     if (!saved || saved.version !== 1 || !saved.data) return null;
     const defaults = createRefundForm();
     const keys = ['refundAmount', 'postingDate', 'paymentMethod', 'bankName', 'branchName', 'accountHolder', 'accountNumber', 'remarks'];
@@ -43,9 +43,9 @@ export function loadRefundDraft(storage) {
   } catch { return null; }
 }
 
-export function saveRefundDraft(storage, data) {
+export function saveRefundDraft(storage, data, key = DRAFT_KEY) {
   const { attachments, ...fields } = data;
-  storage.setItem(DRAFT_KEY, JSON.stringify({ version: 1, data: { ...fields, attachmentIds: attachments.filter(file => !file.local).map(file => file.id) } }));
+  storage.setItem(key, JSON.stringify({ version: 1, data: { ...fields, attachmentIds: attachments.filter(file => !file.local).map(file => file.id) } }));
 }
 
 export function validateAttachment(file) {

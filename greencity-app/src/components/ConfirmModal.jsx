@@ -4,7 +4,7 @@ import { Dialog } from './Dialog';
 import { formatVND, paymentLabels } from '../data/refundForm';
 import { sampleRefundCase } from '../data/mockData';
 
-export const ConfirmModal = ({ isOpen, onClose, onConfirm, data, isLoading }) => (
+export const ConfirmModal = ({ isOpen, onClose, onConfirm, data, isLoading, actionLabel = 'Xác nhận mô phỏng' }) => (
   <Dialog open={isOpen} onClose={onClose} busy={isLoading} title="Xác nhận phiếu hoàn tiền mẫu">
     <div className="dialog-body">
       <p className="context-note">Đây là mô phỏng giao diện. Không tạo bút toán, không chuyển tiền và không gửi dữ liệu đến ngân hàng.</p>
@@ -20,7 +20,7 @@ export const ConfirmModal = ({ isOpen, onClose, onConfirm, data, isLoading }) =>
     </div>
     <div className="dialog-actions">
       <button type="button" className="button-secondary" disabled={isLoading} onClick={onClose}>Quay lại kiểm tra</button>
-      <button type="button" className="button-primary" disabled={isLoading} onClick={onConfirm}><CheckCircle2 size={17} aria-hidden="true" />{isLoading ? 'Đang xử lý mô phỏng…' : 'Xác nhận mô phỏng'}</button>
+      <button type="button" className="button-primary" disabled={isLoading} onClick={onConfirm}><CheckCircle2 size={17} aria-hidden="true" />{isLoading ? 'Đang xử lý mô phỏng…' : actionLabel}</button>
     </div>
   </Dialog>
 );

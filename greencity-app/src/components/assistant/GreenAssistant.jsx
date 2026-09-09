@@ -8,15 +8,15 @@ import './green-assistant.css';
 const formatTime = time => new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit' }).format(time);
 const formatDate = time => new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(time);
 
-function initializeHistory() {
-  try { return { state: loadAssistantHistory(window.localStorage), canPersist: true, error: '' }; }
+function initializeHistory(historyKey) {
+  try { return { state: loadAssistantHistory(window.localStorage, historyKey), canPersist: true, error: '' }; }
   catch {
     return { state: createAssistantState(), canPersist: false, error: 'Không đọc được lịch sử đã lưu. Cuộc trò chuyện hiện chỉ giữ trong phiên này; dữ liệu cũ không bị ghi đè.' };
   }
 }
 
-export function GreenAssistant({ contextKey, requestReply = requestDemoReply }) {
-  const [initial] = useState(initializeHistory);
+export function GreenAssistant({ contextKey, requestReply = requestDemoReply, historyKey = ASSISTANT_STORAGE_KEY, suggestions = ['Xem công việc quá hạn', 'Hướng dẫn kiểm tra phiếu hoàn tiền'] }) {
+  const [initial] = useState(() => initializeHistory(historyKey));
   const [state, dispatch] = useReducer(assistantReducer, initial.state);
   const [open, setOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -48,19 +48,19 @@ export function GreenAssistant({ contextKey, requestReply = requestDemoReply }) 
 
   const saveHistory = () => {
     if (!canPersist.current) return;
-    try { persistAssistantHistory(window.localStorage, state); setStorageError(''); }
+    try { persistAssistantHistory(window.localStorage, state, historyKey); setStorageError(''); }
     catch { setStorageError('Không lưu được lịch sử trên máy. Nội dung vẫn còn trong phiên này; đừng tải lại trước khi lưu thành công.'); }
   };
   useEffect(() => {
     if (!canPersist.current) return;
-    try { persistAssistantHistory(window.localStorage, state); setStorageError(''); }
+    try { persistAssistantHistory(window.localStorage, state, historyKey); setStorageError(''); }
     catch { setStorageError('Không lưu được lịch sử trên máy. Nội dung vẫn còn trong phiên này; đừng tải lại trước khi lưu thành công.'); }
-  }, [state]);
+  }, [state, historyKey]);
 
   useEffect(() => {
     mounted.current = true;
     const otherWindowChanged = event => {
-      if (event.key !== ASSISTANT_STORAGE_KEY && event.key !== null) return;
+      if (event.key !== historyKey && event.key !== null) return;
       canPersist.current = false;
       setStorageError('Lịch sử đã thay đổi ở cửa sổ khác. Phiên này tạm ngừng lưu để tránh ghi đè; hãy giữ cửa sổ mở nếu còn nội dung cần lưu.');
     };
@@ -71,7 +71,7 @@ export function GreenAssistant({ contextKey, requestReply = requestDemoReply }) 
       clearTimeout(copyTimer.current);
       window.removeEventListener('storage', otherWindowChanged);
     };
-  }, []);
+  }, [historyKey]);
 
   // The pet must not sit on existing submit controls as forms scroll into view.
   useEffect(() => {
@@ -157,7 +157,7 @@ export function GreenAssistant({ contextKey, requestReply = requestDemoReply }) 
       if (!openRef.current) setClosedReply(true);
     } catch (error) {
       if (!mounted.current || (controller.signal.aborted && !request.timedOut)) return;
-      const errorText = request.timedOut ? 'Hệ thống xử lý quá lâu. Câu hỏi đã được giữ lại; chọn Gửi lại để thử tiếp.' : requestReply === requestDemoReply ? error.message : 'Chưa nhận được câu trả lời từ hệ thống. Câu hỏi vẫn được giữ lại; chọn Gửi lại để thử tiếp.';
+      const errorText = request.timedOut ? 'Hệ thống xử lý quá lâu. Câu hỏi đã được giữ lại; chọn Gửi lại để thử tiếp.' : requestReply === requestDemoReply || error.name === 'DemoAssistantError' ? error.message : 'Chưa nhận được câu trả lời từ hệ thống. Câu hỏi vẫn được giữ lại; chọn Gửi lại để thử tiếp.';
       dispatch({ type: 'reject', conversationId, messageId: message.id, error: errorText, now: Date.now() });
       if (!openRef.current) setClosedReply(true);
     } finally {
@@ -247,7 +247,7 @@ export function GreenAssistant({ contextKey, requestReply = requestDemoReply }) 
             stickToBottom.current = list.scrollHeight - list.scrollTop - list.clientHeight < 60;
             if (stickToBottom.current) setUnseen(false);
           }}>
-            {conversation.messages.length === 0 && <div className="assistant-welcome"><GreenPet /><p className="assistant-welcome-kicker">MỘT NGƯỜI BẠN NHỎ, LUÔN Ở ĐÂY</p><h3>Mình có thể giúp gì cho bạn?</h3><p>Hỏi mình cách sử dụng GreenCity.<br />Bắt đầu bằng một câu hỏi bên dưới nhé.</p><div className="assistant-suggestions">{['Xem công việc quá hạn', 'Hướng dẫn kiểm tra phiếu hoàn tiền'].map(question => <button key={question} onClick={() => send(question)}>{question}<ArrowUp size={15} aria-hidden="true" /></button>)}</div></div>}
+            {conversation.messages.length === 0 && <div className="assistant-welcome"><GreenPet /><p className="assistant-welcome-kicker">MỘT NGƯỜI BẠN NHỎ, LUÔN Ở ĐÂY</p><h3>Mình có thể giúp gì cho bạn?</h3><p>Hỏi mình cách sử dụng GreenCity.<br />Bắt đầu bằng một câu hỏi bên dưới nhé.</p><div className="assistant-suggestions">{suggestions.map(question => <button key={question} onClick={() => send(question)}>{question}<ArrowUp size={15} aria-hidden="true" /></button>)}</div></div>}
             {conversation.messages.map(message => <article key={message.id} className={`assistant-message assistant-message-${message.role} is-${message.status}`} aria-label={message.role === 'user' ? 'Tin nhắn của bạn' : 'Tin nhắn Green Assistant'}>
               <div className="assistant-message-meta"><span>{message.role === 'user' ? 'Bạn' : 'Green Assistant'}</span><time dateTime={new Date(message.createdAt).toISOString()}>{formatTime(message.createdAt)}</time></div>
               {message.status === 'pending' ? <div className="assistant-message-bubble assistant-typing" aria-hidden="true"><span /><span /><span /></div>

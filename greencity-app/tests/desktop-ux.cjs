@@ -2,6 +2,7 @@ const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const fs = require('node:fs');
+const { loginAs } = require('./staff-helpers.cjs');
 const output = path.resolve(__dirname, '../artifacts/ux');
 const baseURL = process.env.UX_BASE_URL || 'http://127.0.0.1:3000/';
 fs.mkdirSync(output, { recursive: true });
@@ -30,6 +31,7 @@ fs.mkdirSync(output, { recursive: true });
     const noOverflow = async () => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth && document.querySelector('main').scrollWidth <= document.querySelector('main').clientWidth + 1);
 
     await page.goto(baseURL, { waitUntil: 'domcontentloaded' });
+    await loginAs(page, 'director');
     await shot('initial-load.png');
     await page.getByRole('heading', { name: 'Tổng quan điều hành' }).waitFor();
     await page.waitForLoadState('networkidle');
@@ -84,6 +86,7 @@ fs.mkdirSync(output, { recursive: true });
     await page.getByRole('button', { name: 'Xem tất cả thông báo', exact: true }).click();
     await shot('after-notifications-1440.png');
 
+    await loginAs(page, 'accountant');
     await nav('Phiếu hoàn tiền & Hoá đơn');
     check('refund date uses valid ISO value', await page.locator('#postingDate').inputValue() === '2026-09-04');
     check('form actions stay fully visible at top', await visibleActions());
@@ -134,14 +137,14 @@ fs.mkdirSync(output, { recursive: true });
     await page.getByRole('button', { name: 'Gỡ chứng từ sample-proof.pdf', exact: true }).click();
     check('remove attachment affects only current form', await page.getByText('sample-proof.pdf', { exact: true }).count() === 0);
     await page.getByRole('button', { name: 'Kiểm tra & xác nhận', exact: true }).click();
-    await page.getByRole('button', { name: 'Xác nhận mô phỏng', exact: true }).click();
+    await page.getByRole('button', { name: 'Trình duyệt mô phỏng', exact: true }).click();
     check('confirmation exposes busy state', await confirm.getAttribute('aria-busy') === 'true');
-    await page.getByRole('heading', { name: 'Tổng quan điều hành' }).waitFor();
-    check('confirmation clears saved draft without sending a payment', await page.evaluate(() => sessionStorage.getItem('greencity.refund-draft.v1')) === null);
+    await page.getByRole('heading', { name: 'Tài chính & đối soát' }).waitFor();
+    check('confirmation clears saved draft without sending a payment', await page.evaluate(() => sessionStorage.getItem('greencity.refund-draft.v1:demo-accountant')) === null);
     await page.goBack();
     await page.getByRole('heading', { name: 'Kiểm tra phiếu hoàn tiền' }).waitFor();
     await page.goForward();
-    await page.getByRole('heading', { name: 'Tổng quan điều hành' }).waitFor();
+    await page.getByRole('heading', { name: 'Tài chính & đối soát' }).waitFor();
     check('browser back and forward restore route');
 
     for (const [width, height] of [[1920, 1080], [1366, 768], [1280, 720], [1024, 768], [800, 600]]) {
@@ -172,7 +175,8 @@ fs.mkdirSync(output, { recursive: true });
     await nav('Phiếu hoàn tiền & Hoá đơn');
     check('form buttons reachable at 200 percent equivalent viewport', await visibleActions());
     await page.setViewportSize({ width: 1440, height: 900 });
-    await nav('Kỹ thuật & Bảo trì');
+    await loginAs(page, 'admin');
+    await nav('Dự án & Mặt bằng');
     check('unimplemented module explains its limitation', await page.getByRole('heading', { name: 'Phân hệ chưa có chức năng xử lý' }).isVisible());
 
     await page.route('https://images.unsplash.com/**', route => route.abort());

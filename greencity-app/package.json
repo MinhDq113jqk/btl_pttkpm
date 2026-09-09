@@ -7,9 +7,10 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test tests/logic.test.js tests/assistant.test.js",
+    "test": "node --test tests/logic.test.js tests/assistant.test.js tests/staff.test.js",
     "test:ux": "node tests/desktop-ux.cjs",
-    "test:assistant": "node tests/assistant-ux.cjs"
+    "test:assistant": "node tests/assistant-ux.cjs",
+    "test:staff": "node tests/staff-ux.cjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",

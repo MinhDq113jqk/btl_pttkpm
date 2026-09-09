@@ -2,9 +2,10 @@ const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { loginAs } = require('./staff-helpers.cjs');
 const output = path.resolve(__dirname, '../artifacts/assistant');
 const url = process.env.UX_BASE_URL || 'http://127.0.0.1:3000/';
-const storageKey = 'greencity.assistant.v1';
+const storageKey = 'greencity.assistant.v1:demo-accountant';
 fs.mkdirSync(output, { recursive: true });
 
 (async () => {
@@ -19,6 +20,7 @@ fs.mkdirSync(output, { recursive: true });
     page.on('pageerror', error => errors.push(error.message));
     await page.goto(url);
     await page.waitForLoadState('networkidle');
+    await loginAs(page, 'accountant');
     return page;
   };
   try {
@@ -162,10 +164,10 @@ fs.mkdirSync(output, { recursive: true });
     const blocked = await createPage(() => { Storage.prototype.setItem = () => { throw new Error('Quota exceeded'); }; });
     await blocked.getByRole('button', { name: 'Mở Green Assistant', exact: true }).click();
     check('history write failure is visible', await blocked.getByRole('alert').filter({ hasText: 'Không lưu được lịch sử trên máy' }).isVisible());
-    const corrupt = await createPage(() => { localStorage.setItem('greencity.assistant.v1', '{broken'); });
+    const corrupt = await createPage(() => { localStorage.setItem('greencity.assistant.v1:demo-accountant', '{broken'); });
     await corrupt.getByRole('button', { name: 'Mở Green Assistant', exact: true }).click();
     check('corrupt history is not overwritten', await corrupt.evaluate(key => localStorage.getItem(key), storageKey) === '{broken' && await corrupt.getByRole('alert').filter({ hasText: 'Không đọc được lịch sử' }).isVisible());
-    await page.evaluate(() => window.dispatchEvent(new StorageEvent('storage', { key: 'greencity.assistant.v1', newValue: '{another-window}' })));
+    await page.evaluate(() => window.dispatchEvent(new StorageEvent('storage', { key: 'greencity.assistant.v1:demo-accountant', newValue: '{another-window}' })));
     check('another window cannot silently overwrite this conversation', await page.getByRole('alert').filter({ hasText: 'tạm ngừng lưu để tránh ghi đè' }).isVisible());
     check('no runtime JavaScript errors', errors.length === 0);
     fs.writeFileSync(path.join(output, 'test-results.json'), JSON.stringify({ passed: checks.length, checks, errors }, null, 2));
