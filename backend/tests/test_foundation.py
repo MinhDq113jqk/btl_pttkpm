@@ -1,4 +1,5 @@
 import logging
+import secrets
 from unittest.mock import Mock
 from uuid import UUID, uuid4
 
@@ -18,7 +19,9 @@ FAKE_URL = "postgres://test_user:fake-secret@db.invalid:5432/testdb?sslmode=requ
 
 
 def settings(**kwargs):
-    return Settings(_env_file=None, database_url=FAKE_URL, **kwargs)
+    # Unit config tests must not inherit the integration cluster's CA override.
+    kwargs.setdefault("database_ssl_root_cert", None)
+    return Settings(_env_file=None, database_url=FAKE_URL, secret_key=secrets.token_urlsafe(32), **kwargs)
 
 
 def test_uri_normalization_keeps_original_secret():

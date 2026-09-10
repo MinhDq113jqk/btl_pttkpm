@@ -1,10 +1,70 @@
 # GreenCity Backend — Phase 1
 
+## Trạng thái mới nhất — Unit360 RBAC R1
+
+Đã chốt tám role backend và sửa quyền resource/tòa/trường dữ liệu cho Unit360.
+**135 tests pass** trên PostgreSQL test cô lập; migration mới **0003** đã kiểm từ
+DB trống, seed lặp an toàn. Xem [RBAC_R1.md](RBAC_R1.md) và [VALIDATION.md](VALIDATION.md).
+
+CSKH/Trưởng KT/An ninh cần grant building tường minh. Vệ sinh bị 403; KTV chưa có
+Work Order phân công nên bị 404. Residents bị policy ẩn sẽ trả [] và
+`residents_visible=false`; An ninh nhận `area_m2/status=null`. Client không được
+diễn giải dữ liệu bị ẩn thành không có dữ liệu.
+
+0003 **chưa áp dụng lên Aiven/DB đang dùng**. Phải review/upgrade trước chạy code
+mới; migration không tự cấp tòa cho grant cũ. Audit/readiness và các AC còn thiếu
+khiến Gate B/R1 vẫn chưa PASS. Nội dung phía dưới giữ kết quả các lượt trước.
+
+## Cập nhật mới nhất — sửa tenant/token, R1 vẫn chưa pass
+
+Có auth/login/me/switch-site và Unit360 một phần. Đã sửa tenant boundary,
+kiểm token/signing key, active-site query và 404 không lộ tồn tại. **90 tests pass**
+trên PostgreSQL test mới, migration từ DB trống + seed hai lần. Chi tiết và giới
+hạn trong [VALIDATION.md](VALIDATION.md). Resource/building/assigned RBAC, audit,
+readiness và role decisions chưa đủ: không dùng dữ liệu thật hoặc triển khai public.
+
+HTTP app nay **bắt buộc SECRET_KEY riêng**, không có development fallback.
+Ví dụ tạo key chỉ cho phiên demo local hiện tại (giá trị không in ra màn hình):
+
+```powershell
+$env:SECRET_KEY = & .\.venv\Scripts\python.exe -c "import secrets; print(secrets.token_urlsafe(48))"
+```
+
+Đổi key làm token cũ mất hiệu lực; triển khai nhiều process phải dùng cùng key từ
+secret store. Không đưa key vào source hoặc paste vào chat. Runner with-resources
+chỉ nạp DB config, nên cần cấp SECRET_KEY riêng trước khi chạy HTTP server.
+Migration/probe không yêu cầu signing key.
+
+Chạy toàn bộ regression với PostgreSQL tạm, không chạm Aiven/DB đang dùng:
+
+```powershell
+.\.venv\Scripts\python.exe -m scripts.test_isolated --pg-bin 'C:\Program Files\PostgreSQL\18\bin' --openssl 'C:\Program Files\Git\usr\bin\openssl.exe'
+```
+
+Runner tạo/dừng/xóa đúng cluster localhost riêng, TLS CA/password/key ngẫu nhiên;
+có thể cần quyền chạy local PostgreSQL ngoài sandbox. Không download dependency.
+Các mục Phase/Plan cũ bên dưới là lịch sử, không ghi đè trạng thái mới nhất này.
+
+## Trạng thái Plan 2 — 10/09/2026
+
+**Pre-R1, Gate B chưa pass.** Đã kiểm lại foundation và thêm phần contract P1:
+`GET /api/v1/health`, giữ `/health` làm alias tương thích không hiển thị trong
+OpenAPI; DTO lỗi chung khớp OpenAPI/runtime. Chưa có auth/RBAC/Data Scope,
+seed, Unit 360°, audit nghiệp vụ hoặc migration test trên DB trống cô lập.
+
+Nguồn hiện tại: [plan2.md](../plan2.md),
+[BACKEND_BASELINE.md](../BACKEND_BASELINE.md), [API_CONTRACT.md](API_CONTRACT.md).
+`PHASE_0_AUDIT.md` được README cũ tham chiếu nhưng không tồn tại tại checkout.
+Nội dung Phase bên dưới mô tả foundation lịch sử; mọi hướng phát triển AI,
+refund hoặc frontend trong kế hoạch cũ bị hoãn theo Plan 2.
+
 Nền tảng FastAPI cho hệ thống quản lý vận hành khu đô thị. Phase 1 có kết nối PostgreSQL, Tenant và health check; **chưa có auth, API nghiệp vụ, seed hay Gemini thật**.
 
 ## Kiến trúc và stack
 
-React → REST/FastAPI → service → repository → PostgreSQL Aiven. Gemini chỉ được nối sau auth/scope ở Phase 8. Router nghiệp vụ, schemas và services được tạo theo từng phase, không có module placeholder giả chức năng.
+Kiến trúc đích: React → REST/FastAPI → service → repository → PostgreSQL.
+Hiện runtime chỉ có foundation và health, chưa có service/repository nghiệp vụ.
+AI là SPEC-ONLY, không triển khai trong Plan 2.
 
 Python 3.12+, FastAPI, Pydantic v2/pydantic-settings, SQLAlchemy 2, psycopg 3, Alembic, pytest. Dependency ranges nằm ở `requirements.txt`; dùng `requirements.lock.txt` để tái lập phiên bản Windows/Python 3.12 đã kiểm tra.
 
@@ -12,7 +72,8 @@ Python 3.12+, FastAPI, Pydantic v2/pydantic-settings, SQLAlchemy 2, psycopg 3, A
 backend/
   app/main.py              # application factory + lifecycle
   app/core/                # config, DB pool/session, error envelope
-  app/api/health.py        # GET /health
+  app/api/health.py        # GET /api/v1/health + legacy /health
+  app/schemas/errors.py    # ErrorEnvelope chung cho runtime và OpenAPI
   app/models/              # Base, UUID/UTC mixin, Tenant
   app/middleware/          # correlation ID + safe request logging
   alembic/                 # migration env + reviewed revisions
@@ -80,7 +141,7 @@ Schema `greencity` tách khỏi `public`. Migration runner chỉ khởi tạo na
 Ở terminal khác:
 
 ```powershell
-Invoke-RestMethod http://127.0.0.1:8000/health
+Invoke-RestMethod http://127.0.0.1:8000/api/v1/health
 ```
 
 Kết quả thành công: `{"status":"ok","database":"connected"}`. DB lỗi trả 503 + `ERR-DATABASE-UNAVAILABLE`; không có thông tin kết nối. Health chỉ chứng minh DB reachable, không thay thế kiểm tra revision/schema hay auth.
@@ -119,6 +180,10 @@ try {
 .\.venv\Scripts\python.exe -m pip check
 ```
 
-Integration không DROP bảng/schema, không seed, không commit fixture. Test production auth/site/refund/chat chưa có vì module chưa build; xem [audit/kế hoạch](PHASE_0_AUDIT.md). Bộ test hiện tại có deprecation warnings từ test client của thư viện, không giấu warnings.
+Integration không DROP bảng/schema, không seed, không commit fixture. Bộ này
+không thay thế test migration từ DB trống cô lập. Test auth/site chưa có vì
+module chưa build; refund/chat nằm ngoài Plan 2. Xem
+[baseline](../BACKEND_BASELINE.md). Bộ test hiện tại có deprecation warnings
+từ test client của thư viện, không giấu warnings.
 
 Kết quả lệnh đã chạy và các giới hạn: [VALIDATION.md](VALIDATION.md).

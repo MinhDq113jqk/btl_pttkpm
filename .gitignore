@@ -22,6 +22,7 @@ Tài_nguyên.txt
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.test-runtime/
 .coverage
 htmlcov/
 *.log

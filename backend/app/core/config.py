@@ -20,9 +20,16 @@ class Settings(BaseSettings):
     cors_origins: list[str] = Field(default_factory=lambda: [
         "http://localhost:5173", "http://localhost:3000",
     ])
-    # Reserved for later phases; neither is required or used by foundation.
+    # Required by the HTTP app; migration/probe commands need only DB config.
     secret_key: SecretStr | None = None
     gemini_api_key: SecretStr | None = None
+
+    def auth_secret(self) -> str:
+        value = self.secret_key.get_secret_value() if self.secret_key else ""
+        if (len(value.strip().encode("utf-8")) < 32
+                or value.startswith(("your_", "greencity-default-development-"))):
+            raise ValueError("SECRET_KEY must be explicitly configured with at least 32 bytes; use a randomly generated key")
+        return value
 
     @model_validator(mode="after")
     def validate_settings(self):

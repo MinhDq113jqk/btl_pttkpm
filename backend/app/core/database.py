@@ -20,6 +20,9 @@ class Database:
         with self.engine.connect() as connection:
             connection.execute(text("SELECT 1"))
 
+    def get_session(self):
+        return self.sessions()
+
     def close(self) -> None:
         self.engine.dispose()
 

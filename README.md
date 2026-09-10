@@ -33,11 +33,17 @@ npm run dev
 
 ## Backend FastAPI — Phase 0–1
 
+Roadmap triển khai hiện tại là [Plan 2](plan2.md), ưu tiên backend Core MVP;
+không tiếp tục AI/refund hoặc mở rộng frontend theo kế hoạch Phase cũ.
+Baseline 10/09/2026: **Pre-R1; Gate B chưa pass**. Có contract foundation
+`/api/v1/health` và lỗi dùng chung; chưa có auth, scope hay Unit 360°.
+
 Đã thêm nền tảng trong `backend/`: config bằng environment, SQLAlchemy/psycopg,
 PostgreSQL Aiven qua TLS, Alembic, model Tenant UUID/UTC, `/health`, correlation ID
 và test. Frontend vẫn dùng dữ liệu demo; chưa có JWT, API nghiệp vụ hoặc Gemini thật.
 
-- [Audit repo, các phần thiếu và kế hoạch Phase 2–8](backend/PHASE_0_AUDIT.md).
+- [Baseline hiện tại, role matrix, bằng chứng và OPEN_DECISIONS](BACKEND_BASELINE.md).
+- [Contract foundation Plan 2 và các phần chưa hoàn thành](backend/API_CONTRACT.md).
 - [Cài đặt, environment, Aiven, migration, chạy server/Swagger, frontend, seed và testing](backend/README.md).
 
 ## Bảo vệ dữ liệu cục bộ

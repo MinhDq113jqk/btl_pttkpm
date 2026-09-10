@@ -1,9 +1,12 @@
 import logging
+from uuid import uuid4
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
+
+from app.schemas.errors import ErrorDetail, ErrorEnvelope
 
 logger = logging.getLogger("greencity")
 
@@ -14,10 +17,12 @@ class AppError(Exception):
 
 
 def error_response(request: Request, status: int, code: str, message: str):
-    correlation_id = getattr(request.state, "correlation_id", "")
-    return JSONResponse(status_code=status, content={"error": {
-        "code": code, "message": message, "correlation_id": correlation_id,
-    }}, headers={"X-Correlation-ID": correlation_id})
+    correlation_id = getattr(request.state, "correlation_id", None) or str(uuid4())
+    envelope = ErrorEnvelope(error=ErrorDetail(
+        code=code, message=message, correlation_id=correlation_id,
+    ))
+    return JSONResponse(status_code=status, content=envelope.model_dump(mode="json"),
+                        headers={"X-Correlation-ID": str(envelope.error.correlation_id)})
 
 
 def register_exception_handlers(app: FastAPI) -> None:
