@@ -1,4 +1,28 @@
-# GreenCity Backend — Phase 1
+# GreenCity Backend — R1/R2 local evidence
+
+## Trạng thái mới nhất — closeout R1 và R2
+
+Backend hiện có danh sách Service Request phân trang/lọc theo scope và lát dọc
+Service Request → nhiều Work Order → phân công KTV →
+checklist/ảnh → nghiệm thu, cùng Cost Line/Pending Charge, reversal và
+Asset/Maintenance scheduler. Phạm vi chính xác nằm tại
+[R2_CONTRACT.md](R2_CONTRACT.md).
+
+Ngày 13/09/2026, runner PostgreSQL 18.4/TLS cô lập pass **184 test** (2 warning
+deprecation), migration DB trống đến `0006`, kiểm `0005 -> 0006 -> 0005`,
+upgrade/seed lặp và `alembic check`. Kết quả không đồng nghĩa đã apply `0006`
+lên Aiven/production, không nâng Gate C/R3--R5 và không che evidence gap R1 còn
+phải xử lý. Contract CSV ImportRun/file safety nằm tại
+[R1_IMPORT_CONTRACT.md](R1_IMPORT_CONTRACT.md); verdict review là một điều kiện
+độc lập với test local.
+
+Chạy regression đầy đủ từ thư mục `backend/`:
+
+```powershell
+.\.venv\Scripts\python.exe -m scripts.test_isolated --pg-bin 'C:\Program Files\PostgreSQL\18\bin' --openssl 'C:\Program Files\Git\usr\bin\openssl.exe'
+```
+
+Các mục bên dưới là lịch sử R1 và hướng dẫn môi trường vẫn còn hiệu lực.
 
 ## Trạng thái mới nhất — Unit360 RBAC R1
 

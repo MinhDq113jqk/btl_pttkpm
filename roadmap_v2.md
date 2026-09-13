@@ -652,6 +652,7 @@ Mỗi lỗi có: mã ổn định, thông điệp cho người dùng bằng ti�
 | `ERR-INVOICE-IMMUTABLE` | Sửa hóa đơn đã phát hành | "Hóa đơn đã phát hành. Dùng điều chỉnh hoặc credit note." | `BR-AR-01`, `AC-16` |
 | `ERR-FILE-REJECTED` | Tệp sai loại/kích thước | Nêu rõ loại và kích thước cho phép | `ARC-18`, `AC-24` |
 | `ERR-FILE-QUARANTINED` | Tệp bị cách ly | "Tệp không an toàn và đã bị chặn" | `EVT-23`, `AC-24` |
+| `ERR-FILE-INTEGRITY` | Tệp private mất hoặc checksum không khớp | "Không thể xác thực tệp. Hãy tải lại hoặc liên hệ quản trị." | `NFR-09`, `AC-24` |
 | `ERR-LINK-EXPIRED` | Link tệp hết hạn | "Liên kết đã hết hạn. Tải lại trang." | `ARC-17`, `NFR-09` |
 | `ERR-OFFLINE` | Mất kết nối khi lưu | "Chưa lưu được. Nội dung vẫn còn trên biểu mẫu; hãy kết nối lại và thử lại." **Không báo thành công giả, không hứa đồng bộ offline** | `ARC-05`, `NFR-08` |
 | `ERR-MNT-DEFER` | Hoãn bảo trì không hợp lệ | "Cần nhập lý do và thời điểm xử lý mới hợp lệ." | `BR-AST-01`, `EX-23` |

@@ -31,19 +31,26 @@ npm install
 npm run dev
 ```
 
-## Backend FastAPI — Phase 0–1
+## Backend FastAPI — R1/R2 local evidence
 
-Roadmap triển khai hiện tại là [Plan 2](plan2.md), ưu tiên backend Core MVP;
-không tiếp tục AI/refund hoặc mở rộng frontend theo kế hoạch Phase cũ.
-Baseline 10/09/2026: **Pre-R1; Gate B chưa pass**. Có contract foundation
-`/api/v1/health` và lỗi dùng chung; chưa có auth, scope hay Unit 360°.
+Backend hiện có lát R2 CSKH/kỹ thuật/bảo trì và closeout R1 cho Person--Unit,
+CSV ImportRun/file safety. Lần runner PostgreSQL/TLS cô lập ngày 13/09/2026
+đạt head `0006`, migration `0005 -> 0006 -> 0005`, migration/seed lặp,
+`alembic check` và **184 test pass** (2 warning deprecation). Xem phạm vi,
+endpoint, state machine, role/scope và giới hạn tại
+[backend/R2_CONTRACT.md](backend/R2_CONTRACT.md) và
+[backend/R1_IMPORT_CONTRACT.md](backend/R1_IMPORT_CONTRACT.md).
 
-Đã thêm nền tảng trong `backend/`: config bằng environment, SQLAlchemy/psycopg,
-PostgreSQL Aiven qua TLS, Alembic, model Tenant UUID/UTC, `/health`, correlation ID
-và test. Frontend vẫn dùng dữ liệu demo; chưa có JWT, API nghiệp vụ hoặc Gemini thật.
+Desktop frontend đã nối read-only cho login → `/auth/me` → danh sách Service
+Request → Unit 360° bằng session thật; các phân hệ ngoài lát này vẫn là demo hoặc
+chưa mở sprint. `0006` chưa được tuyên bố đã apply lên Aiven/production. Bằng
+chứng local không tự động chứng minh mọi AC tiền đề R1, Gate C hoặc R3--R5 đã
+pass; trạng thái review/traceability hiện tại nằm tại checklist/VALIDATION.
 
 - [Baseline hiện tại, role matrix, bằng chứng và OPEN_DECISIONS](BACKEND_BASELINE.md).
 - [Contract foundation Plan 2 và các phần chưa hoàn thành](backend/API_CONTRACT.md).
+- [Contract CSV ImportRun và file safety R1](backend/R1_IMPORT_CONTRACT.md).
+- [Contract và bằng chứng R2](backend/R2_CONTRACT.md).
 - [Cài đặt, environment, Aiven, migration, chạy server/Swagger, frontend, seed và testing](backend/README.md).
 
 ## Bảo vệ dữ liệu cục bộ

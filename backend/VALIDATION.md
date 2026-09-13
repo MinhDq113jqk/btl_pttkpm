@@ -1,5 +1,61 @@
 # Backend — bằng chứng kiểm chứng
 
+## Mới nhất — R1 closeout, bằng chứng local (13/09/2026)
+
+- Lần chạy PostgreSQL 18.4/TLS cô lập gần nhất: DB trống nâng đến head `0006`,
+  kiểm migration `0005 -> 0006 -> 0005`, upgrade/seed lặp và `alembic check`:
+  PASS; toàn bộ regression **184 passed, 2 warning deprecation**.
+- AC-02/AC-24: `ImportRun` CSV bền vững (upload -> preview -> apply), quarantine,
+  checksum source/error, actor/scope-bound signed link, audit/outbox và concurrency
+  có test PostgreSQL. Antigravity Review #1 và Verification #2 đều
+  `STATUS: NEEDS_REVISION`; Codex đã sửa và chạy lại suite PASS, nhưng review
+  dừng đúng giới hạn hai lượt nên hai AC vẫn là `[-]`, chỉ được kết luận là
+  **đã kiểm chứng local**.
+- AC-03 Person--Unit: ratio/hiệu lực, fixture quan hệ và migration path có test
+  local PASS. Review #1 timeout với trạng thái remote không xác định; không retry,
+  giữ `[-]`.
+- AC-35 frontend switch-site: bằng chứng local nằm tại `STAFF_WORKSPACE.md`.
+  Lát này không có verdict mới trong lần closeout này; không suy diễn thành gate.
+
+Các kết quả trên không chứng minh Gate B/C, Aiven/production hoặc mở R3--R5.
+
+## Snapshot lịch sử — AC-02 Unit JSON import (12/09/2026, đã được thay bằng ImportRun CSV)
+
+Đã thêm `POST /api/v1/units/import` cho một tòa trong active site, với kết quả
+từng dòng, `partial`/`all_or_nothing`, receipt idempotent và audit/outbox trong
+một transaction. Đây chỉ là lát **Unit JSON đồng bộ**; contract và giới hạn tại
+[R1_IMPORT_CONTRACT.md](R1_IMPORT_CONTRACT.md).
+
+- PostgreSQL 18.4/TLS cô lập tại mốc AC-02: **169 passed**, 2 warning deprecation.
+- Migration/seed lặp và `alembic check`: PASS tại head `0004` ở mốc AC-02.
+- Test mới dùng đúng 1.000 dòng: 925 Unit mới, 75 warning, 50 skip duplicate và
+  25 `ERR-IMPORT-ROW`; replay cùng key không thêm Unit, payload khác cùng key
+  trả conflict; test thêm `all_or_nothing`, CSKH scope, scope giả và switch-site.
+- Lát AC-02 không tự tạo schema import riêng; CSV/upload, durable `ImportRun` và file lỗi vẫn ngoài lát này. Migration `0005` hiện thuộc AC-03.
+- Antigravity Review #1 đã gửi packet 18.485 ký tự sau self-check nhưng remote
+  timeout, không có `STATUS` xác nhận. Không tự retry hoặc gửi Review #2; lát
+  này chưa được stage/được coi là review-pass hay R1/Gate hoàn tất.
+
+## Mới nhất — R2 CSKH và kỹ thuật, candidate review (12/09/2026)
+
+Đã triển khai và kiểm chứng các exit criteria R2 `AC-06`, `AC-08..10`,
+`AC-38..39`. Contract, giới hạn và ánh xạ test nằm tại
+[R2_CONTRACT.md](R2_CONTRACT.md). `AC-07` vẫn là `SPEC-ONLY`; posting anchor
+không được coi là billing R4.
+
+- PostgreSQL 18.4/TLS cô lập: **165 passed**, không skip, 2 warning deprecation.
+- DB trống nâng đến `0004`; upgrade lặp, seed lặp và `alembic check`: PASS.
+- Offline Alembic SQL đến `COMMIT`; compileall, `pip check` và
+  `git diff --check`: PASS.
+- Scope tenant/site/building và KTV assigned-only cho cả list/detail, optimistic version,
+  idempotency, audit append-only, outbox anchor và private image evidence đều có
+  test PostgreSQL.
+
+Đây là bằng chứng cho lát R2, chưa phải tuyên bố Gate C/R3-R5 hay production
+ready. Các AC R1 tiền đề còn thiếu bằng chứng phải được theo dõi riêng; không
+được dùng test count R2 để mặc nhiên nâng R1 thành PASS. Nội dung R1 lịch sử phía
+dưới được giữ để truy vết.
+
 ## Mới nhất — SEC-02 Unit360 RBAC/building/field policy (10/09/2026)
 
 **Outcome: fixed** cho truy cập Unit360 vượt resource/building/field policy trong

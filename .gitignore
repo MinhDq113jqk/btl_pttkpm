@@ -23,6 +23,7 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .test-runtime/
+.private-evidence/
 .coverage
 htmlcov/
 *.log

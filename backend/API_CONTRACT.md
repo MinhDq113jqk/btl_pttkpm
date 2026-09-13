@@ -1,5 +1,60 @@
 # Plan 2 — Foundation API contract (P1, partial)
 
+## Delta R1 — AC-03 Person--Unit read contract
+
+`GET /api/v1/persons/{person_id}/units?as_of=YYYY-MM-DD` là đọc hai chiều
+cho quan hệ Person--Unit. Chỉ `admin`, `director`, `cskh`, `accountant` được
+gọi; database tự suy ra tenant, active site và building grant từ phiên hiện
+hành. Client không gửi hoặc mở rộng `tenant_id`, role, site hay building scope.
+
+- Kết quả chỉ chứa relationship đang hiệu lực theo khoảng nửa mở
+  `valid_from <= as_of < valid_to` (hoặc `valid_to` rỗng).
+- Mỗi item gồm Unit/tòa/site, `relationship_type`, `ownership_ratio` và
+  `valid_from`/`valid_to`; contact vẫn là dữ liệu masked.
+- Person không tồn tại, ngoài site/tòa hoặc chỉ có relationship không nằm trong
+  scope đều cùng trả `404 ERR-SCOPE-NOTFOUND`; thiếu role trả `403 ERR-FORBIDDEN`.
+- Migration `0005` bắt buộc ratio owner trong `(0, 1]`, tổng ratio owner hiệu lực
+  không vượt 1, không chồng episode cùng Person--Unit--type, và cấm thay tenant
+  của Person/Site hoặc di chuyển Unit/Building qua tenant khi đã có relationship.
+  Đây là bảo toàn tính đúng đắn DB, không phải claim Gate/release. Review #1
+  của lát AC-03 timeout; trạng thái hiện tại chỉ là bằng chứng local `[-]`.
+
+## Delta R1 — Unit CSV ImportRun (AC-02 / AC-24)
+
+Contract chi tiết tại [R1_IMPORT_CONTRACT.md](R1_IMPORT_CONTRACT.md). Các route
+thực thi dưới `/api/v1/import-runs` là `GET /template`, `POST /` (CSV body,
+`building_code`, `mode`, `Idempotency-Key`), `POST /{run_id}/preview`,
+`POST /{run_id}/apply`, `GET /{run_id}`, `GET /{run_id}/rows`, và signed
+error-file link/download. Request không nhận `tenant_id`, `site_id`,
+`building_id` hay role; backend suy toàn bộ scope từ session và database.
+
+- Chỉ `admin`/`cskh` có grant thật trong active site/building được dùng flow.
+  Ngoài scope trả `404 ERR-SCOPE-NOTFOUND`; role không hợp lệ trả 403.
+- ImportRun lưu source private, checksum, phiên bản, mapping, row result và
+  audit/outbox. Source không hợp lệ bị quarantine; checksum source/error sai
+  trả `ERR-FILE-INTEGRITY`.
+- Signed error-file token có `purpose=import-error-download`, ràng actor,
+  tenant/site/building/run và expiry; nó không thể dùng làm Bearer session.
+- `POST /api/v1/units/import` JSON cũ chỉ còn compatibility slice lịch sử,
+  không phải contract/evidence hiện hành để đóng AC-02.
+
+Head local là `0006`. PostgreSQL local đã kiểm migration `0005 -> 0006 -> 0005`
+và 184 test pass; Review #1 và #2 của AC-02/24 đều `NEEDS_REVISION`, sau đó
+Codex đã sửa/test lại nhưng không có lượt 3. Vì vậy đây không phải Gate/release
+claim và hai AC vẫn theo dõi `[-]`.
+
+## Delta R2 — Service Request, Work Order và Maintenance (12/09/2026)
+
+Contract R2 thực thi, state transition, role/scope, endpoint, idempotency và
+mapping `AC-06`, `AC-08..10`, `AC-38..39` được khóa tại
+[R2_CONTRACT.md](R2_CONTRACT.md). OpenAPI hiện publish toàn bộ route R2 dưới
+`/api/v1`; mọi response lỗi dùng envelope chung và khai báo cả HTTP 400 cho
+idempotency key/input command không hợp lệ.
+
+Snapshot P1/R1 phía dưới là lịch sử hình thành contract, không còn là danh sách
+endpoint hiện tại. `AC-07` vẫn `SPEC-ONLY`; frontend list/search, outbox worker và
+billing R4 không nằm trong delta R2.
+
 ## Delta mới nhất — resource/building/field policy
 
 Contract Unit360 hiện tuân theo [RBAC_R1.md](RBAC_R1.md). Roster Core tám role
