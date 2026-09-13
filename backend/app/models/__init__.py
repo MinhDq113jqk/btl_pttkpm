@@ -7,6 +7,7 @@ from app.models.unit import Unit
 from app.models.person import Person, UnitPersonRelationship
 from app.models.account import Account, AccountRole
 from app.models.platform import Attachment, AuditEvent, DomainEvent, IdempotencyRecord
+from app.models.import_run import ImportRun, ImportRunRow
 from app.models.service import (
     CaseRecord,
     ChargeReversal,
@@ -37,6 +38,8 @@ __all__ = [
     "AuditEvent",
     "DomainEvent",
     "IdempotencyRecord",
+    "ImportRun",
+    "ImportRunRow",
     "ServiceCategory",
     "ServiceRequest",
     "WorkOrder",

@@ -13,6 +13,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import time
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -35,6 +36,51 @@ def run(command, env, label, *, show_output=False):
     if result.returncode:
         raise RuntimeError(f"{label} failed (exit {result.returncode}); details suppressed")
     print(f"{label}: PASS")
+
+
+def _port_is_open(port: int) -> bool:
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=0.2):
+            return True
+    except OSError:
+        return False
+
+
+def run_pg_ctl(command, env, label, *, port: int, expect_open: bool) -> None:
+    """Start/stop a local cluster without waiting on inherited Windows handles."""
+    print(f"{label}: running", flush=True)
+    process = subprocess.Popen(
+        command,
+        cwd=ROOT,
+        env=env,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    deadline = time.monotonic() + 30
+    try:
+        while time.monotonic() < deadline:
+            if _port_is_open(port) is expect_open:
+                print(f"{label}: PASS")
+                return
+            # On Windows, pg_ctl can report a non-zero launcher result while
+            # its restricted-token child continues starting or stopping the
+            # actual server.  The dedicated loopback port is authoritative;
+            # failing immediately here makes a healthy disposable cluster
+            # look unavailable.
+            time.sleep(0.1)
+        raise RuntimeError(f"{label} timed out; details suppressed")
+    finally:
+        # `pg_ctl -w` can retain a wrapper handle in non-interactive Windows
+        # hosts even after postgres is ready.  It is only a launcher; the
+        # server is identified and stopped later by this exact data directory.
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
 
 
 def main():
@@ -64,9 +110,15 @@ def main():
         password = secrets.token_urlsafe(32)
         password_file = workspace / "password.txt"
         password_file.write_text(password + "\n", encoding="utf-8")
-        run([str(binaries["initdb"]), "-D", str(data), "-U", "test_migrator",
+        # PostgreSQL's Windows restricted-token re-exec misparses an absolute
+        # --pwfile path containing a drive colon under non-interactive hosts.
+        # The runner's cwd is ROOT, so a relative path keeps the secret file
+        # inside the generated workspace without weakening SCRAM setup.
+        data_arg = os.path.relpath(data, ROOT)
+        password_file_arg = os.path.relpath(password_file, ROOT)
+        run([str(binaries["initdb"]), "-D", data_arg, "-U", "test_migrator",
              "--auth=scram-sha-256", "--encoding=UTF8", "--locale=C",
-             "--pwfile", str(password_file)], env, "Fresh cluster init")
+             "--pwfile", password_file_arg], env, "Fresh cluster init")
         cert, key = workspace / "cert.pem", workspace / "key.pem"
         run([str(args.openssl), "req", "-x509", "-newkey", "rsa:2048", "-nodes",
              "-keyout", str(key), "-out", str(cert), "-days", "1", "-subj", "/CN=localhost",
@@ -77,12 +129,16 @@ def main():
         with (data / "postgresql.conf").open("a", encoding="utf-8") as config:
             config.write(f"\nlisten_addresses='127.0.0.1'\nport={port}\nssl=on\n"
                          f"ssl_cert_file='{cert.as_posix()}'\nssl_key_file='{key.as_posix()}'\n")
-        # No visible helper window; pg_ctl starts just this disposable cluster.
+        # `run_pg_ctl` starts just this disposable cluster and verifies its port.
         started = True  # A failed startup may still have launched the child server.
-        run([str(binaries["pg_ctl"]), "-D", str(data), "-l", str(workspace / "server.log"),
-             "-w", "-t", "30", "start"], env, "Test PostgreSQL startup")
+        server_log_arg = os.path.relpath(workspace / "server.log", ROOT)
+        run_pg_ctl([str(binaries["pg_ctl"]), "-D", data_arg, "-l", server_log_arg, "start"],
+                   env, "Test PostgreSQL startup", port=port, expect_open=True)
         env["DATABASE_URL"] = f"postgresql://test_migrator:{password}@127.0.0.1:{port}/postgres"
         env["DATABASE_SSL_ROOT_CERT"] = str(cert)
+        env["GREENCITY_ISOLATED_MIGRATION_PATH_TESTS"] = "1"
+        run([sys.executable, "-m", "scripts.test_migration_0005"], env, "AC-03 migration paths",
+            show_output=True)
         run([sys.executable, "-m", "scripts.migrate", "upgrade", "head"], env, "Empty DB migration")
         run([sys.executable, "-m", "scripts.migrate", "upgrade", "head"], env, "Migration repeat")
         # Fixtures for legacy regression tests are created only in this new cluster.
@@ -106,8 +162,8 @@ def main():
         stopped = not started
         if started:
             try:
-                run([str(binaries["pg_ctl"]), "-D", str(data), "-w", "-t", "30", "stop"],
-                    env, "Test PostgreSQL shutdown")
+                run_pg_ctl([str(binaries["pg_ctl"]), "-D", data_arg, "stop"],
+                           env, "Test PostgreSQL shutdown", port=port, expect_open=False)
                 stopped = True
             except Exception:
                 print("Test cluster shutdown failed; temporary files retained for local cleanup.")

@@ -1,3 +1,5 @@
+from datetime import date
+from decimal import Decimal
 import sys
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -114,6 +116,36 @@ def seed_database(session: Session) -> None:
         session.add(unit_w101)
         session.flush()
 
+    unit_w102 = session.execute(
+        select(Unit).where(Unit.building_id == building_w1.id, Unit.unit_number == "W1-0102")
+    ).scalar_one_or_none()
+    if not unit_w102:
+        unit_w102 = Unit(
+            building_id=building_w1.id,
+            unit_number="W1-0102",
+            floor=1,
+            area_m2=81.25,
+            status=UnitStatusEnum.OCCUPIED,
+            version=1,
+        )
+        session.add(unit_w102)
+        session.flush()
+
+    unit_w103 = session.execute(
+        select(Unit).where(Unit.building_id == building_w1.id, Unit.unit_number == "W1-0103")
+    ).scalar_one_or_none()
+    if not unit_w103:
+        unit_w103 = Unit(
+            building_id=building_w1.id,
+            unit_number="W1-0103",
+            floor=1,
+            area_m2=69.75,
+            status=UnitStatusEnum.OCCUPIED,
+            version=1,
+        )
+        session.add(unit_w103)
+        session.flush()
+
     unit_e101 = session.execute(
         select(Unit).where(Unit.building_id == building_e1.id, Unit.unit_number == "E1-0201")
     ).scalar_one_or_none()
@@ -154,9 +186,31 @@ def seed_database(session: Session) -> None:
             unit_id=unit_w101.id,
             person_id=person_an.id,
             relationship_type=RelationshipTypeEnum.OWNER,
-            is_active=True,
+            ownership_ratio=Decimal("1.0000"),
+            valid_from=date(2025, 1, 1),
         )
         session.add(rel_w101)
+
+    for unit, relationship_type, ownership_ratio in (
+        (unit_w102, RelationshipTypeEnum.OWNER, Decimal("0.5000")),
+        (unit_w103, RelationshipTypeEnum.TENANT, None),
+    ):
+        relationship = session.execute(
+            select(UnitPersonRelationship).where(
+                UnitPersonRelationship.unit_id == unit.id,
+                UnitPersonRelationship.person_id == person_an.id,
+                UnitPersonRelationship.relationship_type == relationship_type,
+                UnitPersonRelationship.valid_from == date(2025, 1, 1),
+            )
+        ).scalar_one_or_none()
+        if relationship is None:
+            session.add(UnitPersonRelationship(
+                unit_id=unit.id,
+                person_id=person_an.id,
+                relationship_type=relationship_type,
+                ownership_ratio=ownership_ratio,
+                valid_from=date(2025, 1, 1),
+            ))
 
     person_binh = session.execute(
         select(Person).where(Person.tenant_id == tenant.id, Person.phone_masked == "090***0002")
@@ -182,7 +236,8 @@ def seed_database(session: Session) -> None:
             unit_id=unit_e101.id,
             person_id=person_binh.id,
             relationship_type=RelationshipTypeEnum.OWNER,
-            is_active=True,
+            ownership_ratio=Decimal("1.0000"),
+            valid_from=date(2025, 1, 1),
         )
         session.add(rel_e101)
 

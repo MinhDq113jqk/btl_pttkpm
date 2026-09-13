@@ -1,6 +1,7 @@
+from datetime import date
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Header, Query, Request
 from sqlalchemy.orm import selectinload, with_loader_criteria
 
 from app.core.database import Database
@@ -8,15 +9,38 @@ from app.core.policy import UserContext, get_current_user_context, scope_not_fou
 from app.models.building import Building
 from app.models.person import Person, UnitPersonRelationship
 from app.models.unit import Unit
-from app.schemas.unit import ResidentInfo, Unit360Response
+from app.schemas.unit import (
+    ResidentInfo,
+    Unit360Response,
+    UnitImportRequest,
+    UnitImportResponse,
+)
+from app.services.unit_import import import_units
 
 router = APIRouter(prefix="/units", tags=["units"])
+
+
+@router.post("/import", response_model=UnitImportResponse)
+def import_unit_batch(
+    request: Request,
+    body: UnitImportRequest,
+    current_user: UserContext = Depends(get_current_user_context),
+    idempotency_key: str = Header(..., alias="Idempotency-Key"),
+):
+    """Apply the bounded, server-scoped Unit JSON import evidence slice."""
+    database: Database = request.app.state.database
+    with database.get_session() as session:
+        execution = import_units(session, current_user, request, body, idempotency_key)
+        if not execution.replayed:
+            session.commit()
+        return execution.response
 
 
 @router.get("/{unit_id}/360", response_model=Unit360Response)
 def get_unit_360(
     unit_id: UUID,
     request: Request,
+    as_of: date = Query(default_factory=date.today),
     current_user: UserContext = Depends(get_current_user_context),
 ):
     database: Database = request.app.state.database
@@ -49,10 +73,15 @@ def get_unit_360(
                 phone_masked=rel.person.phone_masked,
                 email_masked=rel.person.email_masked,
                 relationship_type=rel.relationship_type,
-                is_active=rel.is_active,
+                is_active=rel.valid_from <= as_of and (rel.valid_to is None or rel.valid_to > as_of),
+                ownership_ratio=rel.ownership_ratio,
+                valid_from=rel.valid_from,
+                valid_to=rel.valid_to,
             )
             for rel in (unit.relationships if residents_visible else [])
             if rel.person is not None
+            and rel.valid_from <= as_of
+            and (rel.valid_to is None or rel.valid_to > as_of)
         ]
 
         return Unit360Response(

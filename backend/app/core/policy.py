@@ -168,6 +168,10 @@ def get_current_user_context(
         raise AppError("ERR-UNAUTHORIZED", "Yêu cầu đăng nhập để truy cập tài nguyên", 401)
     claims = decode_token(authorization[len("Bearer "):].strip(),
                           request.app.state.settings.auth_secret())
+    # Signed download tokens share the signing key but are not browser/API
+    # sessions.  A URL token must never become a temporary bearer credential.
+    if claims.get("purpose") != "session":
+        raise AppError("ERR-UNAUTHORIZED", "Token không hợp lệ", 401)
     # decode_token validates claim types; role and tenant claims are never trusted.
     with request.app.state.database.get_session() as session:
         account = session.scalar(select(Account).where(

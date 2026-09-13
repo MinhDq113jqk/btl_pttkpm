@@ -87,18 +87,28 @@ def test_production_app_has_no_test_probes():
         "/api/v1/auth/login",
         "/api/v1/auth/me",
         "/api/v1/auth/switch-site",
+        "/api/v1/import-runs",
+        "/api/v1/import-runs/template",
+        "/api/v1/import-runs/{run_id}",
+        "/api/v1/import-runs/{run_id}/apply",
+        "/api/v1/import-runs/{run_id}/error-file",
+        "/api/v1/import-runs/{run_id}/error-file/signed-link",
+        "/api/v1/import-runs/{run_id}/preview",
+        "/api/v1/import-runs/{run_id}/rows",
         "/api/v1/maintenance-occurrences/{occurrence_id}/defer",
         "/api/v1/maintenance-plans",
         "/api/v1/maintenance-plans/{plan_id}",
         "/api/v1/maintenance/scheduler/run",
         "/api/v1/pending-charges/{charge_id}/decision",
         "/api/v1/pending-charges/{charge_id}/post",
+        "/api/v1/persons/{person_id}/units",
         "/api/v1/service-requests",
         "/api/v1/service-requests/sla/run",
         "/api/v1/service-requests/{request_id}",
         "/api/v1/service-requests/{request_id}/close",
         "/api/v1/service-requests/{request_id}/triage",
         "/api/v1/service-requests/{request_id}/work-orders",
+        "/api/v1/units/import",
         "/api/v1/units/{unit_id}/360",
         "/api/v1/work-orders/{work_order_id}",
         "/api/v1/work-orders/{work_order_id}/accept",
@@ -117,13 +127,13 @@ def test_production_app_has_no_test_probes():
 
 def test_readiness_requires_exact_schema_head(contract_client):
     http, database = contract_client
-    database.current_revision.return_value = "0004"
+    database.current_revision.return_value = "0006"
     response = http.get("/api/v1/readiness")
     assert response.status_code == 200
     assert response.json() == {
-        "status": "ready", "database": "connected", "schema_revision": "0004",
+        "status": "ready", "database": "connected", "schema_revision": "0006",
     }
-    database.current_revision.return_value = "0003"
+    database.current_revision.return_value = "0005"
     response = http.get("/api/v1/readiness")
     assert response.status_code == 503
     assert_error(response, "ERR-DATABASE-NOT-READY")

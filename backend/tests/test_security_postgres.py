@@ -1,4 +1,6 @@
 """Actual PostgreSQL + HTTP/auth; only the disposable cluster runner enables these."""
+from datetime import date
+from decimal import Decimal
 import os
 import secrets
 from uuid import uuid4
@@ -68,8 +70,13 @@ def case():
                   for i, t in enumerate(tenants)]
         session.add_all(people)
         session.flush()
-        session.add_all([UnitPersonRelationship(unit_id=units[0].id, person_id=p.id)
-                         for p in people])  # Deliberately inconsistent foreign-tenant relation.
+        session.add(UnitPersonRelationship(
+            unit_id=units[0].id,
+            person_id=people[0].id,
+            relationship_type="owner",
+            ownership_ratio=Decimal("1.0000"),
+            valid_from=date(2025, 1, 1),
+        ))
         session.commit()
     with TestClient(create_app(settings, database)) as client:
         yield client, database, settings, password, accounts, sites, units, people
@@ -98,17 +105,91 @@ def assert_scoped_404(response):
 def test_postgres_tls_and_head(case):
     with case[1].engine.connect() as connection:
         assert connection.scalar(text("SELECT ssl FROM pg_stat_ssl WHERE pid=pg_backend_pid()"))
-        assert connection.scalar(text("SELECT version_num FROM greencity.alembic_version")) == "0004"
+        assert connection.scalar(text("SELECT version_num FROM greencity.alembic_version")) == "0006"
 
 
 def test_seed_repeat_keeps_expected_counts(case):
-    # Separate connection cannot see the fixture's uncommitted transaction.
-    expected = {"tenants": 1, "sites": 2, "buildings": 2, "units": 2,
-                "persons": 2, "unit_person_relationships": 2, "accounts": 9,
-                "account_roles": 9, "service_categories": 2}
+    # Separate connection cannot see this fixture's uncommitted transaction.
+    # Other acceptance fixtures are allowed to create their own committed rows,
+    # so this verifies only the canonical seed rather than every table globally.
     with case[1].engine.connect() as connection:
-        for table, count in expected.items():
-            assert connection.scalar(text(f"SELECT count(*) FROM greencity.{table}")) == count
+        tenant_id = connection.execute(text(
+            "SELECT id FROM greencity.tenants WHERE name = 'GreenCity Corporation'"
+        )).scalar_one()
+        parameters = {"tenant_id": tenant_id}
+
+        def count(sql: str) -> int:
+            return connection.scalar(text(sql), parameters)
+
+        assert count("SELECT count(*) FROM greencity.tenants WHERE id = :tenant_id") == 1
+        assert count("""
+            SELECT count(*) FROM greencity.sites
+            WHERE tenant_id = :tenant_id AND code IN ('GC-WEST', 'GC-EAST')
+        """) == 2
+        assert count("""
+            SELECT count(*) FROM greencity.buildings building
+            JOIN greencity.sites site ON site.id = building.site_id
+            WHERE site.tenant_id = :tenant_id AND (
+                (site.code = 'GC-WEST' AND building.code = 'W1') OR
+                (site.code = 'GC-EAST' AND building.code = 'E1')
+            )
+        """) == 2
+        assert count("""
+            SELECT count(*) FROM greencity.units unit
+            JOIN greencity.buildings building ON building.id = unit.building_id
+            JOIN greencity.sites site ON site.id = building.site_id
+            WHERE site.tenant_id = :tenant_id AND (
+                (site.code = 'GC-WEST' AND building.code = 'W1'
+                 AND unit.unit_number IN ('W1-0101', 'W1-0102', 'W1-0103')) OR
+                (site.code = 'GC-EAST' AND building.code = 'E1'
+                 AND unit.unit_number = 'E1-0201')
+            )
+        """) == 4
+        assert count("""
+            SELECT count(*) FROM greencity.persons
+            WHERE tenant_id = :tenant_id AND phone_masked IN ('090***0001', '090***0002')
+        """) == 2
+        assert count("""
+            SELECT count(*) FROM greencity.unit_person_relationships relationship
+            JOIN greencity.units unit ON unit.id = relationship.unit_id
+            JOIN greencity.buildings building ON building.id = unit.building_id
+            JOIN greencity.sites site ON site.id = building.site_id
+            JOIN greencity.persons person ON person.id = relationship.person_id
+            WHERE site.tenant_id = :tenant_id AND (
+                (site.code = 'GC-WEST' AND building.code = 'W1'
+                 AND unit.unit_number IN ('W1-0101', 'W1-0102', 'W1-0103')
+                 AND person.phone_masked = '090***0001'
+                 AND relationship.relationship_type IN ('owner', 'tenant')) OR
+                (site.code = 'GC-EAST' AND building.code = 'E1'
+                 AND unit.unit_number = 'E1-0201'
+                 AND person.phone_masked = '090***0002'
+                 AND relationship.relationship_type = 'owner')
+            )
+        """) == 4
+        assert count("""
+            SELECT count(*) FROM greencity.accounts
+            WHERE tenant_id = :tenant_id AND username IN (
+                'admin_demo', 'director_west', 'cskh_west', 'cskh_east',
+                'accountant_west', 'techlead_west', 'technician_west',
+                'cleaning_west', 'security_west'
+            )
+        """) == 9
+        assert count("""
+            SELECT count(*) FROM greencity.account_roles role
+            JOIN greencity.accounts account ON account.id = role.account_id
+            WHERE account.tenant_id = :tenant_id AND account.username IN (
+                'admin_demo', 'director_west', 'cskh_west', 'cskh_east',
+                'accountant_west', 'techlead_west', 'technician_west',
+                'cleaning_west', 'security_west'
+            )
+        """) == 9
+        assert count("""
+            SELECT count(*) FROM greencity.service_categories category
+            JOIN greencity.sites site ON site.id = category.site_id
+            WHERE category.tenant_id = :tenant_id
+              AND site.code IN ('GC-WEST', 'GC-EAST')
+              AND category.code = 'TECHNICAL'
+        """) == 2
 
 
 def test_admin_cannot_read_foreign_tenant_or_inactive_site(case):
@@ -173,7 +254,7 @@ def test_revoked_membership_and_disabled_account_are_rechecked(case):
 def test_claims_never_override_database_identity_or_scope(case):
     client, _, settings, _, accounts, sites, units, _ = case
     claims = {"sub": str(accounts[1].id), "tenant_id": str(uuid4()),
-              "roles": ["admin"], "active_site_id": str(sites[0].id)}
+              "roles": ["admin"], "active_site_id": str(sites[0].id), "purpose": "session"}
     headers = {"Authorization": "Bearer " + create_token(claims, settings.auth_secret())}
     response = client.get("/api/v1/auth/me", headers=headers)
     assert response.status_code == 200
@@ -214,7 +295,13 @@ def same_site_other_building(case):
         unit = Unit(building_id=building.id, unit_number="OTHER", floor=2, area_m2=75, status="occupied")
         session.add(unit)
         session.flush()
-        session.add(UnitPersonRelationship(unit_id=unit.id, person_id=case[7][0].id))
+        session.add(UnitPersonRelationship(
+            unit_id=unit.id,
+            person_id=case[7][0].id,
+            relationship_type="owner",
+            ownership_ratio=Decimal("1.0000"),
+            valid_from=date(2025, 1, 1),
+        ))
         session.commit()
         return building, unit
 
@@ -395,7 +482,7 @@ def test_client_building_and_role_claims_cannot_expand_database_grant(case, same
     set_grants(case, [("cskh", site.id, unit.building_id)])
     claims = {"sub": str(case[4][1].id), "active_site_id": str(site.id), "roles": ["admin"],
               "building_ids": [str(same_site_other_building[0].id)],
-              "unit_grants": [{"role": "admin", "building_id": None}]}
+              "unit_grants": [{"role": "admin", "building_id": None}], "purpose": "session"}
     headers = {"Authorization": "Bearer " + create_token(claims, case[2].auth_secret()),
                "X-Role": "admin", "X-Building-ID": str(same_site_other_building[0].id)}
     assert_scoped_404(case[0].get(f"/api/v1/units/{same_site_other_building[1].id}/360?role=admin", headers=headers))

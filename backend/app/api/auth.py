@@ -26,6 +26,7 @@ def login_response(request: Request, session: Session, context: UserContext) -> 
     token = create_token({
         "sub": str(context.account_id), "tenant_id": str(context.tenant_id),
         "active_site_id": str(context.active_site_id) if context.active_site_id else None,
+        "purpose": "session",
     }, request.app.state.settings.auth_secret())
     return LoginResponse(access_token=token, token_type="Bearer", user=user_info(session, context))
 

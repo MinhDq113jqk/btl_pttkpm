@@ -42,8 +42,12 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
     register_exception_handlers(app)
     app.include_router(health_router, prefix="/api/v1")
     from app.api.auth import router as auth_router
+    from app.api.import_runs import router as import_runs_router
+    from app.api.persons import router as persons_router
     from app.api.units import router as units_router
     app.include_router(auth_router, prefix="/api/v1")
+    app.include_router(import_runs_router, prefix="/api/v1")
+    app.include_router(persons_router, prefix="/api/v1")
     app.include_router(units_router, prefix="/api/v1")
     app.include_router(service_requests_router, prefix="/api/v1")
     app.include_router(maintenance_router, prefix="/api/v1")
