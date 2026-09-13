@@ -98,13 +98,14 @@ def assert_scoped_404(response):
 def test_postgres_tls_and_head(case):
     with case[1].engine.connect() as connection:
         assert connection.scalar(text("SELECT ssl FROM pg_stat_ssl WHERE pid=pg_backend_pid()"))
-        assert connection.scalar(text("SELECT version_num FROM greencity.alembic_version")) == "0003"
+        assert connection.scalar(text("SELECT version_num FROM greencity.alembic_version")) == "0004"
 
 
 def test_seed_repeat_keeps_expected_counts(case):
     # Separate connection cannot see the fixture's uncommitted transaction.
     expected = {"tenants": 1, "sites": 2, "buildings": 2, "units": 2,
-                "persons": 2, "unit_person_relationships": 2, "accounts": 9, "account_roles": 9}
+                "persons": 2, "unit_person_relationships": 2, "accounts": 9,
+                "account_roles": 9, "service_categories": 2}
     with case[1].engine.connect() as connection:
         for table, count in expected.items():
             assert connection.scalar(text(f"SELECT count(*) FROM greencity.{table}")) == count

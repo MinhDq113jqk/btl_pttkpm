@@ -57,6 +57,7 @@ def main():
     if not workspace.is_relative_to(runtime_root.resolve()):
         raise RuntimeError("Unsafe test workspace")
     data = workspace / "data"
+    env["PRIVATE_STORAGE_PATH"] = str(workspace / "private-evidence")
     started = False
     success = False
     try:
@@ -87,6 +88,8 @@ def main():
         # Fixtures for legacy regression tests are created only in this new cluster.
         run([sys.executable, "-m", "scripts.seed"], env, "Demo seed")
         run([sys.executable, "-m", "scripts.seed"], env, "Seed repeat")
+        run([sys.executable, "-m", "scripts.migrate", "check"], env,
+            "Alembic schema drift", show_output=True)
         env["RUN_DB_INTEGRATION"] = "1"
         env["GREENCITY_ISOLATED_SECURITY_TESTS"] = "1"
         run([sys.executable, "-m", "pytest", "-q", "--tb=short", "-o",

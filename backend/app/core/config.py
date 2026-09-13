@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     database_url: SecretStr
     app_env: Literal["development", "test", "production"] = "development"
     database_ssl_root_cert: Path | None = None
+    private_storage_path: Path = BACKEND_ROOT / ".private-evidence"
+    attachment_link_ttl_seconds: int = Field(default=60, ge=1, le=300)
     cors_origins: list[str] = Field(default_factory=lambda: [
         "http://localhost:5173", "http://localhost:3000",
     ])

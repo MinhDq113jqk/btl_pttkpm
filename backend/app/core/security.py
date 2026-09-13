@@ -43,7 +43,14 @@ def create_token(payload: dict[str, Any], secret: str, expires_in_seconds: int =
     return f"{signing_input}.{sig_b64}"
 
 
-def decode_token(token: str, secret: str) -> dict[str, Any]:
+def decode_token(
+    token: str,
+    secret: str,
+    *,
+    expired_code: str = "ERR-UNAUTHORIZED",
+    expired_message: str = "Phiên đăng nhập đã hết hạn",
+    expired_status: int = 401,
+) -> dict[str, Any]:
     try:
         if len(token) > 16384:
             raise ValueError("Token too large")
@@ -90,7 +97,7 @@ def decode_token(token: str, secret: str) -> dict[str, Any]:
         expiration = payload.get("exp")
         if (type(expiration) not in (int, float) or not math.isfinite(expiration)
                 or expiration <= time.time()):
-            raise AppError("ERR-UNAUTHORIZED", "Phiên đăng nhập đã hết hạn", 401)
+            raise AppError(expired_code, expired_message, expired_status)
 
         return payload
     except AppError:

@@ -20,6 +20,12 @@ class Database:
         with self.engine.connect() as connection:
             connection.execute(text("SELECT 1"))
 
+    def current_revision(self) -> str | None:
+        with self.engine.connect() as connection:
+            return connection.scalar(text(
+                "SELECT version_num FROM greencity.alembic_version"
+            ))
+
     def get_session(self):
         return self.sessions()
 

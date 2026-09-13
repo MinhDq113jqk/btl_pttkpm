@@ -4,6 +4,7 @@ from uuid import uuid4
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import IntegrityError
 from starlette.exceptions import HTTPException
 
 from app.schemas.errors import ErrorDetail, ErrorEnvelope
@@ -34,6 +35,11 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def validation_error(request: Request, exc: RequestValidationError):
         # Never echo rejected bodies: future login payloads contain passwords.
         return error_response(request, 422, "ERR-VALIDATION", "Dữ liệu yêu cầu không hợp lệ.")
+
+    @app.exception_handler(IntegrityError)
+    async def integrity_error(request: Request, exc: IntegrityError):
+        # Constraint details may contain private values; expose only the stable contract.
+        return error_response(request, 409, "ERR-CONFLICT", "Dữ liệu xung đột với bản ghi hiện có.")
 
     @app.exception_handler(HTTPException)
     async def http_error(request: Request, exc: HTTPException):

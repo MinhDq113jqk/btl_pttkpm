@@ -78,16 +78,58 @@ def test_production_app_has_no_test_probes():
                       database_url="postgresql://fixture@db.invalid/fixture", secret_key=secrets.token_urlsafe(32))
     app = create_app(config, Mock(spec=Database))
     expected = {
+        "/api/v1/assets",
+        "/api/v1/assets/{asset_id}",
+        "/api/v1/attachments/{attachment_id}/content",
+        "/api/v1/attachments/{attachment_id}/signed-link",
         "/api/v1/health",
+        "/api/v1/readiness",
         "/api/v1/auth/login",
         "/api/v1/auth/me",
         "/api/v1/auth/switch-site",
+        "/api/v1/maintenance-occurrences/{occurrence_id}/defer",
+        "/api/v1/maintenance-plans",
+        "/api/v1/maintenance-plans/{plan_id}",
+        "/api/v1/maintenance/scheduler/run",
+        "/api/v1/pending-charges/{charge_id}/decision",
+        "/api/v1/pending-charges/{charge_id}/post",
+        "/api/v1/service-requests",
+        "/api/v1/service-requests/sla/run",
+        "/api/v1/service-requests/{request_id}",
+        "/api/v1/service-requests/{request_id}/close",
+        "/api/v1/service-requests/{request_id}/triage",
+        "/api/v1/service-requests/{request_id}/work-orders",
         "/api/v1/units/{unit_id}/360",
+        "/api/v1/work-orders/{work_order_id}",
+        "/api/v1/work-orders/{work_order_id}/accept",
+        "/api/v1/work-orders/{work_order_id}/assign",
+        "/api/v1/work-orders/{work_order_id}/cancel",
+        "/api/v1/work-orders/{work_order_id}/checklist/{item_id}",
+        "/api/v1/work-orders/{work_order_id}/close",
+        "/api/v1/work-orders/{work_order_id}/cost-lines",
+        "/api/v1/work-orders/{work_order_id}/evidence",
+        "/api/v1/work-orders/{work_order_id}/reopen",
+        "/api/v1/work-orders/{work_order_id}/start",
+        "/api/v1/work-orders/{work_order_id}/submit",
     }
     assert set(app.openapi()["paths"]) == expected
 
 
-@pytest.mark.parametrize("status", [401, 403, 404, 405, 409, 422, 500, 503])
+def test_readiness_requires_exact_schema_head(contract_client):
+    http, database = contract_client
+    database.current_revision.return_value = "0004"
+    response = http.get("/api/v1/readiness")
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "ready", "database": "connected", "schema_revision": "0004",
+    }
+    database.current_revision.return_value = "0003"
+    response = http.get("/api/v1/readiness")
+    assert response.status_code == 503
+    assert_error(response, "ERR-DATABASE-NOT-READY")
+
+
+@pytest.mark.parametrize("status", [400, 401, 403, 404, 405, 409, 422, 500, 503])
 def test_openapi_errors_use_shared_dto(contract_client, status):
     http, _ = contract_client
     spec = http.get("/openapi.json").json()

@@ -10,6 +10,7 @@ from app.models.building import Building
 from app.models.enums import RelationshipTypeEnum, RoleEnum, UnitStatusEnum
 from app.models.person import Person, UnitPersonRelationship
 from app.models.site import Site
+from app.models.service import ServiceCategory
 from app.models.tenant import Tenant
 from app.models.unit import Unit
 
@@ -77,6 +78,25 @@ def seed_database(session: Session) -> None:
         )
         session.add(building_e1)
         session.flush()
+
+    # R2 request taxonomy is site-scoped and intentionally contains no PII.
+    for site, building in ((site_west, building_w1), (site_east, building_e1)):
+        category = session.execute(select(ServiceCategory).where(
+            ServiceCategory.tenant_id == tenant.id,
+            ServiceCategory.site_id == site.id,
+            ServiceCategory.code == "TECHNICAL",
+        )).scalar_one_or_none()
+        if category is None:
+            session.add(ServiceCategory(
+                tenant_id=tenant.id,
+                site_id=site.id,
+                building_id=building.id,
+                code="TECHNICAL",
+                name="Yêu cầu kỹ thuật",
+                sla_minutes=240,
+                is_active=True,
+                version=1,
+            ))
 
     # 4. Units
     unit_w101 = session.execute(

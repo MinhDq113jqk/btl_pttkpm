@@ -41,6 +41,7 @@ class UserContext:
     # Concrete tenant-validated IDs. Legacy None fails closed, never a wildcard.
     allowed_site_ids: list[UUID] | None
     unit_grants: tuple[UnitGrant, ...] = ()
+    role_grants: tuple[UnitGrant, ...] = ()
 
     def is_admin(self) -> bool:
         return "admin" in self.roles
@@ -55,6 +56,29 @@ class UserContext:
     def assert_role(self, *required_roles: str) -> None:
         if not any(role in self.roles for role in required_roles):
             raise AppError("ERR-FORBIDDEN", "Bạn không có quyền thực hiện thao tác này", 403)
+
+    def assert_active_site(self) -> UUID:
+        if self.active_site_id is None or not self.can_access_site(self.active_site_id):
+            raise scope_not_found()
+        return self.active_site_id
+
+    def matching_grants(self, roles: set[str] | frozenset[str], building_id: UUID) -> tuple[UnitGrant, ...]:
+        return tuple(grant for grant in self.role_grants
+                     if grant.role in roles
+                     and (grant.building_id == building_id
+                          or (grant.building_id is None and grant.role not in BUILDING_UNIT_ROLES)))
+
+    def assert_building_role(self, building_id: UUID, *required_roles: str) -> None:
+        self.assert_active_site()
+        self.assert_role(*required_roles)
+        if not self.matching_grants(frozenset(required_roles), building_id):
+            raise scope_not_found()
+
+    def scope_conditions(self, model):
+        return (
+            model.tenant_id == self.tenant_id,
+            model.site_id == self.assert_active_site(),
+        )
 
     def sites_query(self):
         return select(Site).where(
@@ -119,11 +143,21 @@ def context_for_account(session: Session, account: Account,
         known_role,
         or_(role_scope, and_(AccountRole.role == "admin", AccountRole.site_id.is_(None))),
     )).all()
+    role_grants = tuple(UnitGrant(grant.role, grant.building_id) for grant in roles)
     unit_grants = tuple(UnitGrant(grant.role, grant.building_id) for grant in roles
                         if grant.role in SITE_WIDE_UNIT_ROLES
                         or (grant.role in BUILDING_UNIT_ROLES and grant.building_id is not None))
-    return UserContext(account.id, account.tenant_id, account.username, account.full_name,
-                       sorted({grant.role for grant in roles}), active_site_id, site_ids, unit_grants)
+    return UserContext(
+        account_id=account.id,
+        tenant_id=account.tenant_id,
+        username=account.username,
+        full_name=account.full_name,
+        roles=sorted({grant.role for grant in roles}),
+        active_site_id=active_site_id,
+        allowed_site_ids=site_ids,
+        unit_grants=unit_grants,
+        role_grants=role_grants,
+    )
 
 
 def get_current_user_context(

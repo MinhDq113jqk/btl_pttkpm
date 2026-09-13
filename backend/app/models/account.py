@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import Boolean, CheckConstraint, ForeignKey, ForeignKeyConstraint, String, UniqueConstraint, Uuid
+from sqlalchemy import Boolean, CheckConstraint, ForeignKey, ForeignKeyConstraint, Index, String, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, IdentityTimestampMixin
@@ -10,9 +10,11 @@ class Account(IdentityTimestampMixin, Base):
     __tablename__ = "accounts"
     __table_args__ = (
         UniqueConstraint("tenant_id", "username", name="uq_accounts_tenant_id_username"),
+        UniqueConstraint("id", "tenant_id", name="uq_accounts_id_tenant_id"),
+        Index("ix_greencity_accounts_tenant_id", "tenant_id"),
     )
 
-    tenant_id: Mapped[UUID] = mapped_column(ForeignKey("greencity.tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    tenant_id: Mapped[UUID] = mapped_column(ForeignKey("greencity.tenants.id", ondelete="CASCADE"), nullable=False)
     username: Mapped[str] = mapped_column(String(100), nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[str] = mapped_column(String(200), nullable=False)
@@ -28,11 +30,13 @@ class AccountRole(IdentityTimestampMixin, Base):
         ForeignKeyConstraint(["building_id", "site_id"],
                              ["greencity.buildings.id", "greencity.buildings.site_id"],
                              name="fk_account_roles_building_site", ondelete="CASCADE"),
+        Index("ix_greencity_account_roles_account_id", "account_id"),
+        Index("ix_greencity_account_roles_site_id", "site_id"),
     )
 
-    account_id: Mapped[UUID] = mapped_column(ForeignKey("greencity.accounts.id", ondelete="CASCADE"), nullable=False, index=True)
+    account_id: Mapped[UUID] = mapped_column(ForeignKey("greencity.accounts.id", ondelete="CASCADE"), nullable=False)
     role: Mapped[str] = mapped_column(String(50), nullable=False)
-    site_id: Mapped[UUID | None] = mapped_column(ForeignKey("greencity.sites.id", ondelete="CASCADE"), nullable=True, index=True)
+    site_id: Mapped[UUID | None] = mapped_column(ForeignKey("greencity.sites.id", ondelete="CASCADE"), nullable=True)
     building_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True, index=True)
 
     site = relationship("Site")

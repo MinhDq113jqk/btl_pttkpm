@@ -26,6 +26,7 @@ ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
         }},
     }
     for status, description in {
+        400: "Yêu cầu không hợp lệ.",
         401: "Chưa xác thực.",
         403: "Không có quyền thực hiện.",
         404: "Không tìm thấy dữ liệu.",
