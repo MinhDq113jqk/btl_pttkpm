@@ -1,248 +1,51 @@
 const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
-const path = require('node:path');
 const fs = require('node:fs');
-const { loginAs } = require('./staff-helpers.cjs');
-const output = path.resolve(__dirname, '../artifacts/ux');
-const baseURL = process.env.UX_BASE_URL || 'http://127.0.0.1:3000/';
+const path = require('node:path');
+const { installAuthApiMocks, loginAs } = require('./staff-helpers.cjs');
+
+const output = path.resolve(__dirname, '../artifacts/desktop-integration');
 fs.mkdirSync(output, { recursive: true });
 
 (async () => {
   const browser = await chromium.launch({ headless: true, channel: 'msedge' });
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, locale: 'vi-VN' });
   const checks = [];
   const errors = [];
-  const check = (name, result = true) => { assert.ok(result, name); checks.push(name); console.log(`PASS ${name}`); };
+  const check = (name, value = true) => { assert.ok(value, name); checks.push(name); console.log(`PASS ${name}`); };
+  page.on('pageerror', error => errors.push(error.message));
   try {
-    const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'vi-VN' });
-    const page = await context.newPage();
-    page.on('pageerror', error => errors.push(error.message));
-    const nav = name => page.getByRole('navigation', { name: 'Điều hướng chính' }).getByRole('button', { name, exact: true }).click();
-    const shot = async name => {
-      if (await page.locator('.app-toast button').count() && await page.locator('dialog[open]').count() === 0) await page.locator('.app-toast button').click();
-      await page.screenshot({ path: path.join(output, name) });
-    };
-    const visibleActions = async () => page.locator('.form-action-bar').evaluate(bar => {
-      const main = document.querySelector('main').getBoundingClientRect();
-      return [...bar.querySelectorAll('button')].every(button => {
-        const rect = button.getBoundingClientRect();
-        return rect.top >= main.top && rect.bottom <= main.bottom && rect.left >= main.left && rect.right <= main.right;
-      });
-    });
-    const noOverflow = async () => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth && document.querySelector('main').scrollWidth <= document.querySelector('main').clientWidth + 1);
-
-    await page.goto(baseURL, { waitUntil: 'domcontentloaded' });
-    await loginAs(page, 'director');
-    await shot('initial-load.png');
-    await page.getByRole('heading', { name: 'Tổng quan điều hành' }).waitFor();
+    await installAuthApiMocks(page);
+    await page.goto(process.env.UX_BASE_URL || 'http://127.0.0.1:3000/');
     await page.waitForLoadState('networkidle');
-    check('desktop opens without mobile simulator', await page.getByRole('button', { name: 'Mobile', exact: true }).count() === 0);
-    check('desktop has no page overflow', await noOverflow());
-    await shot('after-overview-1440.png');
-    await page.getByRole('button', { name: 'Xem tất cả', exact: true }).click();
-    await page.getByRole('heading', { name: 'Công việc & Yêu cầu', exact: true }).waitFor();
-    check('View all navigates to tasks, not refund', await page.locator('tbody tr').count() === 7);
-    await page.getByRole('button', { name: 'Quá hạn 1', exact: true }).click();
-    check('overdue filter shows one task', await page.locator('tbody tr').count() === 1);
-    await page.getByLabel('Bộ phận', { exact: false }).selectOption('Vệ sinh');
-    check('combined filters show recoverable empty state', await page.getByRole('heading', { name: 'Không có công việc phù hợp' }).isVisible());
-    await page.getByRole('button', { name: 'Hiển thị tất cả công việc' }).click();
-    await page.getByLabel('Tìm trong danh sách công việc').fill('may bom');
-    check('accent-insensitive task search', await page.locator('tbody tr').count() === 1);
-    await nav('Tổng quan');
-    await nav('Công việc & Yêu cầu');
-    check('task filter survives navigation', await page.getByLabel('Tìm trong danh sách công việc').inputValue() === 'may bom');
-    await page.getByRole('button', { name: 'Xóa bộ lọc', exact: true }).click();
-    await page.getByRole('button', { name: 'Hạn xử lý', exact: true }).click();
-    check('table announces descending sort', await page.locator('th[aria-sort]').getAttribute('aria-sort') === 'descending');
-    await page.getByRole('button', { name: 'Hạn xử lý', exact: true }).click();
-    await shot('after-tasks-1440.png');
-    const firstTask = page.getByRole('button', { name: 'Mở công việc KT-2608-097', exact: true });
-    await firstTask.click();
-    check('task opens real detail dialog', await page.getByRole('dialog', { name: 'KT-2608-097' }).isVisible());
-    for (let index = 0; index < 8; index++) {
-      await page.keyboard.press('Tab');
-      assert.ok(await page.evaluate(() => document.querySelector('dialog[open]').contains(document.activeElement)), 'focus escaped dialog');
-    }
-    check('dialog traps keyboard focus');
-    await page.keyboard.press('Escape');
-    check('Escape closes and restores task focus', await firstTask.evaluate(element => element === document.activeElement));
+    await loginAs(page);
+    await page.getByRole('navigation', { name: 'Điều hướng chính' }).getByRole('button', { name: 'Công việc & Yêu cầu', exact: true }).click();
+    await page.getByText('SR-UX-001', { exact: true }).waitFor();
 
-    await page.getByRole('button', { name: 'Tìm kiếm công việc và phân hệ' }).focus();
-    await page.keyboard.press('Control+k');
-    const search = page.getByLabel('Tìm theo mã, tên công việc hoặc phân hệ');
-    await search.waitFor();
-    check('Ctrl K focuses search field', await search.evaluate(element => element === document.activeElement));
-    await search.fill('zzzzzz');
-    check('global search empty state', await page.getByRole('heading', { name: 'Không tìm thấy kết quả' }).isVisible());
-    await search.fill('may bom');
-    await page.getByRole('dialog', { name: 'Tìm kiếm nhanh' }).getByRole('button', { name: /Bảo dưỡng máy bơm tăng áp tầng hầm/ }).click();
-    check('global search opens matching task', await page.getByRole('dialog', { name: 'KT-2608-088' }).isVisible());
-    await page.keyboard.press('Escape');
-    await page.getByRole('button', { name: 'Thông báo, 2 chưa đọc', exact: true }).click();
-    await page.getByRole('button', { name: 'Đánh dấu tất cả đã đọc', exact: true }).click();
-    check('mark read updates shared header badge', await page.getByRole('button', { name: 'Thông báo, 0 chưa đọc', exact: true }).isVisible());
-    await page.getByRole('button', { name: 'Chưa đọc 0', exact: true }).click();
-    check('notifications have completed empty state', await page.getByRole('heading', { name: 'Bạn đã đọc hết thông báo' }).isVisible());
-    await page.getByRole('button', { name: 'Xem tất cả thông báo', exact: true }).click();
-    await shot('after-notifications-1440.png');
+    check('task table is labelled as a scoped service-request list', await page.getByRole('region', { name: 'Bảng yêu cầu dịch vụ, có thể cuộn ngang' }).isVisible());
+    check('sort control exposes its direction', await page.getByRole('columnheader', { name: /SLA/ }).getAttribute('aria-sort') === 'ascending');
+    await page.getByRole('columnheader', { name: /SLA/ }).getByRole('button').click();
+    check('sort direction toggles from keyboard-reachable control', await page.getByRole('columnheader', { name: /SLA/ }).getAttribute('aria-sort') === 'descending');
 
-    await loginAs(page, 'accountant');
-    await nav('Phiếu hoàn tiền & Hoá đơn');
-    check('refund date uses valid ISO value', await page.locator('#postingDate').inputValue() === '2026-09-04');
-    check('form actions stay fully visible at top', await visibleActions());
-    await shot('after-refund-1440.png');
-    await page.locator('#refundAmount').fill('-100');
-    await page.locator('#postingDate').fill('');
-    await page.locator('#bankName').fill('');
-    await page.getByRole('button', { name: 'Kiểm tra & xác nhận', exact: true }).click();
-    check('invalid submit focuses linked error summary', await page.locator('.error-summary').evaluate(element => element === document.activeElement));
-    check('amount input preserves invalid value instead of silently changing it', await page.locator('#refundAmount').inputValue() === '-100');
-    check('multiple errors remain inline', await page.locator('.error-summary li').count() === 3);
-    await page.locator('.error-summary').getByRole('link', { name: 'Nhập tên ngân hàng thụ hưởng.' }).click();
-    check('summary link focuses invalid field', await page.locator('#bankName').evaluate(element => element === document.activeElement));
-    check('invalid field focus is not hidden by sticky action bar', await page.locator('#bankName').evaluate(element => element.getBoundingClientRect().bottom <= document.querySelector('.form-action-bar').getBoundingClientRect().top));
-    await page.locator('#refundAmount').fill('1200000');
-    await page.locator('#postingDate').fill('2026-09-08');
-    await page.getByRole('radio', { name: 'Tiền mặt tại quầy', exact: true }).check();
-    await page.getByRole('button', { name: 'Kiểm tra & xác nhận', exact: true }).click();
-    const confirm = page.getByRole('dialog', { name: 'Xác nhận phiếu hoàn tiền mẫu' });
-    await confirm.waitFor();
-    check('cash confirmation does not show bank account', await confirm.getByText('Tiền mặt tại quầy', { exact: true }).isVisible() && await confirm.getByText('Số tài khoản', { exact: true }).count() === 0);
-    await shot('after-confirmation.png');
-    await page.keyboard.press('Escape');
-    check('confirmation cancel preserves amount', await page.locator('#refundAmount').inputValue() === '1200000');
-    await page.locator('#remarks').fill('Nội dung nháp kiểm thử');
-    await nav('Tổng quan');
-    await page.getByRole('dialog', { name: 'Phiếu có thay đổi chưa lưu' }).waitFor();
-    await page.getByRole('button', { name: 'Ở lại', exact: true }).click();
-    check('dirty navigation guard retains edits', await page.locator('#remarks').inputValue() === 'Nội dung nháp kiểm thử');
-    await page.getByRole('button', { name: 'Lưu bản nháp', exact: true }).click();
-    await page.reload();
-    await page.getByRole('heading', { name: 'Kiểm tra phiếu hoàn tiền' }).waitFor();
-    check('saved draft restores after reload', await page.locator('#remarks').inputValue() === 'Nội dung nháp kiểm thử' && await page.locator('#refundAmount').inputValue() === '1200000');
-    await page.locator('#remarks').fill('Thay đổi sẽ bỏ');
-    await nav('Tổng quan');
-    await page.getByRole('button', { name: 'Rời đi, bỏ thay đổi', exact: true }).click();
-    await nav('Phiếu hoàn tiền & Hoá đơn');
-    check('discard returns to last saved draft', await page.locator('#remarks').inputValue() === 'Nội dung nháp kiểm thử');
-    await page.evaluate(() => { window.__restoreStorageSet = Storage.prototype.setItem; Storage.prototype.setItem = () => { throw new Error('Storage blocked for UX test'); }; });
-    await page.locator('#remarks').fill('Nháp chưa lưu do lỗi lưu trữ');
-    await page.getByRole('button', { name: 'Lưu bản nháp', exact: true }).click();
-    check('blocked storage shows recovery feedback and retains form', await page.getByRole('status').filter({ hasText: 'Không lưu được bản nháp' }).isVisible() && await page.locator('#remarks').inputValue() === 'Nháp chưa lưu do lỗi lưu trữ');
-    await page.evaluate(() => { Storage.prototype.setItem = window.__restoreStorageSet; delete window.__restoreStorageSet; });
-    await page.locator('#attachments').setInputFiles({ name: 'invalid.exe', mimeType: 'application/octet-stream', buffer: Buffer.from('test') });
-    check('invalid attachment shows actionable error', await page.getByRole('alert').filter({ hasText: 'Chỉ nhận tệp PDF' }).isVisible());
-    await page.locator('#attachments').setInputFiles({ name: 'sample-proof.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 test-only') });
-    check('valid file is added locally', await page.getByText('sample-proof.pdf', { exact: true }).isVisible());
-    await page.getByRole('button', { name: 'Gỡ chứng từ sample-proof.pdf', exact: true }).click();
-    check('remove attachment affects only current form', await page.getByText('sample-proof.pdf', { exact: true }).count() === 0);
-    await page.getByRole('button', { name: 'Kiểm tra & xác nhận', exact: true }).click();
-    await page.getByRole('button', { name: 'Trình duyệt mô phỏng', exact: true }).click();
-    check('confirmation exposes busy state', await confirm.getAttribute('aria-busy') === 'true');
-    await page.getByRole('heading', { name: 'Tài chính & đối soát' }).waitFor();
-    check('confirmation clears saved draft without sending a payment', await page.evaluate(() => sessionStorage.getItem('greencity.refund-draft.v1:demo-accountant')) === null);
-    await page.goBack();
-    await page.getByRole('heading', { name: 'Kiểm tra phiếu hoàn tiền' }).waitFor();
-    await page.goForward();
-    await page.getByRole('heading', { name: 'Tài chính & đối soát' }).waitFor();
-    check('browser back and forward restore route');
+    await page.getByRole('button', { name: 'Mở yêu cầu SR-UX-001' }).click();
+    check('read-only detail shows record id and SLA', await page.getByRole('dialog', { name: 'SR-UX-001' }).getByText('ID hồ sơ', { exact: true }).isVisible() && await page.getByRole('dialog', { name: 'SR-UX-001' }).getByText('Hạn SLA', { exact: true }).isVisible());
+    await page.getByRole('button', { name: 'Đóng chi tiết' }).click();
 
-    for (const [width, height] of [[1920, 1080], [1366, 768], [1280, 720], [1024, 768], [800, 600]]) {
+    await page.getByRole('button', { name: 'Tìm kiếm công việc và phân hệ' }).click();
+    await page.getByLabel('Tìm theo mã, tên công việc hoặc phân hệ').fill('SR-UX-001');
+    check('global search is limited to the visible server page', await page.getByRole('dialog', { name: 'Tìm kiếm nhanh' }).getByText('Kiểm tra đèn hành lang', { exact: true }).isVisible());
+    await page.keyboard.press('Escape');
+
+    await page.goto(`${process.env.UX_BASE_URL || 'http://127.0.0.1:3000/'}#/refund-form`);
+    await page.getByRole('heading', { name: 'Không có quyền xem phân hệ này' }).waitFor();
+    check('deep link cannot mount a hidden mock operation', await page.locator('.refund-page').count() === 0);
+
+    for (const [width, height] of [[1440, 900], [1024, 768], [800, 600]]) {
       await page.setViewportSize({ width, height });
-      await nav('Tổng quan');
-      check(`overview fits ${width}x${height}`, await noOverflow());
-      await shot(`overview-${width}.png`);
-      await nav('Công việc & Yêu cầu');
-      check(`tasks fit ${width}x${height}`, await noOverflow());
-      await nav('Phiếu hoàn tiền & Hoá đơn');
-      await page.locator('main').evaluate(element => { element.scrollTop = 0; });
-      check(`form action bar visible ${width}x${height}`, await visibleActions());
-      check(`refund fits ${width}x${height}`, await noOverflow());
-      await shot(`refund-${width}.png`);
-      await page.locator('main').evaluate(element => { element.scrollTop = element.scrollHeight; });
-      check(`form action bar visible after scroll ${width}x${height}`, await visibleActions());
+      check(`workspace fits ${width}x${height}`, await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth && document.querySelector('main').scrollWidth <= document.querySelector('main').clientWidth + 1));
     }
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await nav('Tổng quan');
-    await page.getByRole('button', { name: 'Thu gọn thanh bên', exact: true }).click();
-    check('collapsed navigation keeps accessible labels', await page.getByRole('button', { name: 'Công việc & Yêu cầu', exact: true }).isVisible());
-    await shot('after-collapsed.png');
-    await page.getByRole('button', { name: 'Mở rộng thanh bên', exact: true }).click();
-    await page.emulateMedia({ reducedMotion: 'reduce' });
-    check('reduced motion disables transitions', await page.locator('.button-primary').first().evaluate(element => getComputedStyle(element).transitionDuration === '0s'));
-    await page.setViewportSize({ width: 720, height: 450 });
-    check('200 percent equivalent CSS viewport has no page overflow', await noOverflow());
-    await nav('Phiếu hoàn tiền & Hoá đơn');
-    check('form buttons reachable at 200 percent equivalent viewport', await visibleActions());
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await loginAs(page, 'admin');
-    await nav('Dự án & Mặt bằng');
-    check('unimplemented module explains its limitation', await page.getByRole('heading', { name: 'Phân hệ chưa có chức năng xử lý' }).isVisible());
-
-    await page.route('https://images.unsplash.com/**', route => route.abort());
-    await nav('Website & Fanpage');
-    await page.getByRole('heading', { name: 'Quản lý Fanpage Facebook & Website Đô thị' }).waitFor();
-    await page.locator('.preview-image[role="img"]').first().waitFor();
-    check('remote image failure shows accessible fallback', await page.locator('.preview-image[role="img"]').count() > 0);
-    await page.getByRole('button', { name: 'Soạn bài đăng đa kênh', exact: true }).click();
-    await page.getByLabel('Tiêu đề thông báo / bài viết *', { exact: true }).fill('Thông báo kiểm thử UX');
-    await page.getByLabel('Nội dung chi tiết *', { exact: true }).fill('Nội dung minh họa; không đăng lên kênh thật.');
-    await page.getByRole('button', { name: 'Lưu bản nháp', exact: true }).click();
-    await page.getByLabel('Tiêu đề thông báo / bài viết *', { exact: true }).fill('Sửa sau khi lưu');
-    await page.getByRole('button', { name: 'Khôi phục nháp bài viết trong phiên', exact: true }).click();
-    check('media draft has real restore behavior', await page.locator('#media-title').inputValue() === 'Thông báo kiểm thử UX');
-    await nav('Tổng quan');
-    await nav('Website & Fanpage');
-    check('media composer survives module navigation', await page.locator('#media-title').inputValue() === 'Thông báo kiểm thử UX');
-    const channels = page.locator('main input[type=checkbox]');
-    await channels.nth(0).uncheck();
-    await channels.nth(1).uncheck();
-    await page.getByRole('button', { name: 'Thêm bài mô phỏng', exact: true }).click();
-    check('media requires a destination channel', await page.getByRole('alert').filter({ hasText: 'Chọn ít nhất một kênh' }).isVisible());
-    await channels.nth(0).check();
-    await page.getByRole('button', { name: 'Thêm bài mô phỏng', exact: true }).click();
-    await page.getByRole('button', { name: 'Xem chi tiết →', exact: true }).first().waitFor();
-    await page.getByRole('button', { name: 'Xem chi tiết →', exact: true }).first().click();
-    check('post detail displays actual composed content', await page.getByRole('dialog').filter({ hasText: 'Nội dung minh họa; không đăng lên kênh thật.' }).isVisible());
-    await page.keyboard.press('Escape');
-    await shot('after-media-1440.png');
-    await nav('Tiện ích & Thương mại');
-    await page.getByRole('button', { name: 'Đăng ký mở gian hàng mới', exact: true }).click();
-    await page.getByRole('button', { name: 'Xem hồ sơ →', exact: true }).first().click();
-    check('merchant registration opens detail instead of fake toast', await page.getByRole('dialog', { name: 'Hồ sơ đăng ký gian hàng mẫu' }).isVisible());
-    await page.keyboard.press('Escape');
-    await page.getByLabel('Tên thương hiệu / Cửa hàng *', { exact: true }).fill('Gian hàng kiểm thử');
-    await page.getByLabel('Người đại diện pháp luật *', { exact: true }).fill('Người dùng mẫu');
-    await page.getByLabel('Số điện thoại liên hệ *', { exact: true }).fill('0900000000');
-    await page.getByRole('button', { name: 'Lưu bản nháp', exact: true }).click();
-    await page.locator('#vendor-brandName').fill('Thay đổi nháp');
-    await page.getByRole('button', { name: 'Khôi phục nháp gian hàng trong phiên', exact: true }).click();
-    check('merchant draft has real restore behavior', await page.locator('#vendor-brandName').inputValue() === 'Gian hàng kiểm thử');
-    await page.getByRole('button', { name: 'Thêm hồ sơ đăng ký mẫu', exact: true }).click();
-    await page.getByRole('dialog', { name: 'Hồ sơ đăng ký gian hàng mẫu' }).waitFor();
-    check('new merchant record is immediately visible', await page.getByRole('dialog').getByText('Gian hàng kiểm thử', { exact: true }).isVisible());
-    await page.keyboard.press('Escape');
-    await shot('after-amenities-1440.png');
-    for (const [name, heading] of [['Website & Fanpage', 'Quản lý Fanpage Facebook & Website Đô thị'], ['Tiện ích & Thương mại', 'Tiện ích Đô thị & Gian hàng Thương mại']]) {
-      await page.setViewportSize({ width: 1024, height: 768 });
-      await nav(name);
-      await page.getByRole('heading', { name: heading, exact: true }).waitFor();
-      check(`${name} fits desktop 1024`, await noOverflow());
-    }
-    for (const name of ['Tổng quan Hệ sinh thái', 'Bệnh viện & Trường học', 'Bãi đỗ xe thông minh (482 trống)', 'Cửa hàng & TTTM (6)']) {
-      await page.getByRole('button', { name, exact: true }).click();
-      check(`amenities subview: ${name}`, await noOverflow());
-    }
-    await nav('Website & Fanpage');
-    for (const name of ['Tổng quan 2 kênh', 'Website greencity.vn Mẫu', 'Soạn bài đăng đa kênh']) {
-      await page.getByRole('button', { name, exact: true }).click();
-      check(`media subview: ${name}`, await noOverflow());
-    }
-    check('no JavaScript runtime errors', errors.length === 0);
-    fs.writeFileSync(path.join(output, 'test-results.json'), JSON.stringify({ checks, errors, passed: checks.length }, null, 2));
-    console.log(`DESKTOP UX: ${checks.length} checks passed.`);
-  } catch (error) {
-    console.error('JavaScript runtime errors:', errors);
-    throw error;
+    await page.screenshot({ path: path.join(output, 'desktop-800.png'), fullPage: true });
+    check('no runtime JavaScript errors', errors.length === 0);
+    console.log(`DESKTOP INTEGRATION UX: ${checks.length} checks passed.`);
   } finally { await browser.close(); }
-})().catch(error => { console.error(error); process.exit(1); });
+})().catch(error => { console.error(error); process.exitCode = 1; });

@@ -1,123 +1,232 @@
 const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
+const { randomUUID } = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
-const { loginAs } = require('./staff-helpers.cjs');
-const output = path.resolve(__dirname, '../artifacts/staff');
+
+const output = path.resolve(__dirname, '../artifacts/staff-integration');
 fs.mkdirSync(output, { recursive: true });
+
+const siteId = randomUUID();
+const secondSiteId = randomUUID();
+const accountId = randomUUID();
+const issuedToken = randomUUID();
+const switchedToken = randomUUID();
+const correlationId = randomUUID();
+const user = {
+  account_id: accountId,
+  tenant_id: randomUUID(),
+  username: 'cskh.browser',
+  full_name: 'CSKH Trình Duyệt',
+  roles: ['cskh'],
+  active_site_id: siteId,
+  allowed_sites: [
+    { id: siteId, code: 'CENTRAL', name: 'GreenCity Central' },
+    { id: secondSiteId, code: 'EAST', name: 'GreenCity East' },
+  ],
+};
+const switchedUser = { ...user, active_site_id: secondSiteId };
+const serviceRequest = {
+  id: randomUUID(),
+  code: 'SR-BROWSER-001',
+  title: 'Kiểm tra đèn hành lang',
+  unit_id: randomUUID(),
+  unit_number: 'A-1201',
+  building_id: randomUUID(),
+  building_code: 'A',
+  building_name: 'Tòa A',
+  status: 'IN_PROGRESS',
+  priority: 'HIGH',
+  sla_deadline: '2026-09-13T02:00:00Z',
+  created_at: '2026-09-12T01:00:00Z',
+};
+const unit360 = {
+  id: serviceRequest.unit_id,
+  unit_number: 'A-1201',
+  floor: 12,
+  area_m2: 72.5,
+  status: 'OCCUPIED',
+  version: 3,
+  building_id: serviceRequest.building_id,
+  building_code: 'A',
+  building_name: 'Tòa A',
+  site_id: siteId,
+  site_code: 'CENTRAL',
+  site_name: 'GreenCity Central',
+  residents_visible: true,
+  residents: [{
+    person_id: randomUUID(), full_name: 'Nguyễn Minh Anh', phone_masked: '09******12',
+    email_masked: 'n***@example.test', relationship_type: 'owner', is_active: true,
+    ownership_ratio: '1.0000', valid_from: '2025-01-01', valid_to: null,
+  }],
+};
 
 (async () => {
   const browser = await chromium.launch({ headless: true, channel: 'msedge' });
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'vi-VN' });
+  const page = await context.newPage();
   const errors = [];
   const checks = [];
+  const requests = [];
+  let listMode = 'slow-success';
+  let unitMode = 'slow-success';
+  let switchMode = 'success';
   const check = (name, value = true) => { assert.ok(value, name); checks.push(name); console.log(`PASS ${name}`); };
+  page.on('pageerror', error => errors.push(error.message));
+
+  await context.route('**/api/v1/**', async route => {
+    const request = route.request();
+    const url = new URL(request.url());
+    requests.push({ path: url.pathname, search: url.search, method: request.method(), body: request.postDataJSON?.(), authorization: request.headers().authorization });
+    const headers = { 'Content-Type': 'application/json', 'X-Correlation-ID': correlationId };
+    if (url.pathname.endsWith('/auth/login')) return route.fulfill({ status: 200, headers, body: JSON.stringify({ access_token: issuedToken, token_type: 'Bearer', user: { ...user, roles: ['admin'] } }) });
+    if (url.pathname.endsWith('/auth/me')) return route.fulfill({ status: 200, headers, body: JSON.stringify(request.headers().authorization === `Bearer ${switchedToken}` ? switchedUser : user) });
+    if (url.pathname.endsWith('/auth/switch-site')) {
+      if (switchMode === 'scope') return route.fulfill({ status: 404, headers, body: JSON.stringify({ error: { code: 'ERR-SCOPE-NOTFOUND', message: 'Không tìm thấy dữ liệu.', correlation_id: correlationId } }) });
+      return route.fulfill({ status: 200, headers, body: JSON.stringify({ access_token: switchedToken, token_type: 'Bearer', user: { ...switchedUser, roles: ['admin'] } }) });
+    }
+    if (url.pathname.endsWith('/service-requests')) {
+      if (listMode === 'slow-success') await new Promise(resolve => setTimeout(resolve, 700));
+      if (listMode === 'network') return route.abort('failed');
+      if (listMode === 'scope') return route.fulfill({ status: 404, headers, body: JSON.stringify({ error: { code: 'ERR-SCOPE-NOTFOUND', message: 'Không tìm thấy dữ liệu.', correlation_id: correlationId } }) });
+      if (listMode === 'unauthorized') return route.fulfill({ status: 401, headers, body: JSON.stringify({ error: { code: 'ERR-UNAUTHORIZED', message: 'Phiên hết hạn.', correlation_id: correlationId } }) });
+      const items = listMode === 'empty' ? [] : [serviceRequest];
+      const responsePage = Number(url.searchParams.get('page') || 1);
+      return route.fulfill({ status: 200, headers, body: JSON.stringify({ items, page: responsePage, page_size: 20, total: items.length ? 21 : 0 }) });
+    }
+    if (/\/units\/[^/]+\/360$/.test(url.pathname)) {
+      if (unitMode === 'slow-success') await new Promise(resolve => setTimeout(resolve, 700));
+      if (unitMode === 'network') return route.abort('failed');
+      if (unitMode === 'scope') return route.fulfill({ status: 404, headers, body: JSON.stringify({ error: { code: 'ERR-SCOPE-NOTFOUND', message: 'Không tìm thấy dữ liệu.', correlation_id: correlationId } }) });
+      if (unitMode === 'unauthorized') return route.fulfill({ status: 401, headers, body: JSON.stringify({ error: { code: 'ERR-UNAUTHORIZED', message: 'Phiên hết hạn.', correlation_id: correlationId } }) });
+      const requestedId = decodeURIComponent(url.pathname.split('/').at(-2));
+      return route.fulfill({ status: 200, headers, body: JSON.stringify({ ...unit360, id: requestedId }) });
+    }
+    return route.fulfill({ status: 404, headers, body: JSON.stringify({ error: { code: 'ERR-NOTFOUND', message: 'Không tìm thấy.', correlation_id: correlationId } }) });
+  });
+
   try {
-    const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'vi-VN' });
-    const page = await context.newPage();
-    page.on('pageerror', error => errors.push(error.message));
     const url = process.env.UX_BASE_URL || 'http://127.0.0.1:3000/';
-    const nav = name => page.getByRole('navigation', { name: 'Điều hướng chính' }).getByRole('button', { name, exact: true }).click();
-    const shot = name => page.screenshot({ path: path.join(output, name) });
     await page.goto(url);
     await page.waitForLoadState('networkidle');
-    console.log(JSON.stringify({ initialHeadings: await page.locator('h1,h2').allTextContents() }));
-    check('shared staff login is the initial surface', await page.getByRole('heading', { name: 'Đăng nhập không gian làm việc' }).isVisible());
-    check('all eight accounts are available', await page.locator('#staff-account option').count() === 8);
-    check('demo does not request a real password', await page.locator('#staff-password').isDisabled());
-    check('workspace and assistant are absent before login', await page.locator('.desktop-shell,.green-assistant').count() === 0);
-    await shot('01-shared-login.png');
-    await page.getByRole('button', { name: 'Cần hỗ trợ đăng nhập?' }).click();
-    check('login help explains account ownership', await page.getByText(/tài khoản và quyền do Admin cấp/).isVisible());
-    await page.getByRole('button', { name: 'Cần hỗ trợ đăng nhập?' }).click();
-    const roles = [
-      ['admin', 'Quản trị không gian làm việc', 7, true], ['director', 'Tổng quan điều hành', 7, true],
-      ['cskh', 'Tiếp nhận & chăm sóc cư dân', 3, false], ['accountant', 'Tài chính & đối soát', 1, true],
-      ['technical', 'Công việc kỹ thuật của tôi', 2, false], ['cleaning', 'Ca vệ sinh của tôi', 1, false],
-      ['security', 'Ca trực an ninh của tôi', 1, false], ['auditor', 'Không gian kiểm toán', 7, true],
-    ];
-    for (const [role, heading, count, financial] of roles) {
-      await loginAs(page, role);
-      await page.getByRole('heading', { name: heading, exact: true }).waitFor();
-      check(`${role}: tailored dashboard`);
-      const menu = page.getByRole('navigation', { name: 'Điều hướng chính' });
-      check(`${role}: financial navigation follows policy`, await menu.getByRole('button', { name: 'Phiếu hoàn tiền & Hoá đơn', exact: true }).count() === Number(financial));
-      check(`${role}: only admin sees settings`, await menu.getByRole('button', { name: 'Quản trị hệ thống', exact: true }).count() === Number(role === 'admin'));
-      await shot(`dashboard-${role}.png`);
-      await nav('Công việc & Yêu cầu');
-      check(`${role}: scoped task count`, await page.locator('tbody tr').count() === count);
-      await page.getByRole('button', { name: 'Tìm kiếm công việc và phân hệ' }).click();
-      await page.getByLabel('Tìm theo mã, tên công việc hoặc phân hệ').fill('TC-2608-016');
-      check(`${role}: search uses the same data scope`, await page.getByRole('dialog', { name: 'Tìm kiếm nhanh' }).locator('.search-result').count() === Number(financial));
-      await page.keyboard.press('Escape');
-      if (['technical', 'cleaning', 'security'].includes(role)) {
-        await page.goto(`${url}#/refund-form`);
-        await page.getByRole('heading', { name: 'Không có quyền xem phân hệ này' }).waitFor();
-        check(`${role}: direct unauthorized URL does not mount refund`, await page.locator('.refund-page').count() === 0);
-      }
-    }
-    await nav('Phiếu hoàn tiền & Hoá đơn');
-    check('auditor has no editable refund fields', await page.locator('.refund-page input,.refund-page textarea').count() === 0);
-    check('auditor cannot approve or save a draft', await page.getByRole('button', { name: /Lưu bản nháp|Kiểm tra phê duyệt mẫu/ }).count() === 0);
-    await shot('auditor-readonly-refund.png');
-    await nav('Báo cáo điều hành');
-    check('auditor can read reports', await page.getByRole('heading', { name: 'Báo cáo trong phạm vi' }).isVisible());
-    await loginAs(page, 'director');
-    await nav('Phiếu hoàn tiền & Hoá đơn');
-    check('director reviews without editing account or amount', await page.locator('.refund-page input').count() === 0);
-    await page.getByRole('button', { name: 'Kiểm tra phê duyệt mẫu', exact: true }).click();
-    check('director sees approval action', await page.getByRole('button', { name: 'Phê duyệt mô phỏng' }).isVisible());
-    await page.keyboard.press('Escape');
-    await loginAs(page, 'accountant');
-    await nav('Phiếu hoàn tiền & Hoá đơn');
-    await page.locator('#remarks').fill('Nháp riêng của kế toán');
-    await page.getByRole('button', { name: 'Đổi tài khoản hoặc đăng xuất' }).click();
-    check('logout warns about unsaved refund', await page.getByRole('dialog', { name: 'Đăng xuất tài khoản mẫu?' }).getByText(/thay đổi chưa lưu/).isVisible());
-    await page.getByRole('button', { name: 'Ở lại', exact: true }).click();
-    await page.getByRole('button', { name: 'Lưu bản nháp', exact: true }).click();
-    await page.getByRole('button', { name: 'Kiểm tra & xác nhận', exact: true }).click();
-    check('accountant submits, does not approve', await page.getByRole('button', { name: 'Trình duyệt mô phỏng' }).isVisible() && await page.getByRole('button', { name: 'Phê duyệt mô phỏng' }).count() === 0);
-    await page.keyboard.press('Escape');
-    await page.getByRole('button', { name: 'Mở Green Assistant', exact: true }).click();
-    await page.getByRole('textbox', { name: 'Nhập tin nhắn cho Green Assistant' }).fill('Lịch sử riêng tài khoản kế toán');
-    await page.getByRole('button', { name: 'Gửi tin nhắn', exact: true }).click();
-    await page.waitForFunction(() => !document.querySelector('.assistant-message.is-pending'));
-    await loginAs(page, 'cleaning');
-    await page.getByRole('button', { name: 'Mở Green Assistant', exact: true }).click();
-    check('assistant history is not exposed to another account', await page.locator('.assistant-message').count() === 0);
-    await page.getByRole('textbox', { name: 'Nhập tin nhắn cho Green Assistant' }).fill('công việc quá hạn');
-    await page.getByRole('button', { name: 'Gửi tin nhắn', exact: true }).click();
-    await page.waitForFunction(() => !document.querySelector('.assistant-message.is-pending'));
-    check('assistant does not disclose other teams work', await page.locator('.assistant-message-assistant').innerText().then(text => text.includes('1 công việc, 0 việc quá hạn') && !text.includes('KT-2608-097')));
-    await loginAs(page, 'accountant');
-    await nav('Phiếu hoàn tiền & Hoá đơn');
-    check('account-specific refund draft is restored', await page.locator('#remarks').inputValue() === 'Nháp riêng của kế toán');
-    await page.reload();
-    await page.locator('#remarks').waitFor();
-    check('demo session restores after reload', await page.locator('#remarks').inputValue() === 'Nháp riêng của kế toán');
-    await loginAs(page, 'admin');
-    await nav('Quản trị hệ thống');
-    check('admin account matrix lists eight roles', await page.locator('tbody tr').count() === 8);
-    await shot('admin-permission-matrix.png');
-    for (const [width, height] of [[1440, 900], [1280, 720], [1024, 768], [800, 600]]) {
-      await page.setViewportSize({ width, height });
-      await nav('Tổng quan');
-      check(`workspace fits ${width}x${height}`, await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth && document.querySelector('main').scrollWidth <= document.querySelector('main').clientWidth + 1));
-      check(`logout remains reachable at ${width}`, await page.getByRole('button', { name: 'Đổi tài khoản hoặc đăng xuất' }).isVisible());
-      if (width === 1024) await shot('dashboard-1024.png');
-    }
-    await page.getByRole('button', { name: 'Đổi tài khoản hoặc đăng xuất' }).click();
-    await page.getByRole('button', { name: 'Đăng xuất', exact: true }).click();
-    check('logout returns to shared login and unmounts account data', await page.locator('#staff-account').isVisible() && await page.locator('.green-assistant').count() === 0);
-    for (const [width, height] of [[1280, 720], [1024, 768], [800, 600]]) {
-      await page.setViewportSize({ width, height });
-      check(`login fits ${width}`, await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-    }
-    await page.evaluate(() => sessionStorage.setItem('greencity.staff-demo.v1', JSON.stringify({ accountId: 'nonexistent', role: 'admin' })));
-    await page.reload();
-    check('invalid saved account returns safely to login', await page.locator('#staff-account').isVisible());
-    check('no runtime errors across eight roles', errors.length === 0);
+    check('real credential form is the initial surface', await page.getByRole('heading', { name: 'Đăng nhập không gian làm việc' }).isVisible());
+    check('no account or role picker is rendered', await page.locator('select,#staff-account').count() === 0);
+    check('password input accepts credentials', await page.locator('#staff-password').isEnabled());
+
+    await page.locator('#staff-username').fill('cskh.browser');
+    await page.locator('#staff-password').fill('browser-only-password');
+    await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
+    await page.getByRole('heading', { name: 'Tiếp nhận & chăm sóc cư dân' }).waitFor();
+    await page.getByRole('navigation', { name: 'Điều hướng chính' }).getByRole('button', { name: 'Công việc & Yêu cầu', exact: true }).click();
+    check('loading state is visible while the scoped request is pending', await page.getByText('Đang tải yêu cầu đúng phạm vi…', { exact: true }).isVisible());
+    await page.getByText('SR-BROWSER-001', { exact: true }).waitFor();
+
+    check('request order is login then me then service list', requests.slice(0, 3).map(item => item.path).join('|') === '/api/v1/auth/login|/api/v1/auth/me|/api/v1/service-requests');
+    check('login sends only username and password', JSON.stringify(Object.keys(requests[0].body).sort()) === JSON.stringify(['password', 'username']));
+    check('/auth/me and list receive the Bearer session', requests[1].authorization === `Bearer ${issuedToken}` && requests[2].authorization === `Bearer ${issuedToken}`);
+    check('menu comes from /auth/me rather than login response user', await page.getByRole('button', { name: 'Quản trị hệ thống', exact: true }).count() === 0 && await page.getByText('CSKH · Phiên xác thực', { exact: true }).isVisible());
+    const rowText = await page.locator('tbody tr').first().innerText();
+    check('read-only row renders code, building, unit, priority and status', ['SR-BROWSER-001', 'Tòa A · Căn A-1201', 'Cao', 'Đang xử lý'].every(value => rowText.includes(value)));
+    check('issued token is absent from browser storage', await page.evaluate(token => !JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } }).includes(token), issuedToken));
+    const pageTwoRequest = page.waitForRequest(request => request.url().includes('/service-requests?page=2&page_size=20'));
+    await page.getByRole('button', { name: 'Trang sau', exact: true }).click();
+    await pageTwoRequest;
+    await page.getByText('Trang 2 / 2', { exact: true }).waitFor();
+    check('pagination is executed on the server without scope query parameters', requests.some(item => item.path.endsWith('/service-requests') && item.search === '?page=2&page_size=20') && requests.filter(item => item.path.endsWith('/service-requests')).every(item => !/tenant_id|building_id|role=/.test(item.search)));
+    const pageOneRequest = page.waitForRequest(request => request.url().includes('/service-requests?page=1&page_size=20'));
+    await page.getByRole('button', { name: 'Trang trước', exact: true }).click();
+    await pageOneRequest;
+    await page.getByText('Trang 1 / 2', { exact: true }).waitFor();
+    await page.getByText('Đang tải yêu cầu đúng phạm vi…', { exact: true }).waitFor({ state: 'hidden' });
+    await page.screenshot({ path: path.join(output, '01-service-list.png'), fullPage: true });
+
+    listMode = 'empty';
+    await page.getByRole('button', { name: 'Mới tiếp nhận', exact: true }).click();
+    await page.getByRole('heading', { name: 'Không có yêu cầu phù hợp' }).waitFor();
+    await page.getByRole('button', { name: 'Hiển thị tất cả yêu cầu', exact: true }).click();
+    await page.getByRole('heading', { name: 'Chưa có yêu cầu trong phạm vi' }).waitFor();
+    check('filtered and unfiltered empty states are distinct');
+
+    listMode = 'network';
+    await page.getByRole('button', { name: 'Đang xử lý', exact: true }).click();
+    await page.getByRole('alert').filter({ hasText: 'Mất kết nối tới máy chủ' }).waitFor();
+    check('network error exposes retry and a correlation identifier', await page.getByRole('button', { name: 'Thử lại', exact: true }).isVisible() && await page.getByText(/Mã đối chiếu:/).isVisible());
+    listMode = 'success';
+    await page.getByRole('button', { name: 'Thử lại', exact: true }).click();
+    await page.getByText('SR-BROWSER-001', { exact: true }).waitFor();
+    check('retry recovers the service-request list');
+
+    listMode = 'scope';
+    await page.getByRole('button', { name: 'Đã phân loại', exact: true }).click();
+    await page.getByRole('alert').filter({ hasText: 'Chưa xác định được phạm vi dữ liệu' }).waitFor();
+    check('ERR-SCOPE-NOTFOUND is shown without silently falling back to mock data');
+
+    await page.getByRole('navigation', { name: 'Điều hướng chính' }).getByRole('button', { name: 'Khách hàng & Cư dân', exact: true }).click();
+    check('Unit 360 starts with an actionable empty state', await page.getByRole('heading', { name: 'Chưa có căn hộ được chọn' }).isVisible());
+    await page.locator('#unit-lookup-id').fill(serviceRequest.unit_id);
+    await page.getByRole('button', { name: 'Tra cứu', exact: true }).click();
+    check('Unit 360 loading state is announced', await page.getByText('Đang tải căn hộ đúng phạm vi…', { exact: true }).isVisible());
+    await page.getByRole('heading', { name: 'Căn A-1201' }).waitFor();
+    const unitRequest = requests.find(item => item.path.endsWith(`/units/${serviceRequest.unit_id}/360`));
+    check('Unit lookup sends only the ID path with Bearer auth', unitRequest?.search === '' && unitRequest?.authorization === `Bearer ${issuedToken}` && !/tenant_id|site_id|building_id|role=/.test(unitRequest.path + unitRequest.search));
+    check('Unit projection renders masked resident data', await page.getByText('Nguyễn Minh Anh', { exact: true }).isVisible() && await page.getByText(/09\*{6}12/).isVisible());
+
+    switchMode = 'scope';
+    const rejectedSwitchRequest = page.waitForRequest(request => request.url().endsWith('/auth/switch-site'));
+    await page.getByLabel('Site đang hoạt động').selectOption(secondSiteId);
+    await rejectedSwitchRequest;
+    await page.getByRole('alert').filter({ hasText: 'Site này không còn nằm trong phạm vi phiên hiện tại.' }).waitFor();
+    await page.getByRole('heading', { name: 'Chưa có căn hộ được chọn' }).waitFor();
+    check('rejected site switch keeps the old scope and clears the prior Unit 360 result',
+      await page.locator('#active-site-select').inputValue() === siteId
+      && await page.locator('#unit-lookup-id').inputValue() === ''
+      && await page.getByRole('heading', { name: 'Căn A-1201' }).count() === 0);
+
+    switchMode = 'success';
+    const switchRequestPromise = page.waitForRequest(request => request.url().endsWith('/auth/switch-site'));
+    const refreshedMeResponsePromise = page.waitForResponse(response => (
+      response.url().endsWith('/auth/me')
+      && response.request().method() === 'GET'
+      && response.request().headers().authorization === `Bearer ${switchedToken}`
+      && response.status() === 200
+    ));
+    await page.getByLabel('Site đang hoạt động').selectOption(secondSiteId);
+    await switchRequestPromise;
+    await refreshedMeResponsePromise;
+    await page.getByLabel('Site đang hoạt động').waitFor();
+    await page.waitForFunction(site => document.querySelector('#active-site-select')?.value === site, secondSiteId);
+    const switchRequest = requests.filter(item => item.path.endsWith('/auth/switch-site')).at(-1);
+    const switchIndex = requests.indexOf(switchRequest);
+    check('site switch sends only site_id with the current Bearer token', JSON.stringify(Object.keys(switchRequest.body)) === JSON.stringify(['site_id']) && switchRequest.body.site_id === secondSiteId && switchRequest.authorization === `Bearer ${issuedToken}`);
+    check('site switch always refreshes /auth/me with the newly issued token', requests.slice(switchIndex + 1).some(item => item.path.endsWith('/auth/me') && item.authorization === `Bearer ${switchedToken}`));
+    check('switching site remounts Unit 360 and clears its prior lookup', await page.getByRole('heading', { name: 'Chưa có căn hộ được chọn' }).isVisible() && await page.locator('#unit-lookup-id').inputValue() === '');
+
+    unitMode = 'network';
+    await page.locator('#unit-lookup-id').fill(randomUUID());
+    await page.getByRole('button', { name: 'Tra cứu', exact: true }).click();
+    await page.getByRole('alert').filter({ hasText: 'Mất kết nối tới máy chủ' }).waitFor();
+    check('Unit network failure shows retry and correlation ID', await page.getByRole('button', { name: 'Thử lại', exact: true }).isVisible() && await page.getByText(/Mã đối chiếu:/).isVisible());
+    unitMode = 'success';
+    await page.getByRole('button', { name: 'Thử lại', exact: true }).click();
+    await page.getByRole('heading', { name: 'Căn A-1201' }).waitFor();
+    check('Unit retry recovers the read-only profile');
+
+    unitMode = 'scope';
+    await page.locator('#unit-lookup-id').fill(randomUUID());
+    await page.getByRole('button', { name: 'Tra cứu', exact: true }).click();
+    await page.getByRole('alert').filter({ hasText: 'Không tìm thấy căn hộ trong phạm vi' }).waitFor();
+    check('Unit ERR-SCOPE-NOTFOUND does not reveal whether the record exists');
+
+    unitMode = 'unauthorized';
+    await page.locator('#unit-lookup-id').fill(randomUUID());
+    await page.getByRole('button', { name: 'Tra cứu', exact: true }).click();
+    await page.getByRole('heading', { name: 'Đăng nhập không gian làm việc' }).waitFor();
+    check('Unit 401 clears the UI session and returns to login', await page.getByText(/Phiên đã hết hạn/).isVisible());
+    check('no runtime JavaScript errors', errors.length === 0);
+
     fs.writeFileSync(path.join(output, 'test-results.json'), JSON.stringify({ passed: checks.length, checks, errors }, null, 2));
-    console.log(`STAFF UX: ${checks.length} checks passed.`);
-  } catch (error) { console.error('Runtime errors:', errors); throw error; }
-  finally { await browser.close(); }
+    console.log(`STAFF INTEGRATION UX: ${checks.length} checks passed.`);
+  } finally {
+    await browser.close();
+  }
 })().catch(error => { console.error(error); process.exitCode = 1; });

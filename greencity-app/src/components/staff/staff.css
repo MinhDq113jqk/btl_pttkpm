@@ -22,16 +22,23 @@
 .staff-login-badge { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 600; color: #426853; border: 1px solid #d4e4d9; background: white; padding: 6px 10px; border-radius: 5px; }
 .staff-login-card h2 { font-size: 28px; line-height: 1.25; font-weight: 650; letter-spacing: -.03em; margin-top: 20px; }
 .staff-login-intro { color: #52665e; font-size: 13px; line-height: 1.7; margin: 12px 0 26px; }
-.staff-login-card form > input, .staff-login-card select { width: 100%; padding: 12px; border: 1px solid #a9c3b3; border-radius: 7px; background: white; font-size: 13px; color: #193e30; margin-bottom: 18px; }
-.staff-login-card form > input[readonly] { background: #eff4f0; color: #426853; }
-.staff-password-placeholder { display: flex; align-items: center; gap: 8px; padding: 12px; border: 1px solid #ccdcd0; border-radius: 7px; background: #eff4f0; color: #617a69; }
-.staff-password-placeholder input { width: 100%; min-width: 0; background: transparent; font-size: 12px; }
-.staff-password-placeholder input::placeholder { color: #617a69; opacity: 1; }
+.staff-login-card form > input { width: 100%; padding: 12px; border: 1px solid #a9c3b3; border-radius: 7px; background: white; font-size: 13px; color: #193e30; margin-bottom: 18px; }
+.staff-password-input { display: flex; align-items: center; gap: 8px; padding: 12px; border: 1px solid #a9c3b3; border-radius: 7px; background: white; color: #617a69; }
+.staff-password-input:focus-within { outline: 2px solid #059669; outline-offset: 2px; }
+.staff-password-input input { width: 100%; min-width: 0; background: transparent; font-size: 13px; color: #193e30; outline: none; }
+.staff-login-error { display: flex; align-items: flex-start; gap: 10px; padding: 13px 14px; margin-bottom: 18px; border: 1px solid #fda4af; border-radius: 7px; background: #fff1f2; color: #9f1239; font-size: 12px; line-height: 1.55; }
+.staff-login-error > svg { flex-shrink: 0; margin-top: 1px; }
+.staff-login-error strong, .staff-login-error small { display: block; }
+.staff-login-error p { margin-top: 2px; }
+.staff-login-error small { margin-top: 6px; font-family: Consolas, monospace; overflow-wrap: anywhere; }
 .staff-login-role { display: flex; gap: 12px; align-items: center; border: 1px solid #d6e6da; border-radius: 8px; padding: 14px; margin-top: 20px; background: #fff; }
 .staff-login-role strong { font-size: 13px; }
 .staff-login-role p { color: #52665e; font-size: 11px; margin-top: 3px; }
 .staff-role-mark { display: inline-flex; width: 36px; height: 36px; align-items: center; justify-content: center; border-radius: 9px; color: #065f46; background: #d1fae5; flex-shrink: 0; font-size: 12px; font-weight: 650; }
 .staff-login-submit { margin-top: 20px; width: 100%; min-height: 46px; justify-content: space-between; padding-inline: 17px; }
+.staff-login-submit:disabled { cursor: not-allowed; opacity: .65; }
+.request-spinner { animation: request-spin .8s linear infinite; }
+@keyframes request-spin { to { transform: rotate(360deg); } }
 .staff-login-help { display: flex; margin: 14px auto; }
 .staff-login-disclaimer { border-top: 1px solid #d8e5dc; padding-top: 18px; display: flex; gap: 8px; color: #52665e; font-size: 11px; line-height: 1.7; }
 .staff-login-disclaimer svg { margin-top: 3px; }

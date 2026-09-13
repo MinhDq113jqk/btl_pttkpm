@@ -1,13 +1,47 @@
-async function loginAs(page, role = 'director') {
-  const accountSelector = page.getByLabel('Tài khoản nhân viên mẫu', { exact: true });
-  if (!await accountSelector.isVisible()) {
-    const chatClose = page.getByRole('button', { name: 'Thu gọn Green Assistant', exact: true });
-    if (await chatClose.isVisible()) await chatClose.click();
-    await page.getByRole('button', { name: 'Đổi tài khoản hoặc đăng xuất', exact: true }).click();
-    await page.getByRole('dialog', { name: 'Đăng xuất tài khoản mẫu?' }).getByRole('button', { name: 'Đăng xuất', exact: true }).click();
-  }
-  await accountSelector.selectOption(`demo-${role}`);
-  await page.getByRole('button', { name: 'Vào không gian mẫu', exact: true }).click();
-  await page.getByRole('navigation', { name: 'Điều hướng chính' }).waitFor();
+const { randomUUID } = require('node:crypto');
+
+const mockedPages = new WeakSet();
+
+async function installAuthApiMocks(page, { role = 'cskh', items } = {}) {
+  if (mockedPages.has(page)) return;
+  mockedPages.add(page);
+  const siteId = randomUUID();
+  const user = {
+    account_id: randomUUID(), tenant_id: randomUUID(), username: `${role}.ux`,
+    full_name: `Nhân viên ${role.toUpperCase()}`, roles: [role], active_site_id: siteId,
+    allowed_sites: [{ id: siteId, code: 'CENTRAL', name: 'GreenCity Central' }],
+  };
+  const accessToken = randomUUID();
+  const responseItems = items || [{
+    id: randomUUID(), code: 'SR-UX-001', title: 'Kiểm tra đèn hành lang',
+    unit_id: randomUUID(), unit_number: 'A-1201', building_id: randomUUID(),
+    building_code: 'A', building_name: 'Tòa A', status: 'IN_PROGRESS', priority: 'HIGH',
+    sla_deadline: '2026-09-13T02:00:00Z', created_at: '2026-09-12T01:00:00Z',
+  }];
+  const unit = {
+    id: responseItems[0]?.unit_id || randomUUID(), unit_number: 'A-1201', floor: 12,
+    area_m2: 72.5, status: 'OCCUPIED', version: 1, building_id: responseItems[0]?.building_id || randomUUID(),
+    building_code: 'A', building_name: 'Tòa A', site_id: siteId, site_code: 'CENTRAL',
+    site_name: 'GreenCity Central', residents_visible: true, residents: [],
+  };
+
+  await page.route('**/api/v1/**', route => {
+    const pathname = new URL(route.request().url()).pathname;
+    const headers = { 'Content-Type': 'application/json', 'X-Correlation-ID': randomUUID() };
+    if (pathname.endsWith('/auth/login')) return route.fulfill({ status: 200, headers, body: JSON.stringify({ access_token: accessToken }) });
+    if (pathname.endsWith('/auth/me')) return route.fulfill({ status: 200, headers, body: JSON.stringify(user) });
+    if (pathname.endsWith('/service-requests')) return route.fulfill({ status: 200, headers, body: JSON.stringify({ items: responseItems, page: 1, page_size: 20, total: responseItems.length }) });
+    if (/\/units\/[^/]+\/360$/.test(pathname)) return route.fulfill({ status: 200, headers, body: JSON.stringify({ ...unit, id: decodeURIComponent(pathname.split('/').at(-2)) }) });
+    return route.fulfill({ status: 404, headers, body: JSON.stringify({ error: { code: 'ERR-NOTFOUND', message: 'Không tìm thấy.', correlation_id: randomUUID() } }) });
+  });
 }
-module.exports = { loginAs };
+
+async function loginAs(page, role = 'cskh') {
+  await installAuthApiMocks(page, { role });
+  await page.locator('#staff-username').fill(`${role}.ux`);
+  await page.locator('#staff-password').fill('browser-only-password');
+  await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
+  await page.locator('.desktop-shell').waitFor();
+}
+
+module.exports = { installAuthApiMocks, loginAs };
