@@ -242,7 +242,22 @@ def run_for_key(case, key, operation=UPLOAD_OPERATION):
 
 def test_csv_import_run_1000_rows_preview_apply_and_replay(import_run_case):
     case = import_run_case
-    rows = [(f"B1-BULK-{number:04d}", "1", "55.50", "occupied") for number in range(1, 1001)]
+    rows = [
+        (f"B1-BULK-{number:04d}", "1", "55.50", "occupied")
+        for number in range(1, 901)
+    ]
+    rows.extend(
+        (f"B1-BULK-{number:04d} ", "1", "55.50", "occupied")
+        for number in range(901, 951)
+    )
+    rows.extend(
+        (f"B1-BULK-{number:04d}", "1", "55.50", "occupied")
+        for number in range(1, 26)
+    )
+    rows.extend(
+        (f"B1-BULK-INVALID-{number:02d}", "0", "55.50", "occupied")
+        for number in range(1, 26)
+    )
     source = csv_bytes(rows)
     before = count_units(case, "B1")
 
@@ -259,7 +274,10 @@ def test_csv_import_run_1000_rows_preview_apply_and_replay(import_run_case):
     assert previewed.status_code == 200, previewed.text
     previewed_body = previewed.json()
     assert (previewed_body["status"], previewed_body["version"], previewed_body["total_rows"],
-            previewed_body["valid_rows"], previewed_body["error_rows"]) == ("PREVIEWED", 2, 1000, 1000, 0)
+            previewed_body["valid_rows"], previewed_body["warning_rows"],
+            previewed_body["error_rows"], previewed_body["skipped_rows"]) == (
+                "PREVIEWED", 2, 1000, 950, 75, 25, 25,
+            )
     replayed_preview = preview(case, "admin", run_id, "run-1000-preview-001", 1)
     assert replayed_preview.status_code == 200
     assert replayed_preview.json() == previewed_body
@@ -276,8 +294,9 @@ def test_csv_import_run_1000_rows_preview_apply_and_replay(import_run_case):
     applied = apply(case, "admin", run_id, "run-1000-apply-001", 2)
     assert applied.status_code == 200, applied.text
     applied_body = applied.json()
-    assert (applied_body["status"], applied_body["version"], applied_body["applied_rows"]) == ("APPLIED", 3, 1000)
-    assert count_units(case, "B1") == before + 1000
+    assert (applied_body["status"], applied_body["version"], applied_body["applied_rows"],
+            applied_body["error_rows"], applied_body["skipped_rows"]) == ("APPLIED", 3, 950, 25, 25)
+    assert count_units(case, "B1") == before + 950
     original_upload_replay = upload(case, "admin", "run-1000-upload-001", source)
     assert original_upload_replay.status_code == 201
     assert original_upload_replay.json() == uploaded_body
@@ -287,7 +306,7 @@ def test_csv_import_run_1000_rows_preview_apply_and_replay(import_run_case):
     replayed_apply = apply(case, "admin", run_id, "run-1000-apply-001", 2)
     assert replayed_apply.status_code == 200
     assert replayed_apply.json() == applied_body
-    assert count_units(case, "B1") == before + 1000
+    assert count_units(case, "B1") == before + 950
 
     with case["database"].get_session() as session:
         assert session.scalar(select(func.count(IdempotencyRecord.id)).where(
@@ -305,7 +324,7 @@ def test_csv_import_run_1000_rows_preview_apply_and_replay(import_run_case):
             DomainEvent.event_type == "ImportRunCompleted",
         ))
         assert completed is not None
-        assert completed.payload["applied_rows"] == 1000
+        assert completed.payload["applied_rows"] == 950
 
 
 def test_import_run_scope_and_client_scope_spoofing_are_denied(import_run_case):
@@ -435,9 +454,9 @@ def test_csv_validation_quarantines_bad_files_and_rejects_bad_mapping(import_run
     with case["database"].get_session() as session:
         events = set(session.scalars(select(DomainEvent.event_type).where(
             DomainEvent.resource_type == RESOURCE_TYPE,
-            DomainEvent.event_type == "ImportFileQuarantined",
+            DomainEvent.event_type == "AttachmentQuarantined",
         )))
-        assert events == {"ImportFileQuarantined"}
+        assert events == {"AttachmentQuarantined"}
 
 
 def test_partial_apply_keeps_valid_rows_when_other_rows_fail(import_run_case):

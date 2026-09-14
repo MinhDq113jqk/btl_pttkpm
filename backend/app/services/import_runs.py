@@ -709,7 +709,7 @@ def create_import_run(
         )
         if source_quarantined:
             _emit(
-                session, context, request, event_type="ImportFileQuarantined", run=run,
+                session, context, request, event_type="AttachmentQuarantined", run=run,
                 payload={"reason": validation_error},
             )
         _set_receipt(receipt, run, 422 if source_quarantined else 201)

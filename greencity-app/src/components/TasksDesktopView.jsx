@@ -29,6 +29,8 @@ export function TasksDesktopView({
   onRetry,
   pagination = { page: 1, pageSize: 20, total: tasks.length },
   onPageChange,
+  canCreate = false,
+  onCreate,
 }) {
   const { query = '', status = 'all', sort = 'asc' } = filters;
   const set = change => onFiltersChange?.({ ...filters, ...change });
@@ -43,7 +45,7 @@ export function TasksDesktopView({
   const hasFilters = Boolean(query) || status !== 'all';
 
   return <div className="desktop-page">
-    <div className="page-heading"><div><p className="eyebrow">Điều phối vận hành</p><h1>{title}</h1><p>{scopeLabel} · Dữ liệu đọc từ máy chủ theo quyền của phiên.</p></div><span className="subtle-badge">{pagination.total} yêu cầu</span></div>
+    <div className="page-heading"><div><p className="eyebrow">Điều phối vận hành</p><h1>{title}</h1><p>{scopeLabel} · Dữ liệu đọc từ máy chủ theo quyền của phiên.</p></div><div className="page-heading-actions">{canCreate && <button className="button-primary" type="button" onClick={onCreate}>Tạo yêu cầu</button>}<span className="subtle-badge">{pagination.total} yêu cầu</span></div></div>
     <section className="surface task-workspace" aria-label="Danh sách yêu cầu dịch vụ" aria-busy={loading}>
       <div className="status-filters" aria-label="Lọc trạng thái">
         {SERVICE_REQUEST_STATUSES.map(option => <button key={option.value} onClick={() => set({ status: option.value })} aria-pressed={status === option.value} className={status === option.value ? 'is-selected' : ''}>{option.label}{option.value === 'all' && <span>{pagination.total}</span>}</button>)}

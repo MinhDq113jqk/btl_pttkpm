@@ -1,30 +1,133 @@
 # Backend — bằng chứng kiểm chứng
 
-## Mới nhất — R1 closeout, bằng chứng local (13/09/2026)
+## Mới nhất — R4 Task 5, kiểm soát và Exit evidence local (14/09/2026)
 
-- Lần chạy PostgreSQL 18.4/TLS cô lập gần nhất: DB trống nâng đến head `0006`,
-  kiểm migration `0005 -> 0006 -> 0005`, upgrade/seed lặp và `alembic check`:
-  PASS; toàn bộ regression **184 passed, 2 warning deprecation**.
-- AC-02/AC-24: `ImportRun` CSV bền vững (upload -> preview -> apply), quarantine,
-  checksum source/error, actor/scope-bound signed link, audit/outbox và concurrency
-  có test PostgreSQL. Antigravity Review #1 và Verification #2 đều
-  `STATUS: NEEDS_REVISION`; Codex đã sửa và chạy lại suite PASS, nhưng review
-  dừng đúng giới hạn hai lượt nên hai AC vẫn là `[-]`, chỉ được kết luận là
-  **đã kiểm chứng local**.
-- AC-03 Person--Unit: ratio/hiệu lực, fixture quan hệ và migration path có test
-  local PASS. Review #1 timeout với trạng thái remote không xác định; không retry,
-  giữ `[-]`.
-- AC-35 frontend switch-site: bằng chứng local nằm tại `STAFF_WORKSPACE.md`.
-  Lát này không có verdict mới trong lần closeout này; không suy diễn thành gate.
+- PostgreSQL 18.4/TLS disposable: `0008 -> 0009 -> 0010 -> 0009 -> 0010`, DB
+  trống tới head `0010`, migration/seed lặp, `alembic check` và shutdown: PASS;
+  regression toàn checkout **218 passed, 2 warnings in 33.29s**.
+- Scope regression mới tạo account/resource ở tenant khác, site khác và building
+  khác cùng site: API Billing chỉ trả dữ liệu scope hợp lệ, còn cả ba lookup
+  ngoài scope đều `404 ERR-SCOPE-NOTFOUND`. CSKH tiếp tục nhận `403` ở route
+  billing/payment; payload không là nguồn tenant/site/building.
+- Direct SQL negative regression xác nhận trigger AR ledger và audit từ chối cả
+  `UPDATE` lẫn `DELETE`; allocation cap, source/receipt race, idempotency replay,
+  invoice snapshot/Item immutable và mismatch payment vẫn được chạy trong suite.
+- [R4_CONTRACT.md](R4_CONTRACT.md) có ma trận AC → test → expected result,
+  OpenAPI path contract, seed boundary và Exit R4. Exit local chỉ map AC-11..14,
+  AC-16..18, AC-30, AC-44; basic AC-19/AC-36 là regression bổ sung. AC-15 và
+  maker-checker/reopen vẫn `SPEC-ONLY`, chỉ có negative guard không expose route.
+- Đây là **Implemented & Verified Local**. Chưa có Aiven/production deployment,
+  Gate B/C hay verdict review độc lập.
 
-Các kết quả trên không chứng minh Gate B/C, Aiven/production hoặc mở R3--R5.
+## Mới nhất — R4 Task 4, Golden Flow tài chính local (14/09/2026)
+
+- PostgreSQL 18.4/TLS disposable: `0008 -> 0009 -> 0010 -> 0009 -> 0010`, DB
+  trống tới head `0010`, migration/seed lặp, `alembic check` và shutdown: PASS;
+  regression toàn checkout **217 passed, 2 warnings in 33.62s**.
+- `0010_r4_payment_reconciliation.py` cho phép Payment chưa match Billing
+  Account, thay trigger cap để dùng current outstanding và invoice capacity, và
+  từ chối downgrade khi tồn tại Unmatched Payment/null account. Migration-path
+  test xác nhận downgrade bị từ chối nguyên trạng, sau đó downgrade/re-upgrade
+  rỗng vẫn pass.
+- AC-17/44: allocation lock Payment + Invoice, áp `due_on → issued_on →
+  invoice_number → id`, hỗ trợ partial/multi-invoice, update invoice snapshot,
+  và AR/audit ledger vẫn append-only. AC-18: missing-code ghi `UNMATCHED` không
+  ledger/không giảm nợ; match cùng building mới tạo AR credit. AC-19 tạo một
+  Overpayment Credit và `CREDIT_ISSUED` debit cho dư, không có Deposit/Restricted
+  Fund. AC-30 chạy hai client/key khác nhau cùng source/receipt, chỉ một `201`.
+- API list/receive payment, unmatched queue/match, allocation và credit áp scope
+  server-derived; CSKH bị `403`. Frontend `npm test` **53 passed**, Vite build
+  PASS; browser billing flow **10 checks** và payment Golden Flow **14 checks**
+  pass, ảnh tại `greencity-app/artifacts/billing-ux/billing-golden-flow.png` và
+  `greencity-app/artifacts/payment-ux/payment-golden-flow.png`.
+- Golden Flow HTTP/DB mới khóa oracle: hai invoice `963.000` VND, payment
+  `1.000.000` phân bổ `963.000 + 37.000`, dư nợ `926.000`; payment thiếu mã
+  `100.000` không đổi dư nợ/AR trước match, sau match+allocation còn `826.000`.
+  Snapshot Invoice Item/tổng không đổi. Run lỗi basis rollback toàn bộ set, retry
+  cùng Run tạo oracle `991.000` VND; replay cùng idempotency key không tạo bản
+  ghi thứ hai. AC-15 vẫn `SPEC-ONLY`: public API chỉ cho `OPEN → CLOSING →
+  CLOSED`; test xác nhận từ `CLOSED` không thể chuyển `LOCKED` hoặc reopen về
+  `CLOSING` (`409 ERR-STATE-TRANSITION`). UX mô phỏng response bị mất sau khi
+  server ghi payment và retry dùng lại cùng key, chỉ còn một payment.
+- Đây là **Implemented & Verified Local** cho R4 Task 4. Chưa apply `0010` lên
+  Aiven/production, không phải verdict Antigravity/Gate B/C, và vẫn chưa có
+  refund, maker-checker hoặc automatic credit application.
+
+## Lịch sử — R4 Task 2, biểu phí/kỳ/hóa đơn local (14/09/2026)
+
+- PostgreSQL 18.4/TLS disposable: `0008 -> 0009 -> 0008 -> 0009`, DB trống tới
+  head `0009`, migration/seed lặp, `alembic check` và shutdown: PASS; regression
+  toàn checkout **209 passed, 2 warnings in 63.49s**.
+- `0009_r4_billing_issue.py` thêm cutoff, retry/failure metadata, policy/invoice
+  snapshot, void metadata và trigger cấm sửa/xóa Invoice Item; Invoice đã phát
+  hành không thể sửa account/run/period/number/total. Migration path test xác
+  nhận các cột/trigger tồn tại sau upgrade và biến mất đúng sau downgrade.
+- AC-11..14: `Decimal` half-up tạo đúng oracle `963.000`, `991.000` và helper
+  largest-remainder; test AC-12 dùng hai connection kế toán chạy cùng business
+  key, chỉ một request `201` còn request kia `ERR-RUN-DUPLICATE`; lỗi rollback
+  toàn bộ tập invoice rồi retry đúng chính run; Pending Charge duyệt sau cutoff
+  chỉ vào kỳ OPEN tiếp theo.
+- AC-16: void chỉ thành công với invoice `ISSUED`, chưa allocation, kỳ `OPEN`;
+  reversal AR ledger ghi thêm, snapshot không bị sửa. Test âm xác nhận invoice đã
+  allocation và invoice của kỳ `CLOSED` đều bị từ chối và không đổi trạng thái.
+- API Fee Policy/version, period `OPEN → CLOSING → CLOSED`, Billing Run/retry,
+  invoice list/detail/void áp `admin`/`director`/`accountant` và server-derived
+  tenant/site/building scope; CSKH bị 403. UI tối thiểu gọi API client theo
+  contract; `npm test` **53 passed**, Vite build PASS, browser Golden Flow mock
+  transport **10 checks passed** và ảnh
+  `greencity-app/artifacts/billing-ux/billing-golden-flow.png`.
+- Đây là **Implemented & Verified Local** cho R4 Task 2. Chưa apply `0009` lên
+  Aiven/production, không phải verdict Antigravity/Gate B/C, và chưa hoàn thành
+  payment allocation API, refund hay maker-checker.
+
+## Mới nhất — R3 Task 3, an ninh/PCCC local (14/09/2026)
+
+- PostgreSQL 18.4/TLS disposable: `0006 -> 0007 -> 0006 -> 0007`, DB trống tới
+  head, migration/seed lặp, `alembic check`, AC-42/43 và shutdown: PASS;
+  regression toàn checkout **193 passed, 2 warnings in 27.79s**.
+- AC-42: ca trực theo scope, handoff/visitor/patrol timeline append-only, check-in,
+  complete, missed có reason và dashboard trả đúng patrol point. Test ghi trực tiếp
+  vào DB xác nhận trigger từ chối UPDATE/DELETE timeline.
+- AC-43: incident `FIRE` severity HIGH tự tạo escalation `security` + `director`,
+  acknowledgement đúng role, evidence, conclusion và transition tới `CLOSED` được
+  kiểm. Thiếu evidence hoặc acknowledgement bị chặn với error contract riêng.
+- Frontend: `npm test` **53 passed**, Vite build PASS và `npm run test:security`
+  **7 checks passed**, ảnh smoke `greencity-app/artifacts/security-ux/security-worker-completed.png`.
+- Đây là **Implemented & Verified Local** cho Task 3, không phải Gate B/C,
+  verdict Antigravity, Aiven/production hay toàn bộ R3 hoàn tất.
+
+## Snapshot trước — R3 Task 1, data foundation local (13/09/2026)
+
+- PostgreSQL 18.4/TLS disposable: migration path `0006 -> 0007 -> 0006 -> 0007`,
+  empty-DB upgrade đến head, migration/seed repeat, `alembic check` và shutdown:
+  PASS; regression toàn checkout **188 passed, 2 warnings in 23.07s**.
+- `0007_r3_operations.py` tạo schema scoped cho vệ sinh/an ninh, guard unique cho
+  cleaning task/patrol window, Work Order source cho Cleaning Task và trigger
+  append-only timeline. Task 2 thêm API/UI vệ sinh, scope theo assignee, checklist
+  và Case/Work Order rework; contract ở [R3_CONTRACT.md](R3_CONTRACT.md).
+- Local evidence Task 2 bao gồm AC-40/41; Task 3/AC-42..43 chưa có verdict. Không
+  suy diễn thành Gate B/C, Aiven/production hay R3 hoàn tất.
+
+## Mới nhất — R1 closeout, Implemented & Verified Local (13/09/2026)
+
+- Lần chạy PostgreSQL 18.4/TLS cô lập: DB trống đến head `0006`, migration
+  `0005 -> 0006 -> 0005`, upgrade/seed lặp, `alembic check` và shutdown: PASS;
+  regression toàn checkout hiện tại **185 passed, 2 warning deprecation in 46.58s**.
+- `AC-01`, `AC-02`, `AC-03`, `AC-24`, `AC-35` được đóng ở tier **Implemented &
+  Verified Local**. Ma trận function/test/contract, số liệu 1.000 dòng mixed,
+  concurrency, Person--Unit, quarantine/checksum/signed link và switch-site nằm
+  tại [R1_CLOSEOUT.md](R1_CLOSEOUT.md).
+- `AttachmentQuarantined` là event outbox quarantine dùng cho `EVT-23`; test
+  PostgreSQL xác nhận event, integrity, scope actor/site/building/run và expiry.
+- Không tạo Antigravity review lần 3. Kết quả không chứng minh Gate B/C,
+  Aiven/production hoặc mở R3--R5.
 
 ## Snapshot lịch sử — AC-02 Unit JSON import (12/09/2026, đã được thay bằng ImportRun CSV)
 
 Đã thêm `POST /api/v1/units/import` cho một tòa trong active site, với kết quả
 từng dòng, `partial`/`all_or_nothing`, receipt idempotent và audit/outbox trong
-một transaction. Đây chỉ là lát **Unit JSON đồng bộ**; contract và giới hạn tại
-[R1_IMPORT_CONTRACT.md](R1_IMPORT_CONTRACT.md).
+một transaction. Đây chỉ là lát **Unit JSON đồng bộ**; evidence CSV ImportRun
+hiện hành nằm tại [R1_CLOSEOUT.md](R1_CLOSEOUT.md).
 
 - PostgreSQL 18.4/TLS cô lập tại mốc AC-02: **169 passed**, 2 warning deprecation.
 - Migration/seed lặp và `alembic check`: PASS tại head `0004` ở mốc AC-02.
@@ -36,17 +139,31 @@ một transaction. Đây chỉ là lát **Unit JSON đồng bộ**; contract và
   timeout, không có `STATUS` xác nhận. Không tự retry hoặc gửi Review #2; lát
   này chưa được stage/được coi là review-pass hay R1/Gate hoàn tất.
 
-## Mới nhất — R2 CSKH và kỹ thuật, candidate review (12/09/2026)
+## Mới nhất — R2 CSKH và kỹ thuật, Implemented & Verified Local (13/09/2026)
 
 Đã triển khai và kiểm chứng các exit criteria R2 `AC-06`, `AC-08..10`,
 `AC-38..39`. Contract, giới hạn và ánh xạ test nằm tại
 [R2_CONTRACT.md](R2_CONTRACT.md). `AC-07` vẫn là `SPEC-ONLY`; posting anchor
 không được coi là billing R4.
 
-- PostgreSQL 18.4/TLS cô lập: **165 passed**, không skip, 2 warning deprecation.
-- DB trống nâng đến `0004`; upgrade lặp, seed lặp và `alembic check`: PASS.
-- Offline Alembic SQL đến `COMMIT`; compileall, `pip check` và
-  `git diff --check`: PASS.
+- PostgreSQL 18.4/TLS cô lập ở checkout hiện tại: empty-DB migration,
+  migration/seed lặp, `alembic check` và shutdown đều PASS; **185 passed, 3
+  warnings in 44.79s**. Head hiện tại `0006` có closeout R1 tồn tại sẵn; lát R2
+  không tạo migration mới.
+- `npm test`: **51 passed**; `npm run build`: PASS. Browser `staff-ux.cjs`:
+  **31 checks passed** với transport API mock có chủ đích, kiểm login rồi
+  `/auth/me`, Bearer, scope server-derived, list phân trang, form options/tạo
+  Service Request có `Idempotency-Key`, loading/empty/retry, 401 và
+  `ERR-SCOPE-NOTFOUND`.
+- Browser test là contract/UI verification cục bộ; golden flow domain bên dưới
+  chạy qua FastAPI + PostgreSQL cô lập, không suy diễn thành client đang gọi
+  deployment/Aiven.
+- Antigravity Review #1 trả `NEEDS_REVISION`: guard submit đồng bộ và abort khi
+  form unmount đã được thêm, browser regression xác nhận double-click chỉ tạo
+  một request. Nhận xét nới CSKH thành site-wide bị từ chối vì policy cố ý
+  fail-closed: CSKH không có building grant nhận response rỗng/404. Review #2
+  trả `UPSTREAM_OFFLINE`; không gửi lượt 3. Verdict review chéo vì thế còn
+  pending, không ảnh hưởng kết quả test local nhưng chặn review-closeout.
 - Scope tenant/site/building và KTV assigned-only cho cả list/detail, optimistic version,
   idempotency, audit append-only, outbox anchor và private image evidence đều có
   test PostgreSQL.
@@ -54,7 +171,7 @@ không được coi là billing R4.
 Đây là bằng chứng cho lát R2, chưa phải tuyên bố Gate C/R3-R5 hay production
 ready. Các AC R1 tiền đề còn thiếu bằng chứng phải được theo dõi riêng; không
 được dùng test count R2 để mặc nhiên nâng R1 thành PASS. Nội dung R1 lịch sử phía
-dưới được giữ để truy vết.
+dưới được giữ để truy vết. `AC-07` tiếp tục là `SPEC-ONLY`.
 
 ## Mới nhất — SEC-02 Unit360 RBAC/building/field policy (10/09/2026)
 

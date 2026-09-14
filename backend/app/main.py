@@ -6,6 +6,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.health import legacy_router as legacy_health_router
 from app.api.health import router as health_router
+from app.api.cleaning import router as cleaning_router
+from app.api.billing import router as billing_router
+from app.api.security import router as security_router
 from app.api.maintenance import router as maintenance_router
 from app.api.service_requests import router as service_requests_router
 from app.core.config import Settings
@@ -51,6 +54,9 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
     app.include_router(units_router, prefix="/api/v1")
     app.include_router(service_requests_router, prefix="/api/v1")
     app.include_router(maintenance_router, prefix="/api/v1")
+    app.include_router(cleaning_router, prefix="/api/v1")
+    app.include_router(security_router, prefix="/api/v1")
+    app.include_router(billing_router, prefix="/api/v1")
     # Preserve existing monitoring clients without publishing a second API contract.
     app.include_router(legacy_health_router)
     app.add_middleware(CorrelationMiddleware)

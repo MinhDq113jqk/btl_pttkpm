@@ -81,7 +81,11 @@ class WorkOrder(IdentityTimestampMixin, Base):
     __table_args__ = scope_args() + (
         UniqueConstraint("site_id", "code", name="uq_work_orders_site_code"),
         UniqueConstraint("maintenance_occurrence_id", name="uq_work_orders_maintenance_occurrence"),
-        CheckConstraint("(service_request_id IS NULL) <> (maintenance_occurrence_id IS NULL)", name="work_orders_one_source"),
+        UniqueConstraint("cleaning_task_id", name="uq_work_orders_cleaning_task"),
+        CheckConstraint(
+            "num_nonnulls(service_request_id, maintenance_occurrence_id, cleaning_task_id) = 1",
+            name="work_orders_one_source",
+        ),
         CheckConstraint("status IN ('DRAFT','ASSIGNED','IN_PROGRESS','ON_HOLD','WAITING_ACCEPTANCE','COMPLETED','CLOSED','CANCELLED')", name="work_orders_status"),
         Index("ix_work_orders_scope_status", "tenant_id", "site_id", "status"),
         Index("ix_work_orders_assignee_status", "assigned_to_id", "status"),
@@ -95,6 +99,9 @@ class WorkOrder(IdentityTimestampMixin, Base):
         ForeignKey("greencity.maintenance_occurrences.id",
                    name="fk_work_orders_maintenance_occurrence", ondelete="RESTRICT"),
         nullable=True,
+    )
+    cleaning_task_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("greencity.cleaning_tasks.id", ondelete="RESTRICT"), nullable=True,
     )
     code: Mapped[str] = mapped_column(String(50), nullable=False)
     title: Mapped[str] = mapped_column(String(200), nullable=False)

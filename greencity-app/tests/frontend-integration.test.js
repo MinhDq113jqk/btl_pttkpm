@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { ApiError, createApiClient } from '../src/services/apiClient.js';
-import { canViewTab, createAuthenticatedAccount } from '../src/data/authSession.js';
+import { canAccessCleaning, canAccessSecurity, canCreateServiceRequests, canManageCleaning, canManageSecurity, canViewTab, createAuthenticatedAccount } from '../src/data/authSession.js';
 import { mapServiceRequest } from '../src/data/serviceRequestView.js';
 
 const correlationId = '11111111-1111-4111-8111-111111111111';
@@ -48,6 +48,38 @@ const jsonResponse = (payload, status = 200, id = correlationId) => new Response
   headers: { 'Content-Type': 'application/json', 'X-Correlation-ID': id },
 });
 
+const cleaningTask = (overrides = {}) => ({
+  id: randomUUID(), shift_id: randomUUID(), route_id: randomUUID(), route_code: 'CLN-LOBBY', route_name: 'Tuyến sảnh',
+  area_id: randomUUID(), area_code: 'LOBBY', area_name: 'Sảnh chính', tenant_id: randomUUID(), site_id: randomUUID(),
+  building_id: randomUUID(), assigned_to_id: null, status: 'PLANNED', scheduled_start_at: '2026-09-13T01:00:00Z',
+  scheduled_end_at: '2026-09-13T03:00:00Z', started_at: null, submitted_at: null, accepted_at: null,
+  accepted_by_id: null, rework_work_order_id: null, rework_case_id: null, version: 1,
+  checklist: [{ id: randomUUID(), position: 1, label: 'Sàn sạch', is_required: true, result: 'PENDING', note: null, performed_by_id: null, performed_at: null, version: 1 }],
+  ...overrides,
+});
+
+const securityWindow = (overrides = {}) => ({
+  id: randomUUID(), security_shift_id: randomUUID(), patrol_point_id: randomUUID(), patrol_point_code: 'SEC-LOBBY', patrol_point_name: 'Sảnh chính',
+  building_id: randomUUID(), window_start_at: '2026-09-14T01:00:00Z', window_end_at: '2026-09-14T01:30:00Z', status: 'SCHEDULED',
+  missed_reason: null, completed_at: null, version: 1, logs: [], ...overrides,
+});
+
+const securityShift = (overrides = {}) => {
+  const window = overrides.patrol_windows?.[0] || securityWindow();
+  return {
+    id: window.security_shift_id, tenant_id: randomUUID(), site_id: randomUUID(), building_id: window.building_id,
+    assigned_to_id: randomUUID(), scheduled_start_at: '2026-09-14T01:00:00Z', scheduled_end_at: '2026-09-14T03:00:00Z',
+    status: 'PLANNED', version: 1, handoffs: [], visitors: [], patrol_windows: [{ ...window, security_shift_id: window.security_shift_id }, ...((overrides.patrol_windows || []).slice(1))], ...overrides,
+  };
+};
+
+const securityIncident = (overrides = {}) => ({
+  id: randomUUID(), patrol_window_id: randomUUID(), building_id: randomUUID(), code: 'INC-TEST-001', incident_type: 'FIRE', severity: 'HIGH',
+  status: 'NEW', title: 'Khói tại phòng kỹ thuật', description: 'Kích hoạt quy trình PCCC.', occurred_at: '2026-09-14T01:10:00Z',
+  reported_by_id: randomUUID(), conclusion: null, resolved_at: null, closed_at: null, version: 1,
+  escalations: [{ id: randomUUID(), target_role: 'security', acknowledgement: null }, { id: randomUUID(), target_role: 'director', acknowledgement: null }], evidence: [], ...overrides,
+});
+
 test('API client performs login then /auth/me and keeps the issued token in memory', async () => {
   const issuedToken = randomUUID();
   const calls = [];
@@ -91,6 +123,60 @@ test('service-request query is allow-listed and Authorization is attached', asyn
   assert.ok(!calls[2].url.includes('tenant_id'));
   assert.ok(!calls[2].url.includes('building_id'));
   assert.ok(!calls[2].url.includes('role='));
+});
+
+test('CSKH form choices and create payload stay scoped to server-issued resources', async () => {
+  const issuedToken = randomUUID();
+  const buildingId = randomUUID();
+  const categoryId = randomUUID();
+  const unitId = randomUUID();
+  const calls = [];
+  const formOptions = {
+    buildings: [{ id: buildingId, code: 'A', name: 'Tòa A' }],
+    categories: [{ id: categoryId, code: 'TECHNICAL', name: 'Kỹ thuật', building_id: buildingId }],
+    units: [{ id: unitId, unit_number: 'A-1201', building_id: buildingId }],
+  };
+  const responses = [
+    jsonResponse({ access_token: issuedToken }),
+    jsonResponse(userInfo()),
+    jsonResponse({ buildings: formOptions.buildings, categories: [], units: [] }),
+    jsonResponse(formOptions),
+    jsonResponse({ id: randomUUID(), code: 'SR-NEW-001', title: 'Kiểm tra đèn', priority: 'HIGH', status: 'NEW' }, 201),
+  ];
+  const client = createApiClient({ baseUrl: '/api/v1', fetchImpl: async (url, options) => { calls.push({ url, options }); return responses.shift(); } });
+  await client.authenticate('cskh.integration', 'local-test-password');
+  await client.getServiceRequestFormOptions({ tenant_id: randomUUID(), role: 'admin' });
+  const options = await client.getServiceRequestFormOptions({ buildingId, tenant_id: randomUUID(), role: 'admin', site_id: randomUUID() });
+  const created = await client.createServiceRequest({
+    category_id: categoryId,
+    building_id: buildingId,
+    unit_id: unitId,
+    title: 'Kiểm tra đèn',
+    description: 'Đèn hành lang không sáng.',
+    priority: 'HIGH',
+    tenant_id: randomUUID(),
+    site_id: randomUUID(),
+    role: 'admin',
+  }, { idempotencyKey: 'create-intent-001' });
+
+  assert.equal(calls[2].url, '/api/v1/service-request-form-options');
+  assert.equal(calls[3].url, `/api/v1/service-request-form-options?building_id=${buildingId}`);
+  assert.equal(calls[3].options.headers.Authorization, `Bearer ${issuedToken}`);
+  assert.equal(new URL(calls[3].url, 'https://local.test').searchParams.get('tenant_id'), null);
+  assert.equal(new URL(calls[3].url, 'https://local.test').searchParams.get('role'), null);
+  assert.deepEqual(options, formOptions);
+  assert.equal(calls[4].url, '/api/v1/service-requests');
+  assert.equal(calls[4].options.headers.Authorization, `Bearer ${issuedToken}`);
+  assert.equal(calls[4].options.headers['Idempotency-Key'], 'create-intent-001');
+  assert.deepEqual(JSON.parse(calls[4].options.body), {
+    category_id: categoryId,
+    building_id: buildingId,
+    unit_id: unitId,
+    title: 'Kiểm tra đèn',
+    description: 'Đèn hành lang không sáng.',
+    priority: 'HIGH',
+  });
+  assert.equal(created.code, 'SR-NEW-001');
 });
 
 test('Unit 360 sends only the Unit ID path and validates the response contract', async () => {
@@ -222,6 +308,91 @@ test('scope and network failures keep actionable structured errors', async () =>
   await assert.rejects(networkClient.authenticate('cskh.integration', 'local-test-password'), error => error.code === 'ERR-NETWORK' && error.correlationId === correlationId);
 });
 
+test('cleaning client uses only server-owned route, building and task identifiers', async () => {
+  const token = randomUUID();
+  const initial = cleaningTask();
+  const assigned = cleaningTask({ ...initial, status: 'ASSIGNED', assigned_to_id: randomUUID(), version: 2 });
+  const inProgress = cleaningTask({ ...assigned, status: 'IN_PROGRESS', version: 3 });
+  const checked = cleaningTask({ ...inProgress, version: 4, checklist: [{ ...inProgress.checklist[0], result: 'PASS', version: 2 }] });
+  const submitted = cleaningTask({ ...checked, status: 'SUBMITTED', version: 5, submitted_at: '2026-09-13T02:00:00Z' });
+  const accepted = cleaningTask({ ...submitted, status: 'ACCEPTED', version: 6, accepted_at: '2026-09-13T02:05:00Z' });
+  const route = { id: initial.route_id, code: initial.route_code, name: initial.route_name, building_id: initial.building_id };
+  const calls = [];
+  const responses = [
+    jsonResponse({ access_token: token }), jsonResponse(userInfo(['admin'])), jsonResponse({ items: [initial] }),
+    jsonResponse([route]), jsonResponse([{ id: randomUUID(), full_name: 'Nhân viên A' }]),
+    jsonResponse({ id: initial.shift_id, route_id: initial.route_id, scheduled_start_at: initial.scheduled_start_at, scheduled_end_at: initial.scheduled_end_at, status: 'PLANNED', version: 1, tasks: [initial] }, 201),
+    jsonResponse(assigned), jsonResponse(inProgress), jsonResponse(checked), jsonResponse(submitted), jsonResponse(accepted),
+  ];
+  const client = createApiClient({ baseUrl: '/api/v1', fetchImpl: async (url, options) => { calls.push({ url, options }); return responses.shift(); } });
+  await client.authenticate('manager.integration', 'local-test-password');
+  await client.listCleaningTasks({ tenant_id: randomUUID(), role: 'admin' });
+  await client.listCleaningRoutes({ site_id: randomUUID() });
+  await client.listCleaningAssignees(initial.building_id, { tenant_id: randomUUID(), role: 'admin' });
+  await client.createCleaningShift({ route_id: initial.route_id, scheduled_start_at: initial.scheduled_start_at, scheduled_end_at: initial.scheduled_end_at, tenant_id: randomUUID() }, { idempotencyKey: 'cleaning-shift-001' });
+  await client.assignCleaningTask(initial.id, { assignee_id: assigned.assigned_to_id, expected_version: initial.version, role: 'admin' });
+  await client.startCleaningTask(initial.id, assigned.version);
+  await client.updateCleaningChecklist(initial.id, initial.checklist[0].id, { expected_version: initial.checklist[0].version, result: 'PASS', tenant_id: randomUUID() });
+  await client.submitCleaningTask(initial.id, checked.version, { idempotencyKey: 'cleaning-submit-001' });
+  await client.acceptCleaningTask(initial.id, submitted.version);
+
+  assert.equal(calls[2].url, '/api/v1/cleaning/tasks');
+  assert.equal(calls[3].url, '/api/v1/cleaning/routes');
+  assert.equal(calls[4].url, `/api/v1/cleaning/assignees?building_id=${initial.building_id}`);
+  assert.equal(calls[5].options.headers['Idempotency-Key'], 'cleaning-shift-001');
+  assert.deepEqual(JSON.parse(calls[5].options.body), { route_id: initial.route_id, scheduled_start_at: initial.scheduled_start_at, scheduled_end_at: initial.scheduled_end_at });
+  assert.deepEqual(JSON.parse(calls[6].options.body), { assignee_id: assigned.assigned_to_id, expected_version: 1 });
+  assert.deepEqual(JSON.parse(calls[8].options.body), { expected_version: 1, result: 'PASS', note: null });
+  assert.equal(calls[9].options.headers['Idempotency-Key'], 'cleaning-submit-001');
+  assert.ok(calls.slice(2).every(call => call.options.headers.Authorization === `Bearer ${token}`));
+  assert.ok(calls.slice(2).every(call => !JSON.stringify(call).match(/tenant_id|site_id|role/)));
+});
+
+test('security client keeps scope server-owned across shift, patrol and incident commands', async () => {
+  const token = randomUUID();
+  const window = securityWindow();
+  const shift = securityShift({ patrol_windows: [window] });
+  const incident = securityIncident({ patrol_window_id: window.id, building_id: shift.building_id });
+  const dashboard = { shifts: [shift], exceptions: [], incidents: [incident] };
+  const point = { id: window.patrol_point_id, code: window.patrol_point_code, name: window.patrol_point_name, building_id: shift.building_id };
+  const missed = { ...window, status: 'MISSED', missed_reason: 'Phong tỏa tạm thời', version: 2 };
+  const evidence = { ...incident, evidence: [{ id: randomUUID(), evidence_type: 'NOTE', description: 'Biên bản đã ghi nhận.' }] };
+  const acknowledged = { ...evidence, escalations: evidence.escalations.map(item => ({ ...item, acknowledgement: { id: randomUUID() } })) };
+  const triaged = { ...acknowledged, status: 'TRIAGED', version: 2 };
+  const calls = [];
+  const responses = [
+    jsonResponse({ access_token: token }), jsonResponse(userInfo(['admin'])), jsonResponse(dashboard), jsonResponse([point]),
+    jsonResponse([{ id: shift.assigned_to_id, full_name: 'Nhân viên An ninh' }]), jsonResponse(shift, 201), jsonResponse(missed),
+    jsonResponse(incident, 201), jsonResponse(evidence, 201), jsonResponse(acknowledged, 201), jsonResponse(triaged),
+  ];
+  const client = createApiClient({ baseUrl: '/api/v1', fetchImpl: async (url, options) => { calls.push({ url, options }); return responses.shift(); } });
+  await client.authenticate('security.manager', 'local-test-password');
+  await client.listSecurityDashboard({ tenant_id: randomUUID(), role: 'admin' });
+  await client.listSecurityPatrolPoints({ site_id: randomUUID() });
+  await client.listSecurityAssignees(shift.building_id, { tenant_id: randomUUID(), role: 'admin' });
+  await client.createSecurityShift({ building_id: shift.building_id, assignee_id: shift.assigned_to_id, scheduled_start_at: shift.scheduled_start_at, scheduled_end_at: shift.scheduled_end_at, patrol_windows: [{ patrol_point_id: window.patrol_point_id, window_start_at: window.window_start_at, window_end_at: window.window_end_at }], tenant_id: randomUUID() }, { idempotencyKey: 'security-shift-001' });
+  await client.missPatrolWindow(window.id, { expected_version: window.version, reason: 'Phong tỏa tạm thời', role: 'admin' });
+  await client.createSecurityIncident({ patrol_window_id: window.id, incident_type: 'FIRE', severity: 'HIGH', title: incident.title, description: incident.description, occurred_at: incident.occurred_at, tenant_id: randomUUID() }, { idempotencyKey: 'security-incident-001' });
+  await client.addSecurityIncidentEvidence(incident.id, { evidence_type: 'NOTE', description: 'Biên bản đã ghi nhận.', tenant_id: randomUUID() }, { idempotencyKey: 'security-evidence-001' });
+  await client.acknowledgeSecurityEscalation(incident.id, incident.escalations[0].id, 'Đã tiếp nhận.', { idempotencyKey: 'security-ack-001' });
+  await client.transitionSecurityIncident(incident.id, { expected_version: incident.version, status: 'TRIAGED', role: 'admin' });
+
+  assert.equal(calls[2].url, '/api/v1/security/dashboard');
+  assert.equal(calls[3].url, '/api/v1/security/patrol-points');
+  assert.equal(calls[4].url, `/api/v1/security/assignees?building_id=${shift.building_id}`);
+  assert.equal(calls[5].options.headers['Idempotency-Key'], 'security-shift-001');
+  assert.deepEqual(JSON.parse(calls[5].options.body), {
+    building_id: shift.building_id, assignee_id: shift.assigned_to_id, scheduled_start_at: shift.scheduled_start_at, scheduled_end_at: shift.scheduled_end_at,
+    patrol_windows: [{ patrol_point_id: window.patrol_point_id, window_start_at: window.window_start_at, window_end_at: window.window_end_at }],
+  });
+  assert.deepEqual(JSON.parse(calls[6].options.body), { expected_version: 1, reason: 'Phong tỏa tạm thời' });
+  assert.equal(calls[7].options.headers['Idempotency-Key'], 'security-incident-001');
+  assert.equal(calls[9].options.headers['Idempotency-Key'], 'security-ack-001');
+  assert.deepEqual(JSON.parse(calls[10].options.body), { expected_version: 1, status: 'TRIAGED', conclusion: null });
+  assert.ok(calls.slice(2).every(call => call.options.headers.Authorization === `Bearer ${token}`));
+  assert.ok(calls.slice(2).every(call => !JSON.stringify(call).match(/tenant_id|site_id|role/)));
+});
+
 test('account menus are derived only from roles returned by /auth/me', () => {
   const cskh = createAuthenticatedAccount({ ...userInfo(['cskh']), role: 'admin', menu: ['settings'] });
   assert.ok(canViewTab(cskh, 'tasks'));
@@ -240,14 +411,28 @@ test('account menus are derived only from roles returned by /auth/me', () => {
 
   const cleaning = createAuthenticatedAccount(userInfo(['cleaning']));
   assert.ok(!canViewTab(cleaning, 'tasks'));
-  assert.deepEqual(cleaning.menu, ['overview', 'notifications']);
+  assert.deepEqual(cleaning.menu, ['overview', 'cleaning', 'notifications']);
+  assert.ok(canViewTab(cleaning, 'cleaning'));
+  assert.equal(canAccessCleaning(cleaning), true);
+  assert.equal(canManageCleaning(cleaning), false);
+  const manager = createAuthenticatedAccount(userInfo(['director']));
+  assert.ok(canViewTab(manager, 'cleaning'));
+  assert.equal(canManageCleaning(manager), true);
 
   const security = createAuthenticatedAccount(userInfo(['security']));
   assert.ok(canViewTab(security, 'residents'));
+  assert.ok(canViewTab(security, 'security'));
   assert.ok(!canViewTab(security, 'tasks'));
+  assert.equal(canAccessSecurity(security), true);
+  assert.equal(canManageSecurity(security), false);
+  assert.equal(security.primary, 'security');
 
   const technician = createAuthenticatedAccount(userInfo(['technician']));
   assert.ok(!canViewTab(technician, 'residents'), 'Unit 360 stays hidden until backend exposes technician assignment scope');
+  assert.equal(canCreateServiceRequests(cskh), true);
+  assert.equal(canCreateServiceRequests(technician), false);
+  assert.equal(cskh.canCreateServiceRequests, true);
+  assert.equal(technician.canCreateServiceRequests, false);
 });
 
 test('service-request adapter exposes the fields needed by the read-only table', () => {

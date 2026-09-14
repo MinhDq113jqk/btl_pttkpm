@@ -8,9 +8,11 @@ from app.core.config import Settings
 from app.core.database import Database
 from app.core.security import hash_password
 from app.models.account import Account, AccountRole
+from app.models.billing import AccountingPeriod, BillingAccount, FeePolicy, FeePolicyVersion
 from app.models.building import Building
 from app.models.enums import RelationshipTypeEnum, RoleEnum, UnitStatusEnum
 from app.models.person import Person, UnitPersonRelationship
+from app.models.operations import CleaningArea, CleaningRoute, CleaningRouteStop, PatrolPoint
 from app.models.site import Site
 from app.models.service import ServiceCategory
 from app.models.tenant import Tenant
@@ -98,6 +100,59 @@ def seed_database(session: Session) -> None:
                 sla_minutes=240,
                 is_active=True,
                 version=1,
+            ))
+
+        # Seed catalogues only; operational history is created by R3 flows.
+        route = session.execute(select(CleaningRoute).where(
+            CleaningRoute.tenant_id == tenant.id,
+            CleaningRoute.site_id == site.id,
+            CleaningRoute.code == "CLN-LOBBY",
+        )).scalar_one_or_none()
+        if route is None:
+            route = CleaningRoute(
+                tenant_id=tenant.id, site_id=site.id, building_id=building.id,
+                code="CLN-LOBBY", name="Tuyến sảnh chính", is_active=True, version=1,
+            )
+            session.add(route)
+            session.flush()
+
+        area = session.execute(select(CleaningArea).where(
+            CleaningArea.tenant_id == tenant.id,
+            CleaningArea.site_id == site.id,
+            CleaningArea.code == "LOBBY",
+        )).scalar_one_or_none()
+        if area is None:
+            area = CleaningArea(
+                tenant_id=tenant.id, site_id=site.id, building_id=building.id,
+                code="LOBBY", name="Sảnh chính", is_active=True, version=1,
+            )
+            session.add(area)
+            session.flush()
+
+        route_stop = session.execute(select(CleaningRouteStop).where(
+            CleaningRouteStop.route_id == route.id,
+            CleaningRouteStop.cleaning_area_id == area.id,
+        )).scalar_one_or_none()
+        if route_stop is None:
+            session.add(CleaningRouteStop(
+                tenant_id=tenant.id, site_id=site.id, building_id=building.id,
+                route_id=route.id, cleaning_area_id=area.id, position=1,
+                checklist_template=[
+                    {"label": "Sàn sạch và khô", "required": True},
+                    {"label": "Thùng rác đã kiểm tra", "required": True},
+                ],
+                version=1,
+            ))
+
+        patrol_point = session.execute(select(PatrolPoint).where(
+            PatrolPoint.tenant_id == tenant.id,
+            PatrolPoint.site_id == site.id,
+            PatrolPoint.code == "SEC-LOBBY",
+        )).scalar_one_or_none()
+        if patrol_point is None:
+            session.add(PatrolPoint(
+                tenant_id=tenant.id, site_id=site.id, building_id=building.id,
+                code="SEC-LOBBY", name="Điểm tuần tra sảnh chính", is_active=True, version=1,
             ))
 
     # 4. Units
@@ -289,6 +344,73 @@ def seed_database(session: Session) -> None:
                     building_id=building_id,
                 )
                 session.add(acc_role)
+
+    # R4 seeds only stable billing setup. It never creates invoice, payment,
+    # allocation, credit, unmatched-payment, or AR-ledger history.
+    for site, building, unit in (
+        (site_west, building_w1, unit_w101),
+        (site_east, building_e1, unit_e101),
+    ):
+        billing_account = session.execute(select(BillingAccount).where(
+            BillingAccount.building_id == building.id,
+            BillingAccount.unit_id == unit.id,
+        )).scalar_one_or_none()
+        if billing_account is None:
+            session.add(BillingAccount(
+                tenant_id=tenant.id,
+                site_id=site.id,
+                building_id=building.id,
+                unit_id=unit.id,
+                account_number=f"BA-{unit.unit_number}",
+                status="ACTIVE",
+                opened_on=date(2025, 1, 1),
+                version=1,
+            ))
+
+        policy = session.execute(select(FeePolicy).where(
+            FeePolicy.building_id == building.id,
+            FeePolicy.code == "MGMT-MONTHLY",
+        )).scalar_one_or_none()
+        if policy is None:
+            policy = FeePolicy(
+                tenant_id=tenant.id,
+                site_id=site.id,
+                building_id=building.id,
+                code="MGMT-MONTHLY",
+                name="Phí quản lý tháng",
+                is_active=True,
+            )
+            session.add(policy)
+            session.flush()
+        if session.execute(select(FeePolicyVersion).where(
+            FeePolicyVersion.fee_policy_id == policy.id,
+            FeePolicyVersion.version_number == 1,
+        )).scalar_one_or_none() is None:
+            session.add(FeePolicyVersion(
+                tenant_id=tenant.id,
+                site_id=site.id,
+                building_id=building.id,
+                fee_policy_id=policy.id,
+                version_number=1,
+                effective_from=date(2025, 1, 1),
+                unit_rate_vnd=0,
+                version=1,
+            ))
+
+        if session.execute(select(AccountingPeriod).where(
+            AccountingPeriod.building_id == building.id,
+            AccountingPeriod.period_key == "2026-09",
+        )).scalar_one_or_none() is None:
+            session.add(AccountingPeriod(
+                tenant_id=tenant.id,
+                site_id=site.id,
+                building_id=building.id,
+                period_key="2026-09",
+                period_start=date(2026, 9, 1),
+                period_end=date(2026, 9, 30),
+                status="OPEN",
+                version=1,
+            ))
 
     session.commit()
     print("Idempotent seed completed successfully!")

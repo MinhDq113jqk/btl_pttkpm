@@ -454,7 +454,7 @@ def submit_work_order(case, work_order: dict, *, technician="tech"):
 def test_r2_readiness_reports_migrated_head(r2_case):
     response = r2_case["client"].get("/api/v1/readiness")
     assert response.status_code == 200
-    assert response.json()["schema_revision"] == "0006"
+    assert response.json()["schema_revision"] == "0010"
 
 
 def test_r2_request_idempotency_and_scope_are_enforced(r2_case):
@@ -613,6 +613,84 @@ def test_service_request_list_technician_is_assigned_only(
         assert str(data["hidden_building"].id) not in returned_ids
         assert str(data["hidden_site"].id) not in returned_ids
         assert str(data["hidden_tenant"].id) not in returned_ids
+
+
+def test_service_request_form_options_are_cskh_scoped(r2_case):
+    case = r2_case
+    with case["database"].get_session() as session:
+        global_category = ServiceCategory(
+            tenant_id=case["tenant"].id,
+            site_id=case["sites"][0].id,
+            building_id=None,
+            code=f"GLOBAL-{uuid4().hex[:6]}",
+            name="Global request category",
+            sla_minutes=120,
+        )
+        inactive_category = ServiceCategory(
+            tenant_id=case["tenant"].id,
+            site_id=case["sites"][0].id,
+            building_id=case["buildings"][0].id,
+            code=f"INACTIVE-{uuid4().hex[:6]}",
+            name="Inactive request category",
+            sla_minutes=120,
+            is_active=False,
+        )
+        session.add_all([global_category, inactive_category])
+        session.commit()
+
+    empty_selection = case["client"].get(
+        "/api/v1/service-request-form-options", headers=case["auth"]["cskh"],
+    )
+    assert empty_selection.status_code == 200, empty_selection.text
+    assert set(empty_selection.json()) == {"buildings", "categories", "units"}
+    assert empty_selection.json()["buildings"] == [{
+        "id": str(case["buildings"][0].id),
+        "code": case["buildings"][0].code,
+        "name": case["buildings"][0].name,
+    }]
+    assert empty_selection.json()["categories"] == []
+    assert empty_selection.json()["units"] == []
+
+    selected = case["client"].get(
+        "/api/v1/service-request-form-options",
+        headers=case["auth"]["cskh"],
+        params={
+            "building_id": str(case["buildings"][0].id),
+            "tenant_id": str(uuid4()),
+            "role": "admin",
+        },
+    )
+    assert selected.status_code == 200, selected.text
+    assert selected.json()["buildings"] == empty_selection.json()["buildings"]
+    assert {item["id"] for item in selected.json()["categories"]} == {
+        str(case["categories"][0].id), str(global_category.id),
+    }
+    assert all(set(item) == {"id", "code", "name", "building_id"}
+               for item in selected.json()["categories"])
+    assert selected.json()["units"] == [{
+        "id": str(case["units"][0].id),
+        "unit_number": case["units"][0].unit_number,
+        "building_id": str(case["buildings"][0].id),
+    }]
+
+    for actor, params, expected_status in (
+        ("cskh_no_building", {}, 200),
+        ("cskh_no_building", {"building_id": str(case["buildings"][0].id)}, 404),
+        ("cskh", {"building_id": str(case["buildings"][1].id)}, 404),
+        ("lead", {}, 403),
+    ):
+        response = case["client"].get(
+            "/api/v1/service-request-form-options",
+            headers=case["auth"][actor], params=params,
+        )
+        assert response.status_code == expected_status, response.text
+        if expected_status == 404:
+            assert response.json()["error"]["code"] == "ERR-SCOPE-NOTFOUND"
+    no_grant = case["client"].get(
+        "/api/v1/service-request-form-options", headers=case["auth"]["cskh_no_building"],
+    )
+    assert no_grant.json() == {"buildings": [], "categories": [], "units": []}
+    assert case["client"].get("/api/v1/service-request-form-options").status_code == 401
 
 
 def test_r2_request_link_and_triage_contract(r2_case):

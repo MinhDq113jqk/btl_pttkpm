@@ -88,6 +88,31 @@ class ServiceRequestListResponse(BaseModel):
     total: int
 
 
+class ServiceRequestFormBuilding(ApiModel):
+    id: UUID
+    code: str
+    name: str
+
+
+class ServiceRequestFormCategory(ApiModel):
+    id: UUID
+    code: str
+    name: str
+    building_id: UUID | None
+
+
+class ServiceRequestFormUnit(ApiModel):
+    id: UUID
+    unit_number: str
+    building_id: UUID
+
+
+class ServiceRequestFormOptions(ApiModel):
+    buildings: list[ServiceRequestFormBuilding]
+    categories: list[ServiceRequestFormCategory]
+    units: list[ServiceRequestFormUnit]
+
+
 class TriageRequest(InputModel):
     expected_version: int = Field(ge=1)
     owner_account_id: UUID

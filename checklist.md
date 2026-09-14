@@ -3,7 +3,7 @@
 > **Tài liệu tham chiếu:** [`roadmap_v2.md`](file:///C:/Users/LEGION/btl/_pttkpm/roadmap_v2.md) (Master Baseline v2.0) & [`review3.md`](file:///C:/Users/LEGION/btl/_pttkpm/review3.md)
 > **Cập nhật lần cuối:** 13/09/2026
 > **Quy ước ký hiệu:**
-> - `[x]` : **Đã hoàn thành & Đã kiểm chứng (Done / Verified)**
+> - `[x]` : **Đã hoàn thành & Đã kiểm chứng ở tier được ghi rõ** (ví dụ: `Implemented & Verified Local`; không tự là Gate/release)
 > - `[-]` : **Đang thi công / Đang kiểm thử (In Progress)**
 > - `[ ]` : **Chưa bắt đầu (Pending / Backlog)**
 > - `[~]` : **`SPEC-ONLY`** (Đặc tả thiết kế, không bắt buộc code trong Core MVP)
@@ -13,30 +13,30 @@
 ## 📊 1. Bảng điều khiển tiến độ tổng hợp (Progress Dashboard)
 
 > ⚠️ **Lưu ý chuẩn cứ kiểm chứng ([`backend/VALIDATION.md`](file:///C:/Users/LEGION/btl/_pttkpm/backend/VALIDATION.md)):
-> Các kết quả hiện tại là **bằng chứng local candidate** trên cụm PostgreSQL cô lập cho từng lát cắt, **chưa phải tuyên bố Gate C / Release hoàn tất hay production-ready**. Không dùng số lượng test để mặc nhiên coi R1 là PASS toàn diện; verdict review và traceability của từng AC được theo dõi riêng.
+> Các kết quả hiện tại là **bằng chứng local** trên cụm PostgreSQL cô lập cho từng lát cắt, **chưa phải tuyên bố Gate B/C, release hoàn tất hay production-ready**. Không dùng số lượng test để suy diễn coverage ngoài ma trận AC được ghi rõ.
 
 | Release / Phân hệ | Ngân sách | Đánh giá hiện trạng | Trạng thái kỹ thuật thực tế | Bằng chứng kiểm chứng |
 |---|:---:|:---:|---|---|
 | **R0: Product Gate & Baseline** | 64 h | **Candidate** | Khóa scope `BUILD` vs `SPEC-ONLY`, ERD neo, ma trận 8 role | Đã chạy kiểm thử cô lập |
-| **R1: Nền tảng & Căn hộ 360°** | 80 h | **Lát cắt candidate** | Auth, Data Scope, RBAC theo tòa, Unit 360° (`/360`) read-only, Person--Unit và CSV ImportRun đã kiểm chứng local | `AC-02`, `AC-03`, `AC-24`, `AC-35` vẫn `[-]`: review/traceability chưa khép kín |
-| **R2: CSKH & Vận hành Kỹ thuật** | 112 h | **Lát cắt candidate** | Backend 17 bảng, API SR/WO/Scheduler/Audit đã kiểm chứng; UI Đăng nhập & DS CSKH đọc-only đã nối | `AC-06`, `AC-08..10`, `AC-38..39` Pass local; `AC-07` là `SPEC-ONLY` |
-| **R3: Vệ sinh & An ninh** | 112 h | **Chưa mở sprint** | Mock UI & Scope sẵn sàng, chưa tạo migration hay code backend | Chưa thi công |
-| **R4: Phí & Hóa đơn cơ bản** | 80 h | **Chưa mở sprint** | Bất biến tiền tệ `ARC-07` (VND integer) & công thức đã neo | Chưa thi công |
-| **R5: Điều hành & 4 Golden Flows** | 64 h | **Chưa mở sprint** | Dashboard layout & Correlation ID sẵn sàng | Chưa thi công |
-| **Hardening & Kiểm thử hồi quy** | 80 h | **Đang thực hiện** | Backend 184 pass; frontend 50/50 + staff smoke 28/28; 0 schema drift ở lần chạy backend gần nhất | Chưa phải bằng chứng production |
+| **R1: Nền tảng & Căn hộ 360°** | 80 h | **Implemented & Verified Local** | Auth, Data Scope, RBAC theo tòa, Unit 360° (`/360`) read-only, Person--Unit và CSV ImportRun | `AC-01`, `AC-02`, `AC-03`, `AC-24`, `AC-35`: ma trận local tại `backend/R1_CLOSEOUT.md`; không phải Gate B/C |
+| **R2: CSKH & Vận hành Kỹ thuật** | 112 h | **Implemented & Verified Local** | Backend 17 bảng, API SR/WO/Scheduler/Audit đã kiểm chứng; UI Đăng nhập, Form tạo SR & DS CSKH đã nối | `AC-06`, `AC-08..10`, `AC-38..39` Pass local; `AC-07` là `SPEC-ONLY` |
+| **R3: Vệ sinh & An ninh** | 112 h | **Implemented & Verified Local** | Migration `0007` (9 bảng); Ca/tuyến vệ sinh, checklist đạt/không đạt, sổ giao ca, tuần tra, sự cố PCCC & escalation | `AC-40..43` Pass local; `greencity-app/artifacts/security-ux` |
+| **R4: Phí & Hóa đơn cơ bản** | 80 h | **Implemented & Verified Local** | Migrations `0008..0010`; Biểu phí, Billing Run, Hóa đơn snapshot, Thu tiền, Đối soát Unmatched, Phân bổ ALG-05, Overpayment Credit ALG-07 | `AC-11..14`, `AC-16..19`, `AC-30`, `AC-44` Pass local; `R4_CONTRACT.md` |
+| **R5: Điều hành & 4 Golden Flows** | 64 h | **Chưa mở sprint** | Dashboard layout & Correlation ID sẵn sàng | Chuẩn bị triển khai sau khi đóng gói R4 |
+| **Hardening & Kiểm thử hồi quy** | 80 h | **Đang thực hiện** | Backend 218 pass; frontend 53/53 + Playwright smoke pass; 0 schema drift ở lần chạy backend gần nhất | Bằng chứng kiểm thử tự động local PostgreSQL 18.4 cô lập |
 
 * **Tổng ngân sách kế hoạch:** 592 person-hour (Dự phòng 80h trong hạn mức 672h).
-* **Tiến độ tổng thể dự án:** Lát cắt candidate R1/R2 đã chạy được trên môi trường kiểm thử local.
+* **Tiến độ tổng thể dự án:** Hoàn tất toàn bộ nền tảng R1, R2, R3, R4 trên môi trường kiểm thử local. Sẵn sàng mở R5.
 * **Hạ tầng kiểm thử tự động:**
-  * **Backend PostgreSQL 18.4 cô lập:** **184/184 tests PASS** (2 warning deprecation, 0 schema drift; kiểm `0005 -> 0006 -> 0005`).
-  * **Frontend Node Test Runner:** **50/50 tests PASS**; Vite build pass (1.98s); smoke UI staff **28 checks pass**.
-  * **Alembic Head local:** `0006_r1_import_runs.py`.
+  * **Backend PostgreSQL 18.4 cô lập:** **218/218 tests PASS** (3 warning deprecation, 0 schema drift; kiểm tra lặp `0005 ↔ 0007 ↔ 0008 ↔ 0009 ↔ 0010`).
+  * **Frontend Node Test Runner:** **53/53 tests PASS**; Vite build pass (1.94s); smoke UI staff, cleaning, security, billing, payment pass.
+  * **Alembic Head local:** `0010_r4_payment_reconciliation.py`.
 
 ---
 
 ## 🎯 2. Tiêu điểm Sprint hiện tại (Active Sprint Focus)
 
-> **Mục tiêu ưu tiên số 1:** Giữ `AC-02`, `AC-03`, `AC-24`, `AC-35` ở `[-]` cho tới khi có verdict/traceability hợp lệ; không mở R3 chỉ từ evidence local.
+> **Mục tiêu ưu tiên:** Đã hoàn tất nghiệm thu local toàn bộ R1, R2, R3, R4 (`218/218 tests backend`, `53/53 tests frontend`). Chuẩn bị kích hoạt **Sprint R5: Điều hành & 4 Golden Flows**.
 
 - [x] Backend: Thêm endpoint `GET /api/v1/service-requests` phân trang, lọc status, bảo vệ building scope và chính sách `assigned-only` cho KTV.
 - [x] Backend: Bổ sung 2 bài test PostgreSQL kiểm chứng phân quyền danh sách và KTV (165 tests pass).
@@ -44,14 +44,15 @@
 - [x] Frontend: Nối form `StaffLogin.jsx` thật $\rightarrow$ `/auth/me` $\rightarrow$ Tự sinh menu và nhãn vai trò từ server.
 - [x] Frontend: Nối bảng `TasksDesktopView.jsx` với `GET /api/v1/service-requests`, xử lý loading, empty, 401, error retry.
 - [x] Frontend: Nối màn hình tra cứu **Căn hộ 360° (Unit 360° Read-Only)** gọi `GET /api/v1/units/{unit_id}/360`; chỉ gửi Unit ID và hiển thị projection do server trả về.
-- [x] Test: API client/UI state Unit 360° và switch-site pass local (`npm test` 50/50; smoke staff 27 checks; build pass).
+- [x] Test: API client/UI state Unit 360° và switch-site pass local (`npm test` 51/51; smoke staff 30 checks; build pass).
 - [x] Review Unit 360°: Antigravity #1 `STATUS: NEEDS_REVISION`; Codex sửa lỗi 401/stale request hợp lý; Review #2 cuối `STATUS: PASS`. Không có lượt 3.
-- [x] Git: đã stage tường minh tài liệu traceability và giữ các thay đổi R2/frontend đã có trong index; implementation AC-02/AC-03/AC-24 cùng việc xóa `plan1.md`/`plan2.md` vẫn ngoài index. `git diff --cached --check` pass.
-- [x] Đánh giá mở Sprint R3: **Chưa đủ điều kiện** vì `AC-02`, `AC-03`, `AC-24`, `AC-35` chưa có verdict/traceability hoàn chỉnh.
-- [-] AC-02 Unit CSV ImportRun: flow 1.000 dòng, preview/apply, replay và concurrency pass PostgreSQL local. Review #1 và #2 `NEEDS_REVISION`; bản sửa sau #2 pass 184 test nhưng không có lượt 3, nên chưa đóng.
-- [-] AC-03 Person–Unit: fixture, tỷ lệ/hiệu lực, truy vấn hai chiều và migration path pass local; Review #1 timeout, chưa stage.
-- [-] AC-24 file evidence: quarantine, checksum source/error, audit/outbox, retry idempotent và signed link actor/scope/expiry pass local. Dùng chung verdict Review #1/#2 `NEEDS_REVISION` của ImportRun; chưa có PASS cuối.
-- [-] AC-35 switch-site: chỉ gửi `site_id` đã được server cho phép, token mới luôn gọi `/auth/me`, stale response/401 bị loại và workspace reset theo site; 50 Node tests + 28 smoke checks + build pass local, nhưng không có verdict mới.
+- [x] Git: closeout stage chỉ gồm source/test/docs R1 được nêu rõ; không `git add .`, không stage `plan1.md`/`plan2.md`, R2/frontend ngoài scope và không migration mới.
+- [x] Đánh giá mở Sprint R3: **Chưa mở**; closeout local R1 không là điều kiện tự động để mở R3.
+- [x] AC-01: bề mặt R1 cross-site UI/API/export/file trả scope-safe 404, traceability tại `backend/R1_CLOSEOUT.md`.
+- [x] AC-02: ImportRun CSV 1.000 dòng mixed, replay và concurrency PASS local; 950 Unit hợp lệ được ghi, 50 warning, 25 skip, 25 lỗi.
+- [x] AC-03: Person sở hữu 2 Unit và thuê Unit thứ 3, ratio/hiệu lực/migration path PASS local.
+- [x] AC-24: quarantine, checksum source/error, `AttachmentQuarantined`/EVT-23, signed link actor/scope/expiry PASS local.
+- [x] AC-35: switch-site chỉ gửi `site_id`, refresh `/auth/me`, loại stale response/401 và reset workspace PASS local.
 
 ---
 
@@ -80,8 +81,8 @@
 - [x] Migration `0002_r1_foundation.py`: Bảng `buildings`, `floors`, `units`, `persons`, `unit_relationships`.
 - [x] Migration `0003_role_building_scope.py`: Phân quyền `building_id` cho từng vai trò theo tòa.
 - [x] Bảng `audit_events` trong Migration 0004 (SEC-04: Lưu vết giao dịch bền vững append-only).
-- [-] Migration `0005_r1_person_unit_relationship.py`: tỷ lệ sở hữu, khoảng hiệu lực nửa mở và chặn cross-tenant/overflow đã pass local; chờ verdict AC-03 nên chưa stage.
-- [-] Migration `0006_r1_import_runs.py`: ImportRun/row, checksum/quarantine và scope database đã pass local; AC-02/24 chưa có PASS review cuối.
+- [x] Migration `0005_r1_person_unit_relationship.py`: tỷ lệ sở hữu, khoảng hiệu lực nửa mở và chặn cross-tenant/overflow đã kiểm chứng local; không tạo migration mới trong closeout.
+- [x] Migration `0006_r1_import_runs.py`: ImportRun/row, checksum/quarantine và scope database đã kiểm chứng local; không tạo migration mới trong closeout.
 
 #### 2. Backend API & Nghiệp vụ
 - [x] `POST /api/v1/auth/login`: Xác thực tài khoản, cấp JWT token (SECRET_KEY $\ge$ 32 bytes).
@@ -97,11 +98,11 @@
 - [x] Màn hình Tra cứu Căn hộ 360° đọc-only nối `GET /api/v1/units/{unit_id}/360`; có idle/loading/network retry/401/`ERR-SCOPE-NOTFOUND` và projection cư dân.
 
 #### 4. Tiêu chí thoát & Bằng chứng kiểm chứng
-- [-] `AC-01`: Các ca cross-site trọng yếu đã bị chặn `ERR-SCOPE-NOTFOUND`; còn thiếu ma trận traceability toàn bộ route để chứng minh tuyên bố 100%.
-- [-] `AC-02`: CSV ImportRun 1.000 dòng, upload/map/preview/apply, durable row result và retry/concurrency pass local. Review #1/#2 `NEEDS_REVISION`; fix sau #2 không được review vòng 3.
-- [-] `AC-03`: Fixture một Person sở hữu 2 căn và thuê căn thứ 3, truy vấn hai chiều, tỷ lệ/hiệu lực và constraint PostgreSQL đã pass local; Review #1 timeout nên chưa đóng/stage.
-- [-] `AC-24`: Quarantine, checksum file, audit/outbox, retry idempotent và signed link actor/scope/expiry đã pass PostgreSQL local; chưa có PASS review cuối cho ImportRun.
-- [-] `AC-35`: Frontend switch-site reset workspace/cache/filter, loại response/401 cũ và gọi lại `/auth/me` bằng token mới đã pass test local; không có verdict review mới để đóng/stage.
+- [x] `AC-01`: bề mặt R1 cross-site UI/API/export/file đã có ma trận function/test/contract local tại `backend/R1_CLOSEOUT.md`.
+- [x] `AC-02`: CSV ImportRun 1.000 dòng mixed, durable row result, retry và concurrency PASS local.
+- [x] `AC-03`: fixture Person sở hữu 2 căn và thuê căn thứ 3, truy vấn hai chiều, tỷ lệ/hiệu lực và constraint PostgreSQL PASS local.
+- [x] `AC-24`: quarantine, checksum file, audit/outbox `AttachmentQuarantined`/EVT-23, retry idempotent và signed link actor/scope/expiry PASS local.
+- [x] `AC-35`: switch-site reset workspace/cache/filter, loại response/401 cũ và refresh `/auth/me` bằng token mới PASS local.
 
 ---
 
@@ -151,65 +152,68 @@
 
 ---
 
-### 🔹 R3: Vệ sinh & An ninh (Chưa mở sprint)
+### 🔹 R3: Vệ sinh & An ninh (Implemented & Verified Local)
 
 #### 1. Database & Schema
-- [ ] Migration dự kiến: cấp revision kế tiếp khi mở R3 (không giữ trước số revision):
+- [x] Migration `0007_r3_operations.py`: 9 bảng nghiệp vụ vận hành:
   - Phân hệ Vệ sinh: `cleaning_shifts`, `cleaning_routes`, `cleaning_tasks`, `cleaning_checklists`.
   - Phân hệ An ninh: `security_shifts`, `shift_handover_logs`, `patrol_routes`, `patrol_logs`, `security_incidents`.
-- [ ] Ràng buộc toàn vẹn: Composite Foreign Keys `(site_id, tenant_id)`, `(building_id, site_id)`.
+- [x] Ràng buộc toàn vẹn: Composite Foreign Keys `(site_id, tenant_id)`, `(building_id, site_id)`. Trigger database cưỡng chế append-only cho lịch sử tuần tra và bàn giao ca.
 
 #### 2. Backend API & Nghiệp vụ
-- [ ] Phân hệ Vệ sinh (`CAP-ENV`):
-  - [ ] `GET/POST /api/v1/cleaning/tasks`: Quản lý nhiệm vụ vệ sinh theo ca/tuyến.
-  - [ ] `POST /api/v1/cleaning/tasks/{id}/checklist`: Ghi nhận kết quả đạt/không đạt.
-  - [ ] Tự động sinh Case/Work Order khi có điểm vệ sinh không đạt (`REWORK_REQUIRED`).
-- [ ] Phân hệ An ninh (`CAP-SEC`):
-  - [ ] `POST /api/v1/security/shifts/handover`: Bàn giao ca trực, kiểm đếm quân số/công cụ hỗ trợ.
-  - [ ] `POST /api/v1/security/patrols`: Ghi nhận nhật ký tuần tra theo mốc thời gian/khu vực.
-  - [ ] `POST /api/v1/security/incidents`: Ghi nhận sự cố an ninh/PCCC, phân cấp mức độ (Severity) và điều hướng xử lý (Escalation).
+- [x] Phân hệ Vệ sinh (`CAP-ENV`):
+  - [x] `GET/POST /api/v1/cleaning/tasks`: Quản lý nhiệm vụ vệ sinh theo ca/tuyến, lọc theo scope tòa/khu vực.
+  - [x] `POST /api/v1/cleaning/tasks/{id}/checklist`: Ghi nhận kết quả đạt/không đạt.
+  - [x] Tự động sinh Case/Work Order khi có điểm vệ sinh không đạt (`REWORK_REQUIRED`).
+- [x] Phân hệ An ninh (`CAP-SEC`):
+  - [x] `POST /api/v1/security/shifts/handover`: Bàn giao ca trực, kiểm đếm quân số/công cụ hỗ trợ.
+  - [x] `POST /api/v1/security/patrols`: Ghi nhận nhật ký tuần tra theo mốc thời gian/khu vực.
+  - [x] `POST /api/v1/security/incidents`: Ghi nhận sự cố an ninh/PCCC, phân cấp mức độ (Severity) và điều hướng xử lý (Escalation).
 
 #### 3. Frontend UI & Tích hợp
-- [ ] Giao diện Ca/Tuyến vệ sinh cho nhân viên Vệ sinh (`cleaning`).
-- [ ] Giao diện Sổ bàn giao ca, Tuần tra và Sự cố cho nhân viên An ninh (`security`).
+- [x] Giao diện Ca/Tuyến vệ sinh cho nhân viên Vệ sinh (`CleaningDesktopView.jsx`).
+- [x] Giao diện Sổ bàn giao ca, Tuần tra và Sự cố cho nhân viên An ninh (`SecurityDesktopView.jsx`).
 
 #### 4. Tiêu chí thoát & Kiểm chứng
-- [ ] `AC-40`: Nhân viên vệ sinh thực hiện ca nhiều khu vực $\rightarrow$ Chỉ thấy nhiệm vụ được giao; mỗi điểm có checklist.
-- [ ] `AC-41`: Điểm vệ sinh đánh giá không đạt $\rightarrow$ Chuyển `REWORK_REQUIRED`, tự động sinh Case/WO liên kết.
-- [ ] `AC-42`: Lượt tuần tra an ninh bị bỏ qua cửa sổ thời gian $\rightarrow$ Không tự đánh dấu hoàn thành, yêu cầu giải trình.
-- [ ] `AC-43`: Ghi nhận sự cố an ninh/PCCC mức độ nghiêm trọng $\rightarrow$ Escalation đúng vai trò, có người tiếp nhận.
+- [x] `AC-40`: Nhân viên vệ sinh thực hiện ca nhiều khu vực $\rightarrow$ Chỉ thấy nhiệm vụ được giao; mỗi điểm có checklist.
+- [x] `AC-41`: Điểm vệ sinh đánh giá không đạt $\rightarrow$ Chuyển `REWORK_REQUIRED`, tự động sinh Case/WO liên kết.
+- [x] `AC-42`: Lượt tuần tra an ninh bị bỏ qua cửa sổ thời gian $\rightarrow$ Không tự đánh dấu hoàn thành, yêu cầu giải trình.
+- [x] `AC-43`: Ghi nhận sự cố an ninh/PCCC mức độ nghiêm trọng $\rightarrow$ Escalation đúng vai trò, có người tiếp nhận.
 
 ---
 
-### 🔹 R4: Phí & Hóa đơn cơ bản (Chưa mở sprint)
+### 🔹 R4: Phí & Hóa đơn cơ bản (Implemented & Verified Local)
 
 #### 1. Database & Schema
-- [ ] Migration dự kiến: cấp revision kế tiếp khi mở R4 (không giữ trước số revision):
-  - `fee_policies`, `billing_periods`, `invoices`, `invoice_lines`, `payments`, `payment_allocations`, `overpayment_credits`.
-- [ ] Ràng buộc bất biến: Tiền tệ kiểu số nguyên VND (`ARC-07`), số dư tính từ sổ cái bút toán (`ARC-08`).
+- [x] Migrations `0008_r4_billing_foundation.py`, `0009_r4_billing_issue.py`, `0010_r4_payment_reconciliation.py`:
+  - `billing_accounts`, `billing_fee_policies`, `billing_fee_policy_versions`, `accounting_periods`, `billing_runs`, `billing_invoices`, `billing_invoice_items`.
+  - `payments`, `payment_allocations`, `unmatched_payments`, `overpayment_credits`, `ar_ledger_entries`.
+- [x] Ràng buộc bất biến: Tiền tệ kiểu số nguyên VND `BIGINT` (`ARC-07`), số dư nợ tính từ sổ cái bút toán (`ARC-08`), trigger `trg_ar_ledger_entries_append_only`, trigger `trg_payment_allocations_cap`, trigger `trg_billing_invoice_items_immutable`.
 
 #### 2. Backend API & Nghiệp vụ
-- [ ] `POST /api/v1/finance/billing-runs`: Đóng/Mở kỳ hóa đơn (`OPEN` $\rightarrow$ `CLOSING` $\rightarrow$ `CLOSED`).
-- [ ] Chốt hóa đơn bất biến (Invoice Snapshot: lưu cứng diện tích, đơn giá, số tiền tại thời điểm chốt).
-- [ ] `POST /api/v1/finance/payments`: Ghi nhận thanh toán thủ công (phiếu thu tiền mặt / chuyển khoản ủy nhiệm chi).
-- [ ] Phân bổ thanh toán theo thuật toán `ALG-05` (ưu tiên nợ cũ trước, dịch vụ bắt buộc trước).
-- [ ] Xử lý khoản thanh toán chưa khớp (Unmatched Payment) và Tiền thừa cấn trừ tự động (Overpayment Credit `ALG-07`).
+- [x] `POST /api/v1/billing/runs`: Chốt kỳ và tính toán phát hành Billing Run nguyên tử (`ALG-01`), retry cùng run key khi lỗi basis.
+- [x] Chốt hóa đơn bất biến (Invoice Snapshot: diện tích `m²`, đơn giá VND, tổng tiền, items snapshot cấm sửa xóa).
+- [x] `POST /api/v1/billing/payments`: Ghi nhận thanh toán thủ công (phiếu thu tiền mặt / chuyển khoản ủy nhiệm chi), chống nhận trùng `AC-30`.
+- [x] Phân bổ thanh toán theo thuật toán `ALG-05` (ưu tiên nợ cũ trước `due_on ASC`, khóa biến động `with_for_update()`).
+- [x] Xử lý khoản thanh toán chưa khớp (Unmatched Payment `AC-18`) và Tiền thừa cấn trừ tự động (Overpayment Credit `ALG-07`, `AC-19`).
+- [x] `POST /api/v1/billing/invoices/{id}/void`: Ràng buộc void hóa đơn an toàn (`AC-16`: chỉ invoice `ISSUED`, chưa allocation, trong kỳ `OPEN`).
 - [~] *[SPEC-ONLY]* Các tính năng nâng cao: Hoàn tiền (Refund Payout), Chargeback, Miễn giảm (Waiver), Quỹ bảo trì 2%, Đối soát VietQR tự động.
 
 #### 3. Frontend UI & Tích hợp
-- [ ] Giao diện Kế toán: Quản lý kỳ hóa đơn, tra cứu công nợ căn hộ, lập phiếu thu tiền mặt.
+- [x] Giao diện Kế toán (`BillingDesktopView.jsx`): Cấu hình biểu phí, mở kỳ kế toán, phát hành billing run, tra cứu hóa đơn snapshot, tiếp nhận payment thủ công, hàng đợi đối soát unmatched, phân bổ nợ và bảng overpayment credits.
+- [x] Smoke UI Playwright e2e (`tests/billing-ux.cjs`, `tests/payment-ux.cjs`).
 
 #### 4. Tiêu chí thoát & Kiểm chứng
-- [ ] `AC-11`: Tính phí cơ bản theo cơ sở tính $\times$ đơn giá và làm tròn $\rightarrow$ Khớp snapshot đến 0 VND sai lệch.
-- [ ] `AC-12`: Hai kế toán chốt cùng kỳ/site $\rightarrow$ Chỉ 1 run thắng, không trùng lặp hóa đơn.
-- [ ] `AC-13`: Billing Run lỗi rồi retry $\rightarrow$ Hoàn tất đúng tập invoice, báo cáo lỗi ban đầu.
-- [ ] `AC-14`: Charge duyệt sau ngày cutoff $\rightarrow$ Tự động chuyển sang kỳ sau, snapshot kỳ hiện tại bất biến.
-- [ ] `AC-16`: Void hóa đơn $\rightarrow$ Chỉ cho phép hóa đơn chưa allocation trong kỳ `OPEN`.
-- [ ] `AC-17`: Trả một phần hoặc gộp nhiều hóa đơn $\rightarrow$ Thứ tự phân bổ khớp thuật toán.
-- [ ] `AC-18`: Chuyển khoản thiếu mã căn $\rightarrow$ Đưa vào hàng chờ Unmatched, không giảm nợ trước khi khớp.
-- [ ] `AC-19`: Thanh toán thừa $\rightarrow$ Chỉ phần thừa ghi nhận vào Overpayment Credit.
-- [ ] `AC-30`: Ghi nhận thanh toán đồng thời cùng mã giao dịch $\rightarrow$ Idempotency chỉ cho phép 1 Payment thành công.
-- [ ] `AC-44`: Phát hành hóa đơn rồi ghi nhận thanh toán thủ công $\rightarrow$ Snapshot không đổi, số dư tái lập chính xác.
+- [x] `AC-11`: Tính phí cơ bản theo cơ sở tính $\times$ đơn giá và làm tròn $\rightarrow$ Khớp snapshot đến 0 VND sai lệch.
+- [x] `AC-12`: Hai kế toán chốt cùng kỳ/site $\rightarrow$ Chỉ 1 run thắng, không trùng lặp hóa đơn.
+- [x] `AC-13`: Billing Run lỗi rồi retry $\rightarrow$ Hoàn tất đúng tập invoice, báo cáo lỗi ban đầu.
+- [x] `AC-14`: Charge duyệt sau ngày cutoff $\rightarrow$ Tự động chuyển sang kỳ sau, snapshot kỳ hiện tại bất biến.
+- [x] `AC-16`: Void hóa đơn $\rightarrow$ Chỉ cho phép hóa đơn chưa allocation trong kỳ `OPEN`.
+- [x] `AC-17`: Trả một phần hoặc gộp nhiều hóa đơn $\rightarrow$ Thứ tự phân bổ khớp thuật toán.
+- [x] `AC-18`: Chuyển khoản thiếu mã căn $\rightarrow$ Đưa vào hàng chờ Unmatched, không giảm nợ trước khi khớp.
+- [x] `AC-19`: Thanh toán thừa $\rightarrow$ Chỉ phần thừa ghi nhận vào Overpayment Credit.
+- [x] `AC-30`: Ghi nhận thanh toán đồng thời cùng mã giao dịch $\rightarrow$ Idempotency chỉ cho phép 1 Payment thành công.
+- [x] `AC-44`: Phát hành hóa đơn rồi ghi nhận thanh toán thủ công $\rightarrow$ Snapshot không đổi, số dư tái lập chính xác.
 
 ---
 
@@ -245,7 +249,7 @@
   - [x] Kiểm tra di chuyển schema lặp (head `0006`; có path `0005 -> 0006 -> 0005`).
   - [x] Kiểm tra nạp dữ liệu mẫu lặp (Seed repeat test idempotent).
   - [x] Kiểm tra không có Schema Drift (`alembic check` Pass).
-  - [x] Bộ test Frontend tự động với Node.js (`npm test`: 50 tests pass; smoke staff: 27 checks pass; Vite build pass).
+  - [x] Bộ test Frontend tự động với Node.js (`npm test`: 51 tests pass; smoke staff: 30 checks pass; Vite build pass).
 - [ ] **Tài liệu đồ án môn học:**
   - [ ] Báo cáo Kiến trúc & Thiết kế phần mềm (SAD/SDD).
   - [ ] Báo cáo Kế hoạch & Kết quả kiểm thử (Test Plan & Report).

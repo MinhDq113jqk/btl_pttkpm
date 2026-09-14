@@ -60,6 +60,14 @@ const unit360 = {
     ownership_ratio: '1.0000', valid_from: '2025-01-01', valid_to: null,
   }],
 };
+const serviceRequestFormOptions = {
+  buildings: [{ id: serviceRequest.building_id, code: serviceRequest.building_code, name: serviceRequest.building_name }],
+  categories: [{ id: randomUUID(), code: 'TECHNICAL', name: 'Kỹ thuật', building_id: serviceRequest.building_id }],
+  units: [{ id: serviceRequest.unit_id, unit_number: serviceRequest.unit_number, building_id: serviceRequest.building_id }],
+};
+const createdServiceRequest = {
+  id: randomUUID(), code: 'SR-BROWSER-CREATED', title: 'Đèn hành lang không sáng', priority: 'HIGH', status: 'NEW',
+};
 
 (async () => {
   const browser = await chromium.launch({ headless: true, channel: 'msedge' });
@@ -71,13 +79,14 @@ const unit360 = {
   let listMode = 'slow-success';
   let unitMode = 'slow-success';
   let switchMode = 'success';
+  let createRequestCount = 0;
   const check = (name, value = true) => { assert.ok(value, name); checks.push(name); console.log(`PASS ${name}`); };
   page.on('pageerror', error => errors.push(error.message));
 
   await context.route('**/api/v1/**', async route => {
     const request = route.request();
     const url = new URL(request.url());
-    requests.push({ path: url.pathname, search: url.search, method: request.method(), body: request.postDataJSON?.(), authorization: request.headers().authorization });
+    requests.push({ path: url.pathname, search: url.search, method: request.method(), body: request.postDataJSON?.(), authorization: request.headers().authorization, idempotencyKey: request.headers()['idempotency-key'] });
     const headers = { 'Content-Type': 'application/json', 'X-Correlation-ID': correlationId };
     if (url.pathname.endsWith('/auth/login')) return route.fulfill({ status: 200, headers, body: JSON.stringify({ access_token: issuedToken, token_type: 'Bearer', user: { ...user, roles: ['admin'] } }) });
     if (url.pathname.endsWith('/auth/me')) return route.fulfill({ status: 200, headers, body: JSON.stringify(request.headers().authorization === `Bearer ${switchedToken}` ? switchedUser : user) });
@@ -85,7 +94,19 @@ const unit360 = {
       if (switchMode === 'scope') return route.fulfill({ status: 404, headers, body: JSON.stringify({ error: { code: 'ERR-SCOPE-NOTFOUND', message: 'Không tìm thấy dữ liệu.', correlation_id: correlationId } }) });
       return route.fulfill({ status: 200, headers, body: JSON.stringify({ access_token: switchedToken, token_type: 'Bearer', user: { ...switchedUser, roles: ['admin'] } }) });
     }
+    if (url.pathname.endsWith('/service-request-form-options')) {
+      const requestedBuildingId = url.searchParams.get('building_id');
+      const body = requestedBuildingId
+        ? serviceRequestFormOptions
+        : { buildings: serviceRequestFormOptions.buildings, categories: [], units: [] };
+      return route.fulfill({ status: 200, headers, body: JSON.stringify(body) });
+    }
     if (url.pathname.endsWith('/service-requests')) {
+      if (request.method() === 'POST') {
+        createRequestCount += 1;
+        await new Promise(resolve => setTimeout(resolve, 200));
+        return route.fulfill({ status: 201, headers, body: JSON.stringify(createdServiceRequest) });
+      }
       if (listMode === 'slow-success') await new Promise(resolve => setTimeout(resolve, 700));
       if (listMode === 'network') return route.abort('failed');
       if (listMode === 'scope') return route.fulfill({ status: 404, headers, body: JSON.stringify({ error: { code: 'ERR-SCOPE-NOTFOUND', message: 'Không tìm thấy dữ liệu.', correlation_id: correlationId } }) });
@@ -139,6 +160,34 @@ const unit360 = {
     await page.getByText('Trang 1 / 2', { exact: true }).waitFor();
     await page.getByText('Đang tải yêu cầu đúng phạm vi…', { exact: true }).waitFor({ state: 'hidden' });
     await page.screenshot({ path: path.join(output, '01-service-list.png'), fullPage: true });
+
+    const initialFormOptionsRequest = page.waitForRequest(request => request.url().endsWith('/service-request-form-options'));
+    await page.getByRole('button', { name: 'Tạo yêu cầu', exact: true }).click();
+    await initialFormOptionsRequest;
+    await page.locator('#service-request-building').waitFor();
+    check('CSKH can open a create-request form with visible labels', await page.getByRole('heading', { name: 'Tạo yêu cầu dịch vụ' }).isVisible() && await page.getByLabel(/Tòa nhà/).isVisible());
+    const scopedFormOptionsRequest = page.waitForRequest(request => request.url().includes(`/service-request-form-options?building_id=${serviceRequest.building_id}`));
+    await page.locator('#service-request-building').selectOption(serviceRequest.building_id);
+    await scopedFormOptionsRequest;
+    await page.locator('#service-request-category').selectOption(serviceRequestFormOptions.categories[0].id);
+    await page.locator('#service-request-unit').selectOption(serviceRequest.unit_id);
+    await page.locator('#service-request-priority').selectOption('HIGH');
+    await page.locator('#service-request-title').fill(createdServiceRequest.title);
+    await page.locator('#service-request-description').fill('Cần kiểm tra bóng đèn và công tắc khu vực hành lang.');
+    const createRequestPromise = page.waitForRequest(request => request.url().endsWith('/service-requests') && request.method() === 'POST');
+    await page.locator('dialog[open]').getByRole('button', { name: 'Tạo yêu cầu', exact: true }).dblclick();
+    await createRequestPromise;
+    await page.getByText(`Đã tạo yêu cầu ${createdServiceRequest.code}.`, { exact: true }).waitFor();
+    const formRequests = requests.filter(item => item.path.endsWith('/service-request-form-options'));
+    const createRequest = requests.find(item => item.path.endsWith('/service-requests') && item.method === 'POST');
+    check('form options and submit keep scope server-owned', formRequests.some(item => item.search === '')
+      && formRequests.some(item => item.search === `?building_id=${serviceRequest.building_id}`)
+      && formRequests.every(item => item.authorization === `Bearer ${issuedToken}` && !/tenant_id|site_id|role=/.test(item.search))
+      && createRequest?.authorization === `Bearer ${issuedToken}`
+      && Boolean(createRequest?.idempotencyKey)
+       && JSON.stringify(Object.keys(createRequest.body).sort()) === JSON.stringify(['building_id', 'category_id', 'description', 'priority', 'title', 'unit_id'])
+       && !JSON.stringify(createRequest.body).match(/tenant_id|site_id|role/));
+    check('rapid double submit creates only one request', createRequestCount === 1);
 
     listMode = 'empty';
     await page.getByRole('button', { name: 'Mới tiếp nhận', exact: true }).click();

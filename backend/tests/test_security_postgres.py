@@ -105,7 +105,7 @@ def assert_scoped_404(response):
 def test_postgres_tls_and_head(case):
     with case[1].engine.connect() as connection:
         assert connection.scalar(text("SELECT ssl FROM pg_stat_ssl WHERE pid=pg_backend_pid()"))
-        assert connection.scalar(text("SELECT version_num FROM greencity.alembic_version")) == "0006"
+        assert connection.scalar(text("SELECT version_num FROM greencity.alembic_version")) == "0010"
 
 
 def test_seed_repeat_keeps_expected_counts(case):
@@ -189,6 +189,35 @@ def test_seed_repeat_keeps_expected_counts(case):
             WHERE category.tenant_id = :tenant_id
               AND site.code IN ('GC-WEST', 'GC-EAST')
               AND category.code = 'TECHNICAL'
+        """) == 2
+        assert count("""
+            SELECT count(*) FROM greencity.cleaning_routes route
+            JOIN greencity.sites site ON site.id = route.site_id
+            WHERE route.tenant_id = :tenant_id
+              AND site.code IN ('GC-WEST', 'GC-EAST')
+              AND route.code = 'CLN-LOBBY'
+        """) == 2
+        assert count("""
+            SELECT count(*) FROM greencity.cleaning_areas area
+            JOIN greencity.sites site ON site.id = area.site_id
+            WHERE area.tenant_id = :tenant_id
+              AND site.code IN ('GC-WEST', 'GC-EAST')
+              AND area.code = 'LOBBY'
+        """) == 2
+        assert count("""
+            SELECT count(*) FROM greencity.cleaning_route_stops stop
+            JOIN greencity.cleaning_routes route ON route.id = stop.route_id
+            JOIN greencity.sites site ON site.id = route.site_id
+            WHERE stop.tenant_id = :tenant_id
+              AND site.code IN ('GC-WEST', 'GC-EAST')
+              AND route.code = 'CLN-LOBBY' AND stop.position = 1
+        """) == 2
+        assert count("""
+            SELECT count(*) FROM greencity.patrol_points point
+            JOIN greencity.sites site ON site.id = point.site_id
+            WHERE point.tenant_id = :tenant_id
+              AND site.code IN ('GC-WEST', 'GC-EAST')
+              AND point.code = 'SEC-LOBBY'
         """) == 2
 
 

@@ -31,26 +31,38 @@ npm install
 npm run dev
 ```
 
-## Backend FastAPI — R1/R2 local evidence
+## Backend FastAPI — R1–R4 local evidence
 
-Backend hiện có lát R2 CSKH/kỹ thuật/bảo trì và closeout R1 cho Person--Unit,
-CSV ImportRun/file safety. Lần runner PostgreSQL/TLS cô lập ngày 13/09/2026
-đạt head `0006`, migration `0005 -> 0006 -> 0005`, migration/seed lặp,
-`alembic check` và **184 test pass** (2 warning deprecation). Xem phạm vi,
-endpoint, state machine, role/scope và giới hạn tại
-[backend/R2_CONTRACT.md](backend/R2_CONTRACT.md) và
-[backend/R1_IMPORT_CONTRACT.md](backend/R1_IMPORT_CONTRACT.md).
+Backend hiện có lát R2 CSKH/kỹ thuật/bảo trì, closeout R1 cho Person--Unit và
+CSV ImportRun/file safety; R3 có vệ sinh/an ninh; R4 có billing, công nợ và
+thanh toán thủ công cơ bản. Runner PostgreSQL/TLS cô lập ngày 14/09/2026 đã
+kiểm `0008 -> 0009 -> 0010 -> 0009 -> 0010`, DB trống đến head `0010`,
+migration/seed lặp, `alembic check` và **218 test pass** (2 warning
+deprecation). R4 gồm receipt/source idempotent, hàng đợi payment thiếu mã,
+match đúng building, allocation oldest-debt-first và Overpayment Credit tách
+riêng; không có refund, automatic credit application hoặc maker-checker.
 
-Desktop frontend đã nối read-only cho login → `/auth/me` → danh sách Service
-Request → Unit 360° bằng session thật; các phân hệ ngoài lát này vẫn là demo hoặc
-chưa mở sprint. `0006` chưa được tuyên bố đã apply lên Aiven/production. Bằng
-chứng local không tự động chứng minh mọi AC tiền đề R1, Gate C hoặc R3--R5 đã
-pass; trạng thái review/traceability hiện tại nằm tại checklist/VALIDATION.
+Đây là **Implemented & Verified Local** cho các lát cắt đã nêu, không phải
+thông báo Gate B/C, rollout Aiven/production hay verdict review độc lập.
+Closeout R1 được truy vết tại [backend/R1_CLOSEOUT.md](backend/R1_CLOSEOUT.md).
+Xem phạm vi, endpoint, state machine, role/scope và giới hạn theo từng release
+tại [backend/R2_CONTRACT.md](backend/R2_CONTRACT.md),
+[backend/R3_CONTRACT.md](backend/R3_CONTRACT.md) và
+[backend/R4_CONTRACT.md](backend/R4_CONTRACT.md).
+
+Desktop frontend đã nối login/session, Service Request, Unit 360°, vệ sinh,
+an ninh/PCCC và tab kế toán tối thiểu. Regression frontend có 53 checks, Vite
+build pass; billing Golden Flow có 10 và payment Golden Flow có 14 UX checks.
+Payment retry sau response bị mất giữ cùng Idempotency-Key. `0010` chưa
+được tuyên bố đã apply lên Aiven/production; bằng chứng local không thay thế
+verdict review độc lập.
 
 - [Baseline hiện tại, role matrix, bằng chứng và OPEN_DECISIONS](BACKEND_BASELINE.md).
 - [Contract foundation Plan 2 và các phần chưa hoàn thành](backend/API_CONTRACT.md).
-- [Contract CSV ImportRun và file safety R1](backend/R1_IMPORT_CONTRACT.md).
+- [Closeout AC/evidence R1](backend/R1_CLOSEOUT.md).
 - [Contract và bằng chứng R2](backend/R2_CONTRACT.md).
+- [Contract data foundation R3](backend/R3_CONTRACT.md).
+- [Contract billing/payment R4](backend/R4_CONTRACT.md).
 - [Cài đặt, environment, Aiven, migration, chạy server/Swagger, frontend, seed và testing](backend/README.md).
 
 ## Bảo vệ dữ liệu cục bộ

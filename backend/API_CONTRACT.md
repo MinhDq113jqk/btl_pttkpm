@@ -1,5 +1,22 @@
 # Plan 2 — Foundation API contract (P1, partial)
 
+## Delta R4 — Billing, AR ledger và Payment foundation
+
+Contract đầy đủ tại [R4_CONTRACT.md](R4_CONTRACT.md). Revision `0010` kế thừa
+`0008`/`0009` và thêm
+Billing Account, Fee Policy/version, Accounting Period, Billing Run,
+Billing Invoice/Item, Payment/Allocation/Unmatched/Overpayment Credit và AR
+ledger theo tenant/site/building. Tên `billing_invoice_items` cố ý tách khỏi
+`invoice_items` R2 (posting anchor chi phí kỹ thuật).
+
+OpenAPI publish policy/version, period, run/retry và invoice list/detail/void
+bên cạnh `GET /billing/accounts`, receive/list payment, unmatched queue/match,
+allocation và Overpayment Credit list. Scope luôn từ session/server. Run là
+all-or-nothing và database unique chặn trùng; Invoice Item snapshot là immutable;
+void thêm reversal thay vì sửa lịch sử. Task 4 thêm Golden Flow oracle,
+idempotent recovery sau response mất và regression financial; refund và
+maker-checker vẫn không được suy diễn từ schema hay route.
+
 ## Delta R1 — AC-03 Person--Unit read contract
 
 `GET /api/v1/persons/{person_id}/units?as_of=YYYY-MM-DD` là đọc hai chiều
@@ -16,13 +33,13 @@ hành. Client không gửi hoặc mở rộng `tenant_id`, role, site hay buildi
 - Migration `0005` bắt buộc ratio owner trong `(0, 1]`, tổng ratio owner hiệu lực
   không vượt 1, không chồng episode cùng Person--Unit--type, và cấm thay tenant
   của Person/Site hoặc di chuyển Unit/Building qua tenant khi đã có relationship.
-  Đây là bảo toàn tính đúng đắn DB, không phải claim Gate/release. Review #1
-  của lát AC-03 timeout; trạng thái hiện tại chỉ là bằng chứng local `[-]`.
+  Đây là bảo toàn tính đúng đắn DB, không phải claim Gate/release. Trạng thái
+  closeout là **Implemented & Verified Local**; xem [R1_CLOSEOUT.md](R1_CLOSEOUT.md).
 
 ## Delta R1 — Unit CSV ImportRun (AC-02 / AC-24)
 
-Contract chi tiết tại [R1_IMPORT_CONTRACT.md](R1_IMPORT_CONTRACT.md). Các route
-thực thi dưới `/api/v1/import-runs` là `GET /template`, `POST /` (CSV body,
+Traceability closeout tại [R1_CLOSEOUT.md](R1_CLOSEOUT.md). Các route thực thi
+dưới `/api/v1/import-runs` là `GET /template`, `POST /` (CSV body,
 `building_code`, `mode`, `Idempotency-Key`), `POST /{run_id}/preview`,
 `POST /{run_id}/apply`, `GET /{run_id}`, `GET /{run_id}/rows`, và signed
 error-file link/download. Request không nhận `tenant_id`, `site_id`,
@@ -38,10 +55,17 @@ error-file link/download. Request không nhận `tenant_id`, `site_id`,
 - `POST /api/v1/units/import` JSON cũ chỉ còn compatibility slice lịch sử,
   không phải contract/evidence hiện hành để đóng AC-02.
 
-Head local là `0006`. PostgreSQL local đã kiểm migration `0005 -> 0006 -> 0005`
-và 184 test pass; Review #1 và #2 của AC-02/24 đều `NEEDS_REVISION`, sau đó
-Codex đã sửa/test lại nhưng không có lượt 3. Vì vậy đây không phải Gate/release
-claim và hai AC vẫn theo dõi `[-]`.
+Head local là `0007`. PostgreSQL local đã kiểm migration `0006 -> 0007 -> 0006 -> 0007`
+và **191 test pass**. `AC-02`/`AC-24` là **Implemented & Verified Local** theo
+ma trận closeout, không phải Gate/release claim; không có review Antigravity lần 3.
+
+## Delta R3 — data foundation vệ sinh và an ninh
+
+Contract R3 tại [R3_CONTRACT.md](R3_CONTRACT.md): schema scoped cho ca/tuyến,
+checklist, patrol, incident/PCCC, escalation/acknowledgement và visitor log;
+`WorkOrder` có thêm nguồn `cleaning_task_id`. Task 2 publish cleaning API/evidence
+AC-40..41; Task 3 publish security API/evidence AC-42..43 với scope server-side,
+timeline append-only, patrol missed reason và điều kiện đóng incident.
 
 ## Delta R2 — Service Request, Work Order và Maintenance (12/09/2026)
 

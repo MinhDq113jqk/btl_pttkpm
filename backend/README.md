@@ -1,4 +1,48 @@
-# GreenCity Backend — R1/R2 local evidence
+# GreenCity Backend — R4 Task 5 local evidence
+
+## Trạng thái mới nhất — kiểm soát và Exit evidence R4
+
+Task 5 bổ sung evidence âm cho Data Scope ở đủ tenant/site/building và trigger
+chặn cả `UPDATE` lẫn `DELETE` trên AR ledger/audit. Ma trận AC, policy
+maker-checker `SPEC-ONLY`, OpenAPI path contract, seed boundary và ranh giới Exit
+được truy vết tại [R4_CONTRACT.md](R4_CONTRACT.md). Đây là control/evidence R4;
+không mở transition `LOCKED/reopen`, refund hay quyền duyệt mới.
+
+Runner PostgreSQL/TLS cô lập ngày 14/09/2026 PASS migration `0008 -> 0009 ->
+0010 -> 0009 -> 0010`, DB trống, migration/seed lặp, `alembic check` và
+**218 tests pass, 2 warnings**. Lệnh regression và vận hành safe nằm ngay dưới;
+không chạy migration runner trên Aiven/production.
+
+## Trạng thái mới nhất — Golden Flow tài chính R4
+
+Trên billing/AR foundation `0008` và billing issue `0009`, migration `0010` cùng
+contract tại [R4_CONTRACT.md](R4_CONTRACT.md) bổ sung payment thiếu mã,
+match-scoped, allocation oldest-debt-first và Overpayment Credit độc lập. Receipt
+thiếu mã không tạo AR credit hay giảm công nợ trước match; receipt có mã và match
+hợp lệ append ledger trong cùng transaction. Phần dư tạo `OverpaymentCredit`,
+không dùng Deposit/Restricted Fund.
+
+Runner PostgreSQL TLS cô lập đã kiểm `0008 -> 0009 -> 0010 -> 0009 -> 0010`,
+DB trống đến head, migration/seed lặp, `alembic check` và **217 tests pass, 2
+warnings**. Downgrade `0010` chủ động từ chối khi có Unmatched Payment. AC-17,
+AC-18, AC-19, AC-30, AC-44 kiểm partial/multi-invoice allocation, missing-code
+queue, credit dư tách riêng, source/receipt race và ledger bất biến.
+
+Golden Flow mới gọi API trên PostgreSQL thật: oracle hai Invoice `963.000` VND;
+payment `1.000.000` đi theo thứ tự cũ nhất và hạ dư nợ xuống `926.000`; receipt
+thiếu mã `100.000` giữ nguyên công nợ tới khi match, sau allocation còn
+`826.000`. Item/total snapshot giữ nguyên qua payment. Run lỗi rollback toàn bộ
+set rồi retry cùng Run ra oracle `991.000` VND; retry cùng key không tạo trùng.
+
+Frontend có tab kế toán tối thiểu cho policy/kỳ/run/invoice, nhận payment, queue
+unmatched/match, allocation và credit; `npm test` **53 pass**, Vite build PASS,
+browser billing Golden Flow **10 checks** và payment Golden Flow **14 checks**
+pass. Payment retry sau response bị mất giữ cùng idempotency key. Chi tiết bằng chứng,
+scope/authorization và giới hạn ở
+[VALIDATION.md](VALIDATION.md).
+
+Đây là **Implemented & Verified Local**, chưa là refund, maker-checker, automatic
+credit application, rollout Aiven/production, Gate B/C hay verdict review độc lập.
 
 ## Trạng thái mới nhất — closeout R1 và R2
 
@@ -8,19 +52,49 @@ checklist/ảnh → nghiệm thu, cùng Cost Line/Pending Charge, reversal và
 Asset/Maintenance scheduler. Phạm vi chính xác nằm tại
 [R2_CONTRACT.md](R2_CONTRACT.md).
 
-Ngày 13/09/2026, runner PostgreSQL 18.4/TLS cô lập pass **184 test** (2 warning
-deprecation), migration DB trống đến `0006`, kiểm `0005 -> 0006 -> 0005`,
-upgrade/seed lặp và `alembic check`. Kết quả không đồng nghĩa đã apply `0006`
-lên Aiven/production, không nâng Gate C/R3--R5 và không che evidence gap R1 còn
-phải xử lý. Contract CSV ImportRun/file safety nằm tại
-[R1_IMPORT_CONTRACT.md](R1_IMPORT_CONTRACT.md); verdict review là một điều kiện
-độc lập với test local.
+Ngày 14/09/2026, runner PostgreSQL 18.4/TLS cô lập pass **193 test** (2 warning
+deprecation), migration DB trống đến `0007`, kiểm `0006 -> 0007 -> 0006 -> 0007`,
+upgrade/seed lặp và `alembic check`. R3 có data foundation Task 1, vertical slice
+vệ sinh Task 2 (AC-40/41) và an ninh/PCCC Task 3 (AC-42/43) tại
+[R3_CONTRACT.md](R3_CONTRACT.md). Evidence Task 3 gồm AC-42/43, scope negative,
+append-only trigger và golden flow trên runner cô lập.
+Kết quả không đồng nghĩa đã apply `0007` lên Aiven/production, không nâng Gate B/C.
+Closeout R1 ở tier
+**Implemented & Verified Local** cho `AC-01`, `AC-02`, `AC-03`, `AC-24`, `AC-35`
+nằm tại [R1_CLOSEOUT.md](R1_CLOSEOUT.md); verdict review là một điều kiện độc lập
+với test local và không có review Antigravity lần 3 trong closeout này.
 
 Chạy regression đầy đủ từ thư mục `backend/`:
 
 ```powershell
 .\.venv\Scripts\python.exe -m scripts.test_isolated --pg-bin 'C:\Program Files\PostgreSQL\18\bin' --openssl 'C:\Program Files\Git\usr\bin\openssl.exe'
 ```
+
+## Vận hành R4 — migration, seed và kiểm chứng
+
+Chạy các lệnh từ `backend/`. Chỉ runner regression được phép tạo PostgreSQL
+tạm; lệnh migration/seed bên dưới dùng database đã được cấp an toàn qua
+`with-resources.ps1` và không in URI/secret.
+
+```powershell
+# Review revision trước khi áp dụng; không để app tự migrate lúc khởi động.
+.\scripts\with-resources.ps1 -PythonArgs @('-m','scripts.migrate','upgrade','head')
+.\scripts\with-resources.ps1 -PythonArgs @('-m','scripts.migrate','current')
+.\scripts\with-resources.ps1 -PythonArgs @('-m','scripts.migrate','check')
+
+# Seed lặp an toàn: chỉ tenant/site/building/unit/account/policy/version/kỳ OPEN.
+.\scripts\with-resources.ps1 -PythonArgs @('-m','scripts.seed')
+
+# OpenAPI sống chỉ sau khi backend đang chạy với cấu hình DB an toàn.
+Invoke-RestMethod http://127.0.0.1:8000/openapi.json
+```
+
+Không sửa/xóa trực tiếp `ar_ledger_entries`, `audit_events`, Invoice Item hoặc
+snapshot Invoice đã phát hành. Sai sót nghiệp vụ dùng void/reversal hợp lệ; R4
+không có refund, chargeback, automatic credit application hay maker-checker.
+Downgrade `0010` bị từ chối khi còn Unmatched Payment/null Billing Account để
+tránh mất dữ liệu. Chi tiết endpoint, role/scope, seed boundary, AC matrix và
+evidence Exit R4 nằm tại [R4_CONTRACT.md](R4_CONTRACT.md).
 
 Các mục bên dưới là lịch sử R1 và hướng dẫn môi trường vẫn còn hiệu lực.
 

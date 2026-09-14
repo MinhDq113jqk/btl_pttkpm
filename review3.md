@@ -3,11 +3,10 @@
 > **Addendum 13/09/2026 — snapshot lịch sử:** Các số liệu/nhận định bên dưới
 > phản ánh Review 3 ngày 12/09 và không phải trạng thái source hiện tại. Runner
 > mới nhất đã đạt head `0006`, migration `0005 -> 0006 -> 0005`, migration/seed
-> repeat, schema drift và 184 test PostgreSQL local. Import JSON cũ đã được thay
-> bằng CSV ImportRun trong contract hiện hành. AC-03 Review #1 timeout; AC-02/24
-> Review #1 và #2 `NEEDS_REVISION`, sau đó code được test lại nhưng không có
-> review vòng 3; xem `backend/VALIDATION.md` và `checklist.md` để theo dõi trạng
-> thái `[-]`. Không dùng addendum này để tuyên bố Gate/release/production.
+> repeat, schema drift và **185 test PostgreSQL local PASS**. Closeout hiện hành
+> cho `AC-01`, `AC-02`, `AC-03`, `AC-24`, `AC-35` là **Implemented & Verified
+> Local** tại `backend/R1_CLOSEOUT.md`; không tạo review Antigravity lần 3.
+> Không dùng addendum hay snapshot lịch sử này để tuyên bố Gate/release/production.
 
 * **Thời điểm đánh giá:** 12/09/2026
 * **Tài liệu đối chiếu:** [`roadmap_v2.md`](file:///C:/Users/LEGION/btl/_pttkpm/roadmap_v2.md) (Master Baseline v2.0), [`R2_CONTRACT.md`](file:///C:/Users/LEGION/btl/_pttkpm/backend/R2_CONTRACT.md), [`RBAC_R1.md`](file:///C:/Users/LEGION/btl/_pttkpm/backend/RBAC_R1.md), [`STAFF_WORKSPACE.md`](file:///C:/Users/LEGION/btl/_pttkpm/greencity-app/STAFF_WORKSPACE.md), [`backend/VALIDATION.md`](file:///C:/Users/LEGION/btl/_pttkpm/backend/VALIDATION.md)

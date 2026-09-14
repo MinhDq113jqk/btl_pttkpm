@@ -35,6 +35,10 @@ from app.schemas.r2 import (
     PendingChargeView,
     ReasonCommand,
     ServiceRequestCreate,
+    ServiceRequestFormBuilding,
+    ServiceRequestFormCategory,
+    ServiceRequestFormOptions,
+    ServiceRequestFormUnit,
     ServiceRequestListItem,
     ServiceRequestListResponse,
     ServiceRequestStatus,
@@ -295,6 +299,67 @@ def list_service_requests(
             page=page,
             page_size=page_size,
             total=total,
+        )
+
+
+@router.get("/service-request-form-options", response_model=ServiceRequestFormOptions)
+def get_service_request_form_options(
+    request: Request,
+    building_id: UUID | None = Query(default=None),
+    current_user: UserContext = Depends(get_current_user_context),
+):
+    """Return only CSKH form choices already authorized by the current session."""
+    current_user.assert_role("cskh")
+    active_site_id = current_user.assert_active_site()
+    building_ids = {
+        grant.building_id for grant in current_user.role_grants
+        if grant.role == "cskh" and grant.building_id is not None
+    }
+
+    with request.app.state.database.get_session() as session:
+        buildings = session.scalars(select(Building).where(
+            Building.site_id == active_site_id,
+            Building.id.in_(building_ids),
+        ).order_by(Building.code, Building.id)).all() if building_ids else []
+        building_views = [ServiceRequestFormBuilding(
+            id=building.id, code=building.code, name=building.name,
+        ) for building in buildings]
+        if building_id is None:
+            return ServiceRequestFormOptions(
+                buildings=building_views, categories=[], units=[],
+            )
+
+        # A selected ID is never a scope grant. Recheck the session before
+        # loading dependent choices, even though the UI received its list above.
+        current_user.assert_building_role(building_id, "cskh")
+        building = session.scalar(select(Building).where(
+            Building.id == building_id,
+            Building.site_id == active_site_id,
+        ))
+        if building is None:
+            raise scope_not_found()
+        categories = session.scalars(select(ServiceCategory).where(
+            *current_user.scope_conditions(ServiceCategory),
+            ServiceCategory.is_active.is_(True),
+            (ServiceCategory.building_id.is_(None)
+             | (ServiceCategory.building_id == building.id)),
+        ).order_by(ServiceCategory.name, ServiceCategory.id)).all()
+        units = session.scalars(select(Unit).where(
+            Unit.building_id == building.id,
+        ).order_by(Unit.unit_number, Unit.id)).all()
+        return ServiceRequestFormOptions(
+            buildings=building_views,
+            categories=[ServiceRequestFormCategory(
+                id=category.id,
+                code=category.code,
+                name=category.name,
+                building_id=category.building_id,
+            ) for category in categories],
+            units=[ServiceRequestFormUnit(
+                id=unit.id,
+                unit_number=unit.unit_number,
+                building_id=unit.building_id,
+            ) for unit in units],
         )
 
 

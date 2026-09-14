@@ -139,6 +139,14 @@ def main():
         env["GREENCITY_ISOLATED_MIGRATION_PATH_TESTS"] = "1"
         run([sys.executable, "-m", "scripts.test_migration_0005"], env, "AC-03 migration paths",
             show_output=True)
+        run([sys.executable, "-m", "scripts.test_migration_0007"], env, "R3 migration paths",
+            show_output=True)
+        run([sys.executable, "-m", "scripts.test_migration_0008"], env, "R4 migration paths",
+            show_output=True)
+        run([sys.executable, "-m", "scripts.test_migration_0009"], env, "R4 Task 2 migration paths",
+            show_output=True)
+        run([sys.executable, "-m", "scripts.test_migration_0010"], env, "R4 Task 3 migration paths",
+            show_output=True)
         run([sys.executable, "-m", "scripts.migrate", "upgrade", "head"], env, "Empty DB migration")
         run([sys.executable, "-m", "scripts.migrate", "upgrade", "head"], env, "Migration repeat")
         # Fixtures for legacy regression tests are created only in this new cluster.
