@@ -28,3 +28,6 @@ __pycache__/
 .coverage
 htmlcov/
 *.log
+
+# Project documentation is kept outside the repository under ..\documents\greencity-project.
+*.md
