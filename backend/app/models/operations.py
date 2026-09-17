@@ -278,13 +278,18 @@ class SecurityIncident(IdentityTimestampMixin, Base):
         CheckConstraint("incident_type IN ('SECURITY','FIRE')", name="security_incidents_type"),
         CheckConstraint("severity IN ('LOW','MEDIUM','HIGH','CRITICAL')", name="security_incidents_severity"),
         CheckConstraint("status IN ('NEW','TRIAGED','IN_PROGRESS','RESOLVED','CLOSED')", name="security_incidents_status"),
+        UniqueConstraint("parcel_id", name="uq_security_incidents_parcel_id"),
         Index("ix_security_incidents_scope_status", "tenant_id", "site_id", "building_id", "status"),
         Index("ix_security_incidents_scope_severity", "tenant_id", "site_id", "severity"),
+        Index("ix_security_incidents_parcel", "parcel_id"),
     )
 
     tenant_id: Mapped[UUID] = mapped_column(ForeignKey("greencity.tenants.id", ondelete="CASCADE"), nullable=False)
     site_id: Mapped[UUID] = mapped_column(Uuid, nullable=False)
     building_id: Mapped[UUID] = mapped_column(Uuid, nullable=False)
+    parcel_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("greencity.parcels.id", ondelete="RESTRICT"), nullable=True,
+    )
     patrol_window_id: Mapped[UUID | None] = mapped_column(ForeignKey("greencity.patrol_windows.id", ondelete="RESTRICT"), nullable=True)
     code: Mapped[str] = mapped_column(String(50), nullable=False)
     incident_type: Mapped[str] = mapped_column(String(20), nullable=False)

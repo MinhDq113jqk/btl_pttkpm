@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { ApiError, createApiClient } from '../src/services/apiClient.js';
-import { canAccessCleaning, canAccessSecurity, canCreateServiceRequests, canManageCleaning, canManageSecurity, canViewTab, createAuthenticatedAccount } from '../src/data/authSession.js';
+import { canAccessAuditEvents, canAccessCleaning, canAccessExecutiveDashboard, canAccessParcel, canAccessSecurity, canCreateServiceRequests, canManageCleaning, canManageOutbox, canManageSecurity, canViewTab, createAuthenticatedAccount } from '../src/data/authSession.js';
 import { mapServiceRequest } from '../src/data/serviceRequestView.js';
 
 const correlationId = '11111111-1111-4111-8111-111111111111';
@@ -123,6 +123,150 @@ test('service-request query is allow-listed and Authorization is attached', asyn
   assert.ok(!calls[2].url.includes('tenant_id'));
   assert.ok(!calls[2].url.includes('building_id'));
   assert.ok(!calls[2].url.includes('role='));
+});
+
+test('parcel client keeps scope server-owned and sends stable command contracts', async () => {
+  const issuedToken = randomUUID();
+  const buildingId = randomUUID();
+  const unitId = randomUUID();
+  const parcelId = randomUUID();
+  const calls = [];
+  const parcel = {
+    id: parcelId, tenant_id: randomUUID(), site_id: randomUUID(), building_id: buildingId, unit_id: unitId,
+    recipient_person_id: null, parcel_code: 'P-UX-001', carrier_reference: 'carrier-001',
+    recipient_name_snapshot: 'Người nhận demo', recipient_contact_snapshot: '09******12', storage_location: 'Locker A-01',
+    pin_attempt_count: 0, pin_locked_until: null, status: 'RECEIVED', received_at: '2026-09-17T02:00:00Z',
+    ready_for_pickup_at: null, handed_over_at: null, handed_over_by_id: null, exception_reason: null,
+    created_by_id: randomUUID(), updated_by_id: randomUUID(), version: 1,
+    created_at: '2026-09-17T02:00:00Z', updated_at: '2026-09-17T02:00:00Z',
+  };
+  const ready = { ...parcel, status: 'READY_FOR_PICKUP', ready_for_pickup_at: '2026-09-17T02:05:00Z', version: 2 };
+  const handed = { ...ready, status: 'HANDED_OVER', handed_over_at: '2026-09-17T02:06:00Z', handed_over_by_id: randomUUID(), version: 3 };
+  const responses = [
+    jsonResponse({ access_token: issuedToken }), jsonResponse(userInfo(['security'])),
+    jsonResponse({ items: [parcel], page: 1, page_size: 50, total: 1 }),
+    jsonResponse(parcel, 201), jsonResponse(ready), jsonResponse(handed),
+  ];
+  const client = createApiClient({ baseUrl: '/api/v1', fetchImpl: async (url, options) => { calls.push({ url, options }); return responses.shift(); } });
+  await client.authenticate('security.integration', 'local-test-password');
+  const listed = await client.listParcels({ status: 'RECEIVED', buildingId, tenant_id: randomUUID(), role: 'admin' });
+  await client.createParcel({ building_id: buildingId, unit_id: unitId, parcel_code: parcel.parcel_code, recipient_name_snapshot: parcel.recipient_name_snapshot, pin: '1234', tenant_id: randomUUID(), site_id: randomUUID(), role: 'admin' }, { idempotencyKey: 'parcel-create-ux-001' });
+  await client.markParcelReady(parcelId, 1, { idempotencyKey: 'parcel-ready-ux-001' });
+  await client.handoverParcel(parcelId, { expected_version: 2, pin: '1234' }, { idempotencyKey: 'parcel-handover-ux-001' });
+
+  assert.equal(listed.items[0].id, parcelId);
+  assert.equal(calls[2].url, `/api/v1/parcels?${new URLSearchParams({ page: '1', page_size: '50', status: 'RECEIVED', building_id: buildingId })}`);
+  assert.deepEqual(JSON.parse(calls[3].options.body), {
+    building_id: buildingId, unit_id: unitId, recipient_person_id: null, parcel_code: parcel.parcel_code,
+    carrier_reference: null, recipient_name_snapshot: parcel.recipient_name_snapshot,
+    recipient_contact_snapshot: null, storage_location: null, pin: '1234',
+  });
+  assert.equal(calls[3].options.headers['Idempotency-Key'], 'parcel-create-ux-001');
+  assert.deepEqual(JSON.parse(calls[4].options.body), { expected_version: 1 });
+  assert.deepEqual(JSON.parse(calls[5].options.body), { expected_version: 2, pin: '1234' });
+  assert.ok(calls.slice(2).every(call => call.options.headers.Authorization === `Bearer ${issuedToken}`));
+  assert.ok(calls.slice(2).every(call => !JSON.stringify(call).match(/tenant_id|site_id|role/)));
+  assert.equal(canAccessParcel({ roles: ['security'] }), true);
+  assert.equal(createAuthenticatedAccount(userInfo(['security'])).menu.includes('parcels'), true);
+});
+
+test('parcel linkage and evidence client keep private file and audit requests scoped', async () => {
+  const issuedToken = randomUUID();
+  const parcelId = randomUUID();
+  const attachmentId = randomUUID();
+  const incidentId = randomUUID();
+  const caseView = {
+    id: randomUUID(), source_work_order_id: null, source_parcel_id: parcelId,
+    building_id: randomUUID(), reason: 'Locker audit', status: 'NEW',
+    created_by_id: randomUUID(), updated_by_id: randomUUID(), version: 1,
+    created_at: '2026-09-17T02:00:00Z', updated_at: '2026-09-17T02:00:00Z',
+  };
+  const incidentView = {
+    id: incidentId, parcel_id: parcelId, patrol_window_id: null, building_id: caseView.building_id,
+    code: 'INC-P-001', incident_type: 'SECURITY', severity: 'LOW', status: 'NEW', title: 'Parcel incident',
+    description: 'Locker audit', occurred_at: '2026-09-17T02:00:00Z', reported_by_id: randomUUID(), version: 1,
+  };
+  const evidence = {
+    id: attachmentId, parcel_id: parcelId, original_name: 'locker.png', mime_type: 'image/png',
+    size_bytes: 32, sha256: 'a'.repeat(64), created_at: '2026-09-17T02:00:00Z',
+  };
+  const timeline = { items: [{ id: randomUUID(), event_type: 'ParcelCaseOpened', action: 'create', resource_type: 'Case', resource_id: caseView.id, correlation_id: correlationId, reason: 'Locker audit', before_data: null, after_data: { status: 'NEW' }, created_at: '2026-09-17T02:00:00Z' }] };
+  const calls = [];
+  const responses = [
+    jsonResponse({ access_token: issuedToken }), jsonResponse(userInfo(['security'])),
+    jsonResponse(caseView), jsonResponse(caseView, 201), jsonResponse(incidentView), jsonResponse(incidentView),
+    jsonResponse({ items: [evidence] }), jsonResponse(evidence, 201),
+    jsonResponse({ url: `/api/v1/parcels/${parcelId}/evidence/${attachmentId}/content?signed_token=signed`, expires_at: '2026-09-17T03:00:00Z' }),
+    jsonResponse(timeline),
+  ];
+  const client = createApiClient({ baseUrl: '/api/v1', fetchImpl: async (url, options) => { calls.push({ url, options }); return responses.shift(); } });
+  await client.authenticate('security.integration', 'local-test-password');
+  await client.getParcelCase(parcelId);
+  await client.openParcelCase(parcelId, 'Locker audit', { idempotencyKey: 'parcel-case-001' });
+  await client.getParcelIncident(parcelId);
+  await client.linkParcelIncident(parcelId, { incident_id: incidentId, reason: 'Chốt bảo vệ' }, { idempotencyKey: 'parcel-incident-001' });
+  await client.listParcelEvidence(parcelId);
+  await client.uploadParcelEvidence(parcelId, new Uint8Array([1, 2, 3]), { idempotencyKey: 'parcel-evidence-001', fileName: 'locker.png', contentType: 'image/png' });
+  const signed = await client.getParcelEvidenceLink(parcelId, attachmentId);
+  await client.getParcelTimeline(parcelId);
+
+  assert.equal(calls[2].url, `/api/v1/parcels/${parcelId}/case`);
+  assert.equal(calls[3].options.headers['Idempotency-Key'], 'parcel-case-001');
+  assert.equal(calls[4].url, `/api/v1/parcels/${parcelId}/incident`);
+  assert.deepEqual(JSON.parse(calls[5].options.body), { incident_id: incidentId, reason: 'Chốt bảo vệ' });
+  assert.equal(calls[6].url, `/api/v1/parcels/${parcelId}/evidence`);
+  assert.equal(calls[7].options.headers['Content-Type'], 'image/png');
+  assert.equal(calls[7].options.headers['X-File-Name'], 'locker.png');
+  assert.equal(calls[8].url, `/api/v1/parcels/${parcelId}/evidence/${attachmentId}/signed-link`);
+  assert.equal(signed.url.includes('signed_token='), true);
+  assert.equal(calls[9].url, `/api/v1/parcels/${parcelId}/timeline`);
+  assert.ok(calls.slice(2).every(call => call.options.headers.Authorization === `Bearer ${issuedToken}`));
+  assert.ok(calls.slice(2).every(call => !JSON.stringify(call).match(/tenant_id|site_id|role/)));
+});
+
+test('parcel evidence view replays signed-link with Bearer and omits blank optional incident reason', async () => {
+  const issuedToken = randomUUID();
+  const parcelId = randomUUID();
+  const attachmentId = randomUUID();
+  const incidentView = {
+    id: randomUUID(), parcel_id: parcelId, patrol_window_id: null, building_id: randomUUID(),
+    code: 'INC-P-OPTIONAL', incident_type: 'SECURITY', severity: 'LOW', status: 'NEW',
+    title: 'Parcel incident', description: 'Optional reason', occurred_at: '2026-09-17T02:00:00Z',
+    reported_by_id: randomUUID(), version: 1,
+  };
+  const imageBytes = new Uint8Array([137, 80, 78, 71, 1, 2, 3]);
+  const calls = [];
+  const client = createApiClient({
+    baseUrl: '/api/v1',
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      if (url.endsWith('/auth/login')) return jsonResponse({ access_token: issuedToken });
+      if (url.endsWith('/auth/me')) return jsonResponse(userInfo(['security']));
+      if (url.endsWith('/incident-link')) return jsonResponse(incidentView);
+      if (url.endsWith('/signed-link')) return jsonResponse({
+        url: `/api/v1/parcels/${parcelId}/evidence/${attachmentId}/content?signed_token=signed`,
+        expires_at: '2026-09-17T03:00:00Z',
+      });
+      if (url.includes('/content?signed_token=')) return new Response(imageBytes, {
+        status: 200, headers: { 'Content-Type': 'image/png', 'X-Correlation-ID': correlationId },
+      });
+      return jsonResponse({ error: { code: 'ERR-NOTFOUND', message: 'not found' } }, 404);
+    },
+  });
+
+  await client.authenticate('security.integration', 'local-test-password');
+  await client.linkParcelIncident(parcelId, { incident_id: randomUUID(), reason: '   ' }, { idempotencyKey: 'parcel-incident-optional-001' });
+  const { downloadParcelEvidence } = client;
+  const downloaded = await downloadParcelEvidence(parcelId, attachmentId);
+
+  const linkCall = calls.find(call => call.url.endsWith('/incident-link'));
+  const linkBody = JSON.parse(linkCall.options.body);
+  assert.equal(typeof linkBody.incident_id, 'string');
+  assert.equal(Object.hasOwn(linkBody, 'reason'), false);
+  assert.equal(downloaded.contentType, 'image/png');
+  assert.deepEqual(new Uint8Array(await downloaded.blob.arrayBuffer()), imageBytes);
+  const contentCall = calls.find(call => call.url.includes('/content?signed_token='));
+  assert.equal(contentCall.options.headers.Authorization, `Bearer ${issuedToken}`);
 });
 
 test('CSKH form choices and create payload stay scoped to server-issued resources', async () => {
@@ -456,4 +600,453 @@ test('service-request adapter exposes the fields needed by the read-only table',
   assert.equal(task.priorityLabel, 'Cao');
   assert.equal(task.isOverdue, true);
   assert.notEqual(task.createdAt, 'Không xác định');
+});
+
+test('notifications API client lists notifications and marks read with schema assertion', async () => {
+  const issuedToken = randomUUID();
+  const notifId = randomUUID();
+  const notif = {
+    id: notifId,
+    domain_event_id: randomUUID(),
+    template_code: 'SRV_ASSIGNED',
+    template_snapshot: { title: 'Yêu cầu được phân công', detail: 'Yêu cầu SR-001' },
+    delivery_status: 'PUBLISHED',
+    delivered_at: '2026-09-15T02:00:00Z',
+    read_at: null,
+    last_error: null,
+    created_at: '2026-09-15T01:50:00Z',
+  };
+  const calls = [];
+  const client = createApiClient({
+    baseUrl: 'https://api.example.test/api/v1',
+    correlationIdFactory: () => correlationId,
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      if (url.endsWith('/auth/login')) return jsonResponse({ access_token: issuedToken });
+      if (url.endsWith('/auth/me')) return jsonResponse(userInfo(['cskh']));
+      if (url.includes('/notifications?') || url.endsWith('/notifications')) {
+        return jsonResponse({ items: [notif] });
+      }
+      if (url.endsWith(`/notifications/${notifId}/read`)) {
+        return jsonResponse({ ...notif, read_at: '2026-09-15T02:05:00Z' });
+      }
+      return jsonResponse({ error: { code: 'ERR-NOTFOUND', message: 'Not found' } }, 404);
+    },
+  });
+
+  await client.authenticate('cskh.integration', 'password');
+  const list = await client.listNotifications({ includeRead: true });
+  assert.equal(list.items.length, 1);
+  assert.equal(list.items[0].id, notifId);
+  assert.equal(list.items[0].delivery_status, 'PUBLISHED');
+  assert.equal(calls[2].url, 'https://api.example.test/api/v1/notifications?include_read=true');
+  assert.equal(calls[2].options.headers.Authorization, `Bearer ${issuedToken}`);
+
+  const marked = await client.markNotificationRead(notifId);
+  assert.equal(marked.id, notifId);
+  assert.equal(marked.read_at, '2026-09-15T02:05:00Z');
+  assert.equal(calls[3].options.method, 'POST');
+});
+
+test('outbox API client lists events and retries with Idempotency-Key (AC-22, AC-36)', async () => {
+  const issuedToken = randomUUID();
+  const eventId = randomUUID();
+  const event = {
+    id: eventId,
+    event_type: 'ServiceRequestCreated',
+    resource_type: 'ServiceRequest',
+    resource_id: randomUUID(),
+    correlation_id: correlationId,
+    delivery_status: 'DEAD_LETTER',
+    attempt_count: 3,
+    next_attempt_at: '2026-09-15T02:30:00Z',
+    last_error: 'ERR-CHANNEL-TIMEOUT',
+    created_at: '2026-09-15T01:00:00Z',
+    published_at: null,
+  };
+  const calls = [];
+  const client = createApiClient({
+    baseUrl: 'https://api.example.test/api/v1',
+    correlationIdFactory: () => correlationId,
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      if (url.endsWith('/auth/login')) return jsonResponse({ access_token: issuedToken });
+      if (url.endsWith('/auth/me')) return jsonResponse(userInfo(['director']));
+      if (url.includes('/outbox/events?')) {
+        return jsonResponse({ items: [event] });
+      }
+      if (url.endsWith(`/outbox/events/${eventId}/retry`)) {
+        return jsonResponse({ ...event, delivery_status: 'PENDING', attempt_count: 0, last_error: null });
+      }
+      return jsonResponse({ error: { code: 'ERR-NOTFOUND', message: 'Not found' } }, 404);
+    },
+  });
+
+  await client.authenticate('director.integration', 'password');
+  const events = await client.listOutboxEvents({ deliveryStatus: 'DEAD_LETTER' });
+  assert.equal(events.items.length, 1);
+  assert.equal(events.items[0].delivery_status, 'DEAD_LETTER');
+  assert.equal(calls[2].url, 'https://api.example.test/api/v1/outbox/events?delivery_status=DEAD_LETTER&limit=50');
+
+  const retried = await client.retryOutboxEvent(eventId, { idempotencyKey: 'retry-intent-001' });
+  assert.equal(retried.delivery_status, 'PENDING');
+  assert.equal(retried.attempt_count, 0);
+  assert.equal(calls[3].options.method, 'POST');
+  assert.equal(calls[3].options.headers['Idempotency-Key'], 'retry-intent-001');
+});
+
+test('AC-36: lost response retains Idempotency-Key on retry and does not report false success', async () => {
+  const eventId = randomUUID();
+  let firstAttempt = true;
+  const calls = [];
+  const client = createApiClient({
+    baseUrl: 'https://api.example.test/api/v1',
+    correlationIdFactory: () => correlationId,
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      if (url.endsWith('/auth/login')) return jsonResponse({ access_token: 'token-abc' });
+      if (url.endsWith('/auth/me')) return jsonResponse(userInfo(['admin']));
+      if (url.endsWith(`/outbox/events/${eventId}/retry`)) {
+        if (firstAttempt) {
+          firstAttempt = false;
+          throw new TypeError('Network connection lost');
+        }
+        return jsonResponse({
+          id: eventId,
+          event_type: 'ServiceRequestCreated',
+          resource_type: 'ServiceRequest',
+          resource_id: randomUUID(),
+          correlation_id: correlationId,
+          delivery_status: 'PENDING',
+          attempt_count: 0,
+          next_attempt_at: '2026-09-15T02:30:00Z',
+          last_error: null,
+          created_at: '2026-09-15T01:00:00Z',
+          published_at: null,
+        });
+      }
+      return jsonResponse({ items: [] });
+    },
+  });
+
+  await client.authenticate('admin.integration', 'password');
+  const intent = { key: 'retry-event-001' };
+
+  await assert.rejects(
+    async () => {
+      await client.retryOutboxEvent(eventId, { idempotencyKey: intent.key });
+    },
+    err => {
+      assert.equal(err.code, 'ERR-NETWORK');
+      return true;
+    },
+  );
+
+  const recovered = await client.retryOutboxEvent(eventId, { idempotencyKey: intent.key });
+  assert.equal(recovered.delivery_status, 'PENDING');
+
+  const retryCalls = calls.filter(c => c.url.includes(`/outbox/events/${eventId}/retry`));
+  assert.equal(retryCalls.length, 2);
+  assert.equal(retryCalls[0].options.headers['Idempotency-Key'], 'retry-event-001');
+  assert.equal(retryCalls[1].options.headers['Idempotency-Key'], 'retry-event-001');
+});
+
+test('role visibility: outbox management is restricted to admin and director', () => {
+  const admin = createAuthenticatedAccount(userInfo(['admin']));
+  const director = createAuthenticatedAccount(userInfo(['director']));
+  const cskh = createAuthenticatedAccount(userInfo(['cskh']));
+  const technician = createAuthenticatedAccount(userInfo(['technician']));
+  const cleaning = createAuthenticatedAccount(userInfo(['cleaning']));
+  const security = createAuthenticatedAccount(userInfo(['security']));
+  const accountant = createAuthenticatedAccount(userInfo(['accountant']));
+
+  assert.equal(canManageOutbox(admin), true);
+  assert.equal(canManageOutbox(director), true);
+  assert.equal(canManageOutbox(cskh), false);
+  assert.equal(canManageOutbox(technician), false);
+  assert.equal(canManageOutbox(cleaning), false);
+  assert.equal(canManageOutbox(security), false);
+  assert.equal(canManageOutbox(accountant), false);
+
+  assert.equal(admin.canManageOutbox, true);
+  assert.equal(director.canManageOutbox, true);
+  assert.equal(cskh.canManageOutbox, false);
+});
+
+test('dashboard API client fetches KPI snapshot with as_of and validates schema (AC-25)', async () => {
+  const cutoff = '2026-09-15T02:00:00Z';
+  const calls = [];
+  const client = createApiClient({
+    baseUrl: 'https://api.example.test/api/v1',
+    correlationIdFactory: () => correlationId,
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      if (url.endsWith('/auth/login')) return jsonResponse({ access_token: 'valid-token' });
+      if (url.endsWith('/auth/me')) return jsonResponse(userInfo(['director']));
+      if (url.includes('/dashboard?as_of=')) {
+        return jsonResponse({
+          as_of: cutoff,
+          sla_overdue_count: 3,
+          maintenance_due_count: 2,
+          cleaning_rework_count: 1,
+          open_incident_count: 4,
+          ar_debt_vnd: 15400000,
+        });
+      }
+      return jsonResponse({ error: 'not found' }, 404);
+    },
+  });
+
+  await client.authenticate('director.integration', 'password');
+  const dashboard = await client.getDashboard({ asOf: cutoff });
+
+  assert.equal(dashboard.as_of, cutoff);
+  assert.equal(dashboard.sla_overdue_count, 3);
+  assert.equal(dashboard.maintenance_due_count, 2);
+  assert.equal(dashboard.cleaning_rework_count, 1);
+  assert.equal(dashboard.open_incident_count, 4);
+  assert.equal(dashboard.ar_debt_vnd, 15400000);
+
+  const dashCall = calls.find(c => c.url.includes('/dashboard?as_of='));
+  assert.ok(dashCall);
+  assert.ok(dashCall.url.includes(encodeURIComponent(cutoff)));
+});
+
+test('dashboard drill-down API client fetches source items for KPI reconciliation (AC-25)', async () => {
+  const cutoff = '2026-09-15T02:00:00Z';
+  const incidentId = randomUUID();
+  const bldgId = randomUUID();
+  const calls = [];
+  const client = createApiClient({
+    baseUrl: 'https://api.example.test/api/v1',
+    correlationIdFactory: () => correlationId,
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      if (url.endsWith('/auth/login')) return jsonResponse({ access_token: 'valid-token' });
+      if (url.endsWith('/auth/me')) return jsonResponse(userInfo(['director']));
+      if (url.includes('/dashboard/drill-down/open_incidents')) {
+        return jsonResponse({
+          as_of: cutoff,
+          metric: 'open_incidents',
+          items: [{
+            metric: 'open_incidents',
+            resource_type: 'SecurityIncident',
+            resource_id: incidentId,
+            building_id: bldgId,
+            reference: 'INC-001',
+            title: 'Khói tại phòng kỹ thuật',
+            status: 'NEW',
+            occurred_at: '2026-09-15T01:30:00Z',
+            amount_vnd: null,
+          }],
+        });
+      }
+      return jsonResponse({ error: 'not found' }, 404);
+    },
+  });
+
+  await client.authenticate('director.integration', 'password');
+  const drillDown = await client.getDashboardDrillDown('open_incidents', { asOf: cutoff });
+
+  assert.equal(drillDown.metric, 'open_incidents');
+  assert.equal(drillDown.items.length, 1);
+  assert.equal(drillDown.items[0].reference, 'INC-001');
+  assert.equal(drillDown.items[0].resource_type, 'SecurityIncident');
+});
+
+test('audit events API client lists events and supports correlation filtering', async () => {
+  const eventId = randomUUID();
+  const targetCorrId = randomUUID();
+  const resourceId = randomUUID();
+  const cutoff = '2026-09-15T02:00:00Z';
+  const calls = [];
+  const client = createApiClient({
+    baseUrl: 'https://api.example.test/api/v1',
+    correlationIdFactory: () => correlationId,
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      if (url.endsWith('/auth/login')) return jsonResponse({ access_token: 'valid-token' });
+      if (url.endsWith('/auth/me')) return jsonResponse(userInfo(['director']));
+      if (url.includes('/audit-events')) {
+        return jsonResponse({
+          items: [{
+            id: eventId,
+            actor_account_id: randomUUID(),
+            event_type: 'SecurityIncidentReported',
+            action: 'CREATE',
+            resource_type: 'SecurityIncident',
+            resource_id: randomUUID(),
+            building_id: randomUUID(),
+            before_data: null,
+            after_data: { title: 'Báo khói' },
+            reason: 'Tự động từ cảm biến',
+            correlation_id: targetCorrId,
+            created_at: '2026-09-15T01:30:00Z',
+          }],
+        });
+      }
+      return jsonResponse({ error: 'not found' }, 404);
+    },
+  });
+
+  await client.authenticate('director.integration', 'password');
+  const result = await client.listAuditEvents({
+    correlationId: targetCorrId,
+    resourceType: 'SecurityIncident',
+    resourceId,
+    asOf: cutoff,
+  });
+
+  assert.equal(result.items.length, 1);
+  assert.equal(result.items[0].id, eventId);
+  assert.equal(result.items[0].correlation_id, targetCorrId);
+  assert.ok(calls.some(c => c.url.includes(`correlation_id=${targetCorrId}`)));
+  assert.ok(calls.some(c => c.url.includes(`resource_id=${resourceId}`)));
+  assert.ok(calls.some(c => c.url.includes(`as_of=${encodeURIComponent(cutoff)}`)));
+});
+
+test('AC-25 / AC-45: API error does not silently fallback to mock and propagates structured error with correlationId', async () => {
+  const errorCorrId = 'err-corr-9999';
+  const client = createApiClient({
+    baseUrl: 'https://api.example.test/api/v1',
+    correlationIdFactory: () => correlationId,
+    fetchImpl: async url => {
+      if (url.endsWith('/auth/login')) return jsonResponse({ access_token: 'valid-token' });
+      if (url.endsWith('/auth/me')) return jsonResponse(userInfo(['director']));
+      if (url.includes('/dashboard')) {
+        return jsonResponse({
+          error: {
+            code: 'ERR-INTERNAL',
+            message: 'Database query timeout at cutoff.',
+            correlation_id: errorCorrId,
+          },
+        }, 500, errorCorrId);
+      }
+      return jsonResponse({ error: 'not found' }, 404);
+    },
+  });
+
+  await client.authenticate('director.integration', 'password');
+
+  await assert.rejects(
+    async () => {
+      await client.getDashboard({ asOf: '2026-09-15T02:00:00Z' });
+    },
+    err => {
+      assert.ok(err instanceof ApiError);
+      assert.equal(err.code, 'ERR-INTERNAL');
+      assert.equal(err.correlationId, errorCorrId);
+      return true;
+    },
+  );
+});
+
+test('role visibility: executive dashboard is restricted to admin and director, audit events to admin, director and accountant', () => {
+  const admin = createAuthenticatedAccount(userInfo(['admin']));
+  const director = createAuthenticatedAccount(userInfo(['director']));
+  const cskh = createAuthenticatedAccount(userInfo(['cskh']));
+  const technician = createAuthenticatedAccount(userInfo(['technician']));
+  const cleaning = createAuthenticatedAccount(userInfo(['cleaning']));
+  const security = createAuthenticatedAccount(userInfo(['security']));
+  const accountant = createAuthenticatedAccount(userInfo(['accountant']));
+
+  // Executive Dashboard
+  assert.equal(canAccessExecutiveDashboard(admin), true);
+  assert.equal(canAccessExecutiveDashboard(director), true);
+  assert.equal(canAccessExecutiveDashboard(cskh), false);
+  assert.equal(canAccessExecutiveDashboard(technician), false);
+  assert.equal(canAccessExecutiveDashboard(cleaning), false);
+  assert.equal(canAccessExecutiveDashboard(security), false);
+  assert.equal(canAccessExecutiveDashboard(accountant), false);
+
+  assert.equal(admin.canViewExecutiveDashboard, true);
+  assert.equal(director.canViewExecutiveDashboard, true);
+  assert.equal(cskh.canViewExecutiveDashboard, false);
+
+  // Audit Events
+  assert.equal(canAccessAuditEvents(admin), true);
+  assert.equal(canAccessAuditEvents(director), true);
+  assert.equal(canAccessAuditEvents(accountant), true);
+  assert.equal(canAccessAuditEvents(cskh), false);
+  assert.equal(canAccessAuditEvents(technician), false);
+  assert.equal(canAccessAuditEvents(cleaning), false);
+  assert.equal(canAccessAuditEvents(security), false);
+
+  assert.equal(admin.canViewAuditEvents, true);
+  assert.equal(accountant.canViewAuditEvents, true);
+  assert.equal(cskh.canViewAuditEvents, false);
+});
+
+test('resident API client keeps scope identifiers server-owned and reuses one as_of snapshot', async () => {
+  const token = randomUUID();
+  const unitId = randomUUID();
+  const categoryId = randomUUID();
+  const requestId = randomUUID();
+  const attachmentId = randomUUID();
+  const notificationId = randomUUID();
+  const asOf = '2026-09-30T23:59:59.000Z';
+  const calls = [];
+  const requestView = {
+    id: requestId, code: 'SR-R6-001', unit_id: unitId, category_id: categoryId,
+    title: 'Rò rỉ nước', description: 'Nước rò dưới chậu rửa.', priority: 'HIGH', status: 'NEW',
+    sla_deadline: '2026-10-01T04:00:00Z', sla_breached_at: null, resolved_at: null, closed_at: null,
+    version: 1, created_at: '2026-09-30T01:00:00Z', updated_at: '2026-09-30T01:00:00Z',
+  };
+  const client = createApiClient({
+    baseUrl: '/api/v1',
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      if (url.endsWith('/auth/login')) return jsonResponse({ access_token: token });
+      if (url.endsWith('/auth/me')) return jsonResponse({
+        ...userInfo(['resident']), resident_person_id: randomUUID(), resident_unit_ids: [unitId],
+      });
+      if (url.endsWith('/resident/service-request-options')) return jsonResponse({
+        buildings: [{ id: randomUUID(), code: 'A', name: 'Tòa A' }],
+        categories: [{ id: categoryId, code: 'TECH', name: 'Kỹ thuật', building_id: null }],
+        units: [{ id: unitId, unit_number: 'A-0101', building_id: randomUUID() }],
+      });
+      if (url.includes('/resident/service-requests/') && url.endsWith('/timeline')) return jsonResponse({ items: [{
+        id: randomUUID(), event_type: 'ResidentServiceRequestCreated', action: 'create', before_status: null,
+        after_status: 'NEW', before_priority: null, after_priority: 'HIGH', created_at: requestView.created_at,
+      }] });
+      if (url.includes('/resident/service-requests/') && url.endsWith('/evidence')) return jsonResponse({ items: [] });
+      if (url.split('?')[0].endsWith('/resident/service-requests')) return jsonResponse({ items: [requestView], page: 1, page_size: 20, total: 1 });
+      if (url.includes(`/resident/service-requests/${requestId}`) && !url.includes('/signed-link')) return jsonResponse(requestView);
+      if (url.includes('/resident/billing/summary')) return jsonResponse({ as_of: asOf, total_ar_balance_vnd: 200000, items: [{ unit_id: unitId, ar_balance_vnd: 200000 }] });
+      if (url.includes('/resident/billing/invoices')) return jsonResponse({ as_of: asOf, items: [] });
+      if (url.includes('/resident/billing/payments')) return jsonResponse({ as_of: asOf, items: [] });
+      if (url.includes('/resident/notifications') && options.method === 'GET') return jsonResponse({
+        items: [{ id: notificationId, template_code: 'R6_NOTICE', template_snapshot: { title: 'Thông báo', body: 'Nội dung' }, delivery_status: 'PUBLISHED', delivered_at: '2026-09-30T02:00:00Z', read_at: null, correlation_id: randomUUID(), created_at: '2026-09-30T02:00:00Z' }], page: 1, page_size: 20, total: 1, unread_count: 1,
+      });
+      if (url.includes('/resident/notifications/') && options.method === 'POST') return jsonResponse({
+        id: notificationId, template_code: 'R6_NOTICE', template_snapshot: { title: 'Thông báo', body: 'Nội dung' }, delivery_status: 'PUBLISHED', delivered_at: '2026-09-30T02:00:00Z', read_at: '2026-09-30T03:00:00Z', correlation_id: randomUUID(), created_at: '2026-09-30T02:00:00Z',
+      });
+      if (url.includes('/signed-link')) return jsonResponse({ url: '/api/v1/evidence/signed', expires_at: '2026-09-30T04:00:00Z' });
+      if (url.includes('/resident/service-requests/') && options.method === 'POST') return jsonResponse(requestView, 201);
+      return jsonResponse({ error: { code: 'ERR-NOTFOUND', message: 'not found' } }, 404);
+    },
+  });
+
+  const me = await client.authenticate('resident_west', 'Password@123');
+  assert.equal(createAuthenticatedAccount(me).isResident, true);
+  await client.getResidentServiceRequestOptions({ tenant_id: randomUUID(), role: 'admin' });
+  await client.listResidentServiceRequests({ building_id: randomUUID(), role: 'admin' });
+  await client.getResidentServiceRequest(requestId);
+  await client.getResidentServiceRequestTimeline(requestId);
+  await client.listResidentServiceRequestEvidence(requestId);
+  const signedLink = await client.getResidentEvidenceLink(requestId, attachmentId);
+  assert.equal(signedLink.url, '/api/v1/evidence/signed');
+  await client.getResidentBillingSummary(asOf);
+  await client.listResidentBillingInvoices(asOf);
+  await client.listResidentBillingPayments(asOf);
+  await client.listResidentNotifications();
+
+  const residentCalls = calls.slice(2);
+  assert.ok(residentCalls.every(call => !call.url.includes('tenant_id') && !call.url.includes('role=') && !call.url.includes('building_id=')));
+  const billingCalls = residentCalls.filter(call => call.url.includes('/resident/billing/'));
+  assert.equal(billingCalls.length, 3);
+  assert.ok(billingCalls.every(call => new URL(call.url, 'https://local.test').searchParams.get('as_of') === asOf));
+  assert.ok(residentCalls.every(call => call.options.headers.Authorization === `Bearer ${token}`));
+  const invalidClient = createApiClient({ fetchImpl: async () => jsonResponse({ items: [] }) });
+  await assert.rejects(invalidClient.getResidentBillingSummary(asOf), error => error instanceof ApiError && error.code === 'ERR-INVALID-RESPONSE');
 });

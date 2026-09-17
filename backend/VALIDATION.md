@@ -1,5 +1,103 @@
 # Backend — bằng chứng kiểm chứng
 
+## Mới nhất — V1 Parcel Task 5, Golden Flow và review R7 (17/09/2026)
+
+- PostgreSQL 18/TLS disposable: migration `0005`, `0007`--`0015`, DB trống,
+  upgrade/seed repeat, `alembic check`, regression và shutdown đều PASS;
+  **253 passed, 2 warnings**. Hai warning chỉ là deprecation của
+  Starlette/TestClient và AnyIO.
+- `0014` kiểm Parcel scope/state/snapshot; `0015` kiểm Case/Incident linkage,
+  parent-union invariant, downgrade fail-closed và re-upgrade. Golden Flow
+  integration chạy receive → ready → handover và exception → Case → Incident
+  → private evidence → signed download → audit timeline qua HTTP API; SQL chỉ
+  là oracle read-only. Case source, incident version/actor và snapshot đều có
+  assertion.
+- Frontend riêng: `npm test` **68/68**, Vite build PASS, Parcel UX
+  `npm run test:parcel` **13/13 checks**. Parcel UX intercept transport nên
+  không được gọi là live browser-to-PostgreSQL evidence.
+
+Contract và ma trận kiểm chứng ở [V1_PARCEL_CASE_EVIDENCE_CONTRACT.md](V1_PARCEL_CASE_EVIDENCE_CONTRACT.md),
+[V1_PARCEL_TASK5_EXIT_EVIDENCE.md](V1_PARCEL_TASK5_EXIT_EVIDENCE.md) và
+[R7_REVIEW.md](R7_REVIEW.md).
+Đây là **Implemented & Verified Local**, không phải Gate C, Aiven/production,
+backup/restore rehearsal hay independent-review sign-off.
+
+## Mới nhất — R6 Resident Self-Service (16/09/2026)
+
+- PostgreSQL 18/TLS disposable: migration `0005`, `0007`--`0013`, DB trống,
+  upgrade/seed repeat, `alembic check`, regression và shutdown đều PASS;
+  **238 passed, 2 warnings in 45.50s**. Hai warning chỉ là deprecation của
+  Starlette/TestClient và AnyIO; không có test R6 bị skip.
+- `0012` kiểm identity `Account.person_id` cùng tenant và fail-closed downgrade;
+  `0013` kiểm Attachment thuộc đúng một Work Order hoặc Resident Service
+  Request và fail-closed khi còn evidence. Seed tạo `resident_west` lặp an toàn.
+- Resident Service Request acceptance kiểm server-derived tenant/site/building/
+  unit scope, relationship revocation, idempotency replay/conflict, optimistic
+  locking, private evidence/quarantine, signed-link và audit timeline.
+- Resident billing acceptance kiểm `as_of` timezone-aware, AR ledger
+  `SUM(debit_vnd-credit_vnd)` integer VND, invoice/item snapshot không đổi sau
+  payment và bề mặt read-only; resident notifications kiểm recipient scope,
+  unread/read audit và correlation.
+- Frontend riêng: `npm test` **63/63**, Vite build PASS, Resident UX
+  `npm run test:resident` **17/17 checks**. Browser suite intercept transport,
+  nên không được gọi là live browser-to-PostgreSQL evidence.
+
+Contract và ma trận test đầy đủ ở [R6_CONTRACT.md](R6_CONTRACT.md) và
+[R6_RELEASE_EVIDENCE.md](R6_RELEASE_EVIDENCE.md). Đây là
+**Implemented & Verified Local**, không phải Gate C, Aiven/production,
+backup/restore rehearsal hay independent-review sign-off.
+
+## Mới nhất — R5 Task 5, Five Golden Flows và Exit local (15/09/2026)
+
+- PostgreSQL 18/TLS disposable: migration `0005`, `0007` đến `0011`, DB trống,
+  upgrade/seed repeat, `alembic check`, regression và shutdown: PASS;
+  **223 passed, 2 warnings in 82.83s**.
+- `test_r5_golden_flows_integration.py` không mutation DB trực tiếp: 4 flow
+  nghiệp vụ và Control-and-audit flow đi qua HTTP API với scope server-derived,
+  idempotency và correlation. Nó kiểm maintenance history API, cross-site
+  `404`, dashboard/drill-down cả năm KPI, audit trace, CSKH-to-cash liên tục
+  (charge duyệt -> Billing Run -> payment/allocation về debt 0), invoice
+  snapshot và `INV-01..02` read-only oracle.
+- Frontend regression riêng: `npm test` 62/62, build PASS; cleaning/security/
+  billing/payment/dashboard/notification UX đều PASS. Các browser test intercept
+  transport, nên không được gọi là live browser-to-PostgreSQL evidence.
+- Xem [R5_EXIT_EVIDENCE.md](R5_EXIT_EVIDENCE.md) cho AC matrix, ownership, demo
+  không sửa DB tay và giới hạn; không tuyên bố Gate/production/review độc lập.
+
+## Mới nhất — R5 Task 2, CAP-BI Dashboard và Audit Explorer backend (15/09/2026)
+
+- PostgreSQL 18.4/TLS disposable: `0010 -> 0011 -> 0010 -> 0011`, DB trống
+  tới head `0011`, migration/seed lặp, `alembic check` và shutdown: PASS;
+  regression toàn checkout **222 passed, 2 warnings in 36.82s**.
+- `GET /dashboard` là read-only snapshot server-scoped tại một `as_of` bắt buộc,
+  timezone-aware. Chỉ `admin`/`director` được gọi; tenant/active site/building
+  grant đều từ session, CSKH nhận `403`, director giới hạn một building không
+  thấy dữ liệu building khác.
+- Oracle cố định kiểm đủ năm KPI: SLA, maintenance đến hạn, cleaning
+  `REWORK_REQUIRED`, incident mở và AR debt. Record đóng sau cutoff vẫn được
+  tính, record đóng trước cutoff bị loại; mọi drill-down reconcile với KPI.
+  `ar_debt_vnd` bằng `SUM(debit_vnd-credit_vnd)` từ `ArLedgerEntry.effective_at
+  <= as_of`, không dùng invoice balance cache (`INV-01`).
+- Audit Explorer theo correlation ID giữ scope server-side; accountant chỉ có
+  audit tài chính và không nhận dashboard vận hành. Đây là **Implemented &
+  Verified Local** cho `AC-25`, phần backend `AC-45` và `INV-01`; không bao gồm
+  frontend, Gate B/C, Aiven/production hay independent review.
+
+## Mới nhất — R5 Task 1, outbox/inbox và correlation (15/09/2026)
+
+- PostgreSQL 18.4/TLS disposable: `0010 -> 0011 -> 0010 -> 0011`, DB trống
+  tới head `0011`, migration/seed lặp, `alembic check` và shutdown: PASS;
+  regression toàn checkout **220 passed, 2 warnings in 35.71s**.
+- `DomainEvent` được delivery lease/retry/dead-letter; `NotificationReadModel`
+  giữ recipient/template snapshot trong cùng transaction nguồn. Channel outage
+  không rollback nghiệp vụ; retry dùng DomainEvent ID downstream và dead-letter
+  có manual reset idempotent. Đây là evidence local cho `AC-22`.
+- Audit explorer giữ roster backend tám role: `admin`/`director` theo scope,
+  `accountant` chỉ audit tài chính; không có `auditor` backend. Cùng correlation
+  ID xuất hiện ở audit và outbox event; đây là evidence local cho `NFR-05`.
+- R5 Task 1 không bao gồm Dashboard/KPI/drill-down `AC-25`/`AC-45`, provider
+  notification thật, scheduler daemon, Gate/production hay independent review.
+
 ## Mới nhất — R4 Task 5, kiểm soát và Exit evidence local (14/09/2026)
 
 - PostgreSQL 18.4/TLS disposable: `0008 -> 0009 -> 0010 -> 0009 -> 0010`, DB

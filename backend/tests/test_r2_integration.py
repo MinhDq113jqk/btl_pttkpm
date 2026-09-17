@@ -454,7 +454,7 @@ def submit_work_order(case, work_order: dict, *, technician="tech"):
 def test_r2_readiness_reports_migrated_head(r2_case):
     response = r2_case["client"].get("/api/v1/readiness")
     assert response.status_code == 200
-    assert response.json()["schema_revision"] == "0010"
+    assert response.json()["schema_revision"] == "0015"
 
 
 def test_r2_request_idempotency_and_scope_are_enforced(r2_case):

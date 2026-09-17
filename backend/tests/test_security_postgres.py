@@ -55,7 +55,7 @@ def case():
         session.add_all(units)
         accounts = [Account(tenant_id=tenants[0].id, username=f"fixture_{uuid4().hex}",
                             full_name="Synthetic", hashed_password=hash_password(password))
-                    for _ in range(3)]
+                    for _ in range(4)]
         session.add_all(accounts)
         session.flush()
         session.add_all([
@@ -64,6 +64,7 @@ def case():
                         building_id=buildings[0].id),
             AccountRole(account_id=accounts[2].id, role="admin", site_id=sites[0].id),
             AccountRole(account_id=accounts[2].id, role="cleaning", site_id=sites[1].id),
+            AccountRole(account_id=accounts[3].id, role="resident", site_id=None),
         ])
         people = [Person(tenant_id=t.id, full_name=f"Synthetic tenant {i}",
                          phone_masked="***", email_masked="***@example.invalid")
@@ -77,6 +78,7 @@ def case():
             ownership_ratio=Decimal("1.0000"),
             valid_from=date(2025, 1, 1),
         ))
+        accounts[3].person_id = people[0].id
         session.commit()
     with TestClient(create_app(settings, database)) as client:
         yield client, database, settings, password, accounts, sites, units, people
@@ -105,7 +107,7 @@ def assert_scoped_404(response):
 def test_postgres_tls_and_head(case):
     with case[1].engine.connect() as connection:
         assert connection.scalar(text("SELECT ssl FROM pg_stat_ssl WHERE pid=pg_backend_pid()"))
-        assert connection.scalar(text("SELECT version_num FROM greencity.alembic_version")) == "0010"
+        assert connection.scalar(text("SELECT version_num FROM greencity.alembic_version")) == "0015"
 
 
 def test_seed_repeat_keeps_expected_counts(case):
@@ -292,6 +294,62 @@ def test_claims_never_override_database_identity_or_scope(case):
     claims["active_site_id"] = str(sites[2].id)
     headers = {"Authorization": "Bearer " + create_token(claims, settings.auth_secret())}
     assert_scoped_404(client.get(f"/api/v1/units/{units[2].id}/360", headers=headers))
+
+
+def test_resident_identity_and_scope_are_database_derived(case):
+    client, _, settings, _, accounts, sites, units, people = case
+    headers = login(case, 3)
+
+    response = client.get("/api/v1/auth/me", headers=headers)
+    assert response.status_code == 200
+    user = response.json()
+    assert user["roles"] == ["resident"]
+    assert user["resident_person_id"] == str(people[0].id)
+    assert user["resident_unit_ids"] == [str(units[0].id)]
+    assert user["active_site_id"] == str(sites[0].id)
+    assert [site["id"] for site in user["allowed_sites"]] == [str(sites[0].id)]
+
+    # Resident identity does not turn the existing staff-only reads into a
+    # household search oracle.
+    assert client.get(f"/api/v1/units/{units[0].id}/360", headers=headers).status_code == 403
+    assert client.get(f"/api/v1/persons/{people[0].id}/units", headers=headers).status_code == 403
+
+    # A signed client claim cannot substitute a different Person or role.
+    claims = {
+        "sub": str(accounts[3].id), "tenant_id": str(uuid4()),
+        "person_id": str(people[1].id), "roles": ["admin", "resident"],
+        "active_site_id": str(sites[0].id), "purpose": "session",
+    }
+    forged_headers = {"Authorization": "Bearer " + create_token(claims, settings.auth_secret())}
+    forged = client.get("/api/v1/auth/me", headers=forged_headers)
+    assert forged.status_code == 200
+    assert forged.json()["resident_person_id"] == str(people[0].id)
+    assert forged.json()["resident_unit_ids"] == [str(units[0].id)]
+    assert forged.json()["roles"] == ["resident"]
+
+    claims["active_site_id"] = str(sites[1].id)
+    invalid_site_headers = {"Authorization": "Bearer " + create_token(claims, settings.auth_secret())}
+    assert_scoped_404(client.get("/api/v1/auth/me", headers=invalid_site_headers))
+
+
+def test_resident_mapping_rejects_cross_tenant_and_rechecks_revocation(case):
+    client, database, _, _, accounts, _, units, people = case
+    with database.get_session() as session:
+        account = session.get(Account, accounts[3].id)
+        account.person_id = people[1].id
+        with pytest.raises(IntegrityError):
+            session.flush()
+        session.rollback()
+
+    headers = login(case, 3)
+    with database.get_session() as session:
+        relationship = session.scalar(select(UnitPersonRelationship).where(
+            UnitPersonRelationship.person_id == people[0].id,
+            UnitPersonRelationship.unit_id == units[0].id,
+        ))
+        session.delete(relationship)
+        session.commit()
+    assert_scoped_404(client.get("/api/v1/auth/me", headers=headers))
 
 
 def test_unauthenticated_and_invalid_input_use_stable_errors(case):

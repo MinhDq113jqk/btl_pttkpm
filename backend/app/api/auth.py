@@ -19,6 +19,8 @@ def user_info(session: Session, context: UserContext) -> UserInfo:
         username=context.username, full_name=context.full_name, roles=context.roles,
         active_site_id=context.active_site_id,
         allowed_sites=[SiteSummary(id=s.id, code=s.code, name=s.name) for s in sites],
+        resident_person_id=context.resident_person_id,
+        resident_unit_ids=list(context.resident_unit_ids),
     )
 
 

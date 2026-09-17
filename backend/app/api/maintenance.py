@@ -7,12 +7,14 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.core.exceptions import AppError
 from app.core.policy import UserContext, get_current_user_context, scope_not_found
-from app.models.maintenance import Asset, MaintenanceOccurrence, MaintenancePlan
+from app.models.maintenance import Asset, MaintenanceHistory, MaintenanceOccurrence, MaintenancePlan
 from app.models.service import WorkOrder, WorkOrderChecklistItem
 from app.models.unit import Unit
 from app.schemas.r2 import (
     AssetCreate,
     AssetView,
+    MaintenanceHistoryListResponse,
+    MaintenanceHistoryView,
     MaintenanceDefer,
     MaintenancePlanCreate,
     MaintenancePlanView,
@@ -103,6 +105,28 @@ def get_asset(request: Request, asset_id: UUID,
         asset = _scoped_asset(session, current_user, asset_id)
         current_user.assert_building_role(asset.building_id, "admin", "director", "cskh", "technical_lead")
         return AssetView.model_validate(asset)
+
+
+@router.get("/assets/{asset_id}/maintenance-history", response_model=MaintenanceHistoryListResponse)
+def list_asset_maintenance_history(
+    request: Request,
+    asset_id: UUID,
+    current_user: UserContext = Depends(get_current_user_context),
+):
+    """Read-only, scoped proof of accepted maintenance work for an asset."""
+    with request.app.state.database.get_session() as session:
+        asset = _scoped_asset(session, current_user, asset_id)
+        current_user.assert_building_role(
+            asset.building_id, "admin", "director", "cskh", "technical_lead",
+        )
+        records = session.scalars(select(MaintenanceHistory).where(
+            MaintenanceHistory.tenant_id == current_user.tenant_id,
+            MaintenanceHistory.site_id == current_user.assert_active_site(),
+            MaintenanceHistory.asset_id == asset.id,
+        ).order_by(MaintenanceHistory.completed_at.desc(), MaintenanceHistory.id.desc())).all()
+        return MaintenanceHistoryListResponse(
+            items=[MaintenanceHistoryView.model_validate(record) for record in records],
+        )
 
 
 @router.post("/maintenance-plans", response_model=MaintenancePlanView, status_code=201)

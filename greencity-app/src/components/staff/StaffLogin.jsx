@@ -16,16 +16,16 @@ export function StaffLogin({ onLogin, notice = '', error = null, isLoading = fal
   };
 
   return <main className="staff-login">
-    <section className="staff-login-story" aria-label="GreenCity dành cho nhân viên và Ban quản lý">
+    <section className="staff-login-story" aria-label="GreenCity dành cho người dùng đã được cấp quyền">
       <GreenCityLogo />
-      <div className="staff-story-content"><span className="staff-overline">GREENCITY / STAFF WORKSPACE</span><h1>Một không gian.<br />Đúng vai trò của bạn.</h1><p>Kết nối Ban quản lý và các đội vận hành trên cùng một ứng dụng desktop.</p>
+      <div className="staff-story-content"><span className="staff-overline">GREENCITY / SECURE WORKSPACE</span><h1>Một không gian.<br />Đúng vai trò của bạn.</h1><p>Kết nối cư dân, Ban quản lý và các đội vận hành trên cùng một ứng dụng.</p>
         <div className="staff-building-scene" aria-hidden="true"><div className="scene-orbit" /><div className="scene-tower tower-a"><i /><i /><i /><i /><i /><i /></div><div className="scene-tower tower-b"><i /><i /><i /><i /><i /><i /><i /><i /></div><div className="scene-tower tower-c"><i /><i /><i /><i /></div><div className="scene-path" /><span className="scene-label"><Building2 size={15} />GreenCity Central</span></div>
         <div className="staff-story-points"><div><ShieldCheck size={19} /><span>Menu theo quyền máy chủ cấp</span></div><div><Monitor size={19} /><span>Yêu cầu dịch vụ đúng phạm vi dữ liệu</span></div></div>
-      </div><p className="staff-story-footer">Dành cho nhân viên & Ban quản lý · Không phải cổng cư dân</p>
+      </div><p className="staff-story-footer">Dành cho cư dân, nhân viên & Ban quản lý · Vai trò do máy chủ xác minh</p>
     </section>
     <section className="staff-login-form-side"><div className="staff-login-card">
       <div className="staff-login-badge"><Monitor size={15} aria-hidden="true" />Phiên xác thực GreenCity</div>
-      <h2>Đăng nhập không gian làm việc</h2><p className="staff-login-intro">Nhập tài khoản do Ban quản lý cấp. Vai trò và phạm vi hiển thị được lấy từ máy chủ sau khi xác thực.</p>
+      <h2>Đăng nhập GreenCity</h2><p className="staff-login-intro">Nhập tài khoản đã được cấp. Vai trò và phạm vi hiển thị được lấy từ máy chủ sau khi xác thực.</p>
       {notice && <p role="status" className="context-note">{notice}</p>}
       {error && <div role="alert" className="staff-login-error"><AlertCircle size={18} aria-hidden="true" /><div><strong>Không thể đăng nhập</strong><p>{error.message}</p>{error.correlationId && <small>Mã đối chiếu: {error.correlationId}</small>}</div></div>}
       <form onSubmit={submit} aria-busy={isLoading}>

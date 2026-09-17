@@ -1,11 +1,11 @@
 import React from 'react';
-import { LayoutDashboard, Receipt, CheckSquare, Building2, Wrench, Sparkles, ShieldCheck, Users, BadgePercent, BarChart3, Bell, Settings, Globe, Store, PanelLeftClose, PanelLeftOpen, Building, LogOut } from 'lucide-react';
+import { LayoutDashboard, Receipt, CheckSquare, Building2, Wrench, Sparkles, ShieldCheck, Package, Users, BadgePercent, BarChart3, Bell, Settings, Globe, Store, PanelLeftClose, PanelLeftOpen, Building, LogOut } from 'lucide-react';
 import { GreenCityLogo } from './GreenCityLogo';
 
-const icons = { LayoutDashboard, Receipt, CheckSquare, Building2, Wrench, Sparkles, ShieldCheck, Users, BadgePercent, BarChart3, Bell, Settings, Globe, Store };
+const icons = { LayoutDashboard, Receipt, CheckSquare, Building2, Wrench, Sparkles, ShieldCheck, Package, Users, BadgePercent, BarChart3, Bell, Settings, Globe, Store };
 const groups = [
   { label: 'Không gian làm việc', ids: ['overview', 'tasks', 'notifications', 'refund-form'] },
-  { label: 'Vận hành khu đô thị', ids: ['technical', 'cleaning', 'security', 'projects', 'amenities', 'residents', 'finance', 'media'] },
+  { label: 'Vận hành khu đô thị', ids: ['technical', 'cleaning', 'security', 'parcels', 'projects', 'amenities', 'residents', 'finance', 'media'] },
   { label: 'Quản trị', ids: ['reports', 'settings'] },
 ];
 export const Sidebar = ({ currentTab, setCurrentTab, navItems, collapsed, setCollapsed, activeSite, activeSiteId,
@@ -33,7 +33,7 @@ export const Sidebar = ({ currentTab, setCurrentTab, navItems, collapsed, setCol
           if (!item) return null;
           const Icon = icons[item.icon];
           const count = id === 'tasks' ? taskCount : id === 'notifications' ? unreadCount : null;
-          const ready = ['overview', 'tasks', 'notifications', 'residents', 'refund-form', 'amenities', 'media', 'settings', 'reports', 'technical', 'cleaning', 'security'].includes(id);
+          const ready = ['overview', 'tasks', 'notifications', 'residents', 'refund-form', 'amenities', 'media', 'settings', 'reports', 'technical', 'cleaning', 'security', 'parcels'].includes(id);
           return <button key={id} type="button" onClick={() => setCurrentTab(id)} aria-current={currentTab === id ? 'page' : undefined}
             aria-label={item.label} title={`${item.label}${ready ? '' : ' · Chưa triển khai'}`} className={`nav-item ${currentTab === id ? 'is-active' : ''}`}>
             <Icon size={19} aria-hidden="true" /><span className="sidebar-copy nav-label">{item.label}</span>

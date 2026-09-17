@@ -219,6 +219,10 @@ def _authorized_attachment(session, context: UserContext, attachment_id: UUID) -
     ))
     if attachment is None:
         raise scope_not_found()
+    # Shared Attachment now also supports parcel evidence; keep the legacy
+    # work-order download route fail-closed for that different parent type.
+    if attachment.work_order_id is None:
+        raise scope_not_found()
     work_order = scoped_work_order(session, context, attachment.work_order_id)
     _assert_work_order_view(context, work_order)
     if attachment.is_quarantined:

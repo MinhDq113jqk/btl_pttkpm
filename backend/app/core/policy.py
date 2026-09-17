@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import date
 from uuid import UUID
 
 from fastapi import Header, Request
@@ -10,6 +11,7 @@ from app.core.security import decode_token
 from app.models.account import Account, AccountRole
 from app.models.building import Building
 from app.models.enums import RoleEnum
+from app.models.person import UnitPersonRelationship
 from app.models.site import Site
 from app.models.unit import Unit
 
@@ -18,6 +20,7 @@ UNIT_READ_ROLES = frozenset({"admin", "director", "cskh", "accountant",
 SITE_WIDE_UNIT_ROLES = frozenset({"admin", "director", "accountant"})
 BUILDING_UNIT_ROLES = frozenset({"cskh", "technical_lead", "security"})
 RESIDENT_READ_ROLES = frozenset({"admin", "director", "cskh", "accountant"})
+RESIDENT_ROLE = RoleEnum.RESIDENT.value
 
 
 @dataclass(frozen=True)
@@ -42,6 +45,8 @@ class UserContext:
     allowed_site_ids: list[UUID] | None
     unit_grants: tuple[UnitGrant, ...] = ()
     role_grants: tuple[UnitGrant, ...] = ()
+    resident_person_id: UUID | None = None
+    resident_unit_ids: tuple[UUID, ...] = ()
 
     def is_admin(self) -> bool:
         return "admin" in self.roles
@@ -121,6 +126,27 @@ def context_for_account(session: Session, account: Account,
                         AccountRole.building_id.in_(select(Building.id).where(
                             Building.site_id == AccountRole.site_id)))
     known_role = AccountRole.role.in_([role.value for role in RoleEnum])
+    resident_role_exists = session.scalar(select(AccountRole.id).where(
+        AccountRole.account_id == account.id,
+        AccountRole.role == RESIDENT_ROLE,
+        valid_building,
+    ).limit(1)) is not None
+    resident_scope_rows = ()
+    if resident_role_exists and account.person_id is not None:
+        # Authorization is effective now, so a former resident loses access
+        # immediately even if an already-issued session token is replayed.
+        resident_scope_rows = session.execute(select(
+            UnitPersonRelationship.site_id,
+            UnitPersonRelationship.unit_id,
+        ).distinct().where(
+            UnitPersonRelationship.person_id == account.person_id,
+            UnitPersonRelationship.tenant_id == account.tenant_id,
+            UnitPersonRelationship.valid_from <= date.today(),
+            or_(
+                UnitPersonRelationship.valid_to.is_(None),
+                UnitPersonRelationship.valid_to > date.today(),
+            ),
+        )).all()
     grant = select(AccountRole.id).where(
         AccountRole.account_id == account.id,
         valid_building,
@@ -132,6 +158,9 @@ def context_for_account(session: Session, account: Account,
         Site.tenant_id == account.tenant_id, grant,
     ).order_by(Site.code, Site.id)).all()
     site_ids = [site.id for site in sites]
+    for resident_site_id in sorted({row.site_id for row in resident_scope_rows}, key=str):
+        if resident_site_id not in site_ids:
+            site_ids.append(resident_site_id)
     if active_site_id is not None and active_site_id not in site_ids:
         raise scope_not_found()
     if active_site_id is None:
@@ -143,6 +172,12 @@ def context_for_account(session: Session, account: Account,
         known_role,
         or_(role_scope, and_(AccountRole.role == "admin", AccountRole.site_id.is_(None))),
     )).all()
+    resident_unit_ids = tuple(
+        row.unit_id for row in resident_scope_rows if row.site_id == active_site_id
+    )
+    role_names = {grant.role for grant in roles}
+    if resident_unit_ids:
+        role_names.add(RESIDENT_ROLE)
     role_grants = tuple(UnitGrant(grant.role, grant.building_id) for grant in roles)
     unit_grants = tuple(UnitGrant(grant.role, grant.building_id) for grant in roles
                         if grant.role in SITE_WIDE_UNIT_ROLES
@@ -152,11 +187,13 @@ def context_for_account(session: Session, account: Account,
         tenant_id=account.tenant_id,
         username=account.username,
         full_name=account.full_name,
-        roles=sorted({grant.role for grant in roles}),
+        roles=sorted(role_names),
         active_site_id=active_site_id,
         allowed_site_ids=site_ids,
         unit_grants=unit_grants,
         role_grants=role_grants,
+        resident_person_id=account.person_id if resident_unit_ids else None,
+        resident_unit_ids=resident_unit_ids,
     )
 
 

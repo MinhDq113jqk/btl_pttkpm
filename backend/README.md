@@ -1,4 +1,99 @@
-# GreenCity Backend — R4 Task 5 local evidence
+# GreenCity Backend — R6 Resident Self-Service local evidence
+
+## Trạng thái mới nhất — V1 Parcel Task 1–5 và review kỹ thuật R7
+
+V1 Parcel đã có luồng Parcel Desk intake → `READY_FOR_PICKUP` → handover/exception,
+Case dùng chung (chỉ sau handover/ngoại lệ), Security Incident linkage, private
+evidence, signed download và audit timeline. Task 5 ghép hai nhánh Golden Flow
+qua HTTP API, kiểm snapshot bất biến, retry/duplicate, correlation và SQL oracle
+read-only tại [V1_PARCEL_TASK5_EXIT_EVIDENCE.md](V1_PARCEL_TASK5_EXIT_EVIDENCE.md).
+`0014_v1_parcel_foundation.py` tạo parcel scoped; `0015_v1_parcel_case_evidence.py`
+gắn parcel vào `CaseRecord`, `SecurityIncident`, `Attachment` với invariant
+one-source/one-parent và downgrade fail-closed.
+
+Runner PostgreSQL 18/TLS disposable ngày 17/09/2026 PASS migration `0005`,
+`0007`–`0015`, DB trống, upgrade/seed lặp, `alembic check`, shutdown và
+**253 tests pass, 2 warnings**. Frontend regression `npm test` đạt **68/68**,
+Vite build PASS và Parcel UX đạt **13/13 checks**. R7 Task 1 bổ sung
+preflight/startup tách biệt và hướng dẫn pilot tại
+[R7_TASK1_RUNTIME.md](R7_TASK1_RUNTIME.md). Đây là
+**Implemented & Verified Local**, chưa phải Gate/production/Aiven hoặc
+independent-review sign-off. Contract/API/evidence ở
+[V1_PARCEL_CASE_EVIDENCE_CONTRACT.md](V1_PARCEL_CASE_EVIDENCE_CONTRACT.md).
+
+## Trạng thái mới nhất — R6 Resident Self-Service
+
+R6 thêm lát self-service cho cư dân với danh tính được liên kết qua
+`Account.person_id` và quan hệ `Person--Unit` còn hiệu lực. Backend không nhận
+tenant/site/building/unit/role từ client để mở rộng quyền: `UserContext` suy ra
+tenant, site đang hoạt động, building và các unit cư dân ở server cho từng
+request. Quan hệ bị thu hồi mất hiệu lực ngay ở request kế tiếp.
+
+Các bề mặt đã publish:
+
+- `GET /api/v1/resident/service-request-options` trả danh sách building/unit/
+  category được phép; `GET/POST /resident/service-requests`, `GET/PATCH
+  /resident/service-requests/{id}` cho tạo, xem và sửa có optimistic locking.
+- `GET .../{id}/timeline`, `GET/POST .../{id}/evidence`, signed-link và content
+  download cho timeline/bằng chứng private. Upload giới hạn loại/kích thước,
+  checksum và quarantine; file không hợp lệ không được phục vụ.
+- `GET /api/v1/resident/billing/summary`, `/invoices`, `/payments` là
+  read-only, bắt buộc `as_of` có múi giờ; dư nợ lấy từ AR ledger và invoice giữ
+  snapshot, tiền là integer VND.
+- `GET /api/v1/resident/notifications` và `POST
+  /resident/notifications/{id}/read` chỉ trả inbox của đúng account/site và
+  ghi audit khi đánh dấu đã đọc.
+
+Migration `0012_r6_resident_identity_scope.py` thêm liên kết Person an toàn;
+`0013_r6_resident_service_request_evidence.py` gắn attachment vào Service
+Request với đúng một parent. Cả hai downgrade đều fail-closed khi còn dữ liệu
+R6. Seed lặp tạo account demo `resident_west` cùng liên kết Person/Unit, không
+tạo invoice/payment/ledger history.
+
+Runner PostgreSQL 18/TLS disposable ngày 16/09/2026 PASS migration `0005`,
+`0007`--`0013`, DB trống, upgrade/seed lặp, `alembic check`, shutdown và
+**238 tests pass, 2 warnings**. Frontend regression `npm test` đạt **63/63**,
+Vite build PASS và Resident UX đạt **17/17 checks**. Đây là
+**Implemented & Verified Local**, chưa phải Gate/production/Aiven hoặc
+independent-review sign-off. Chi tiết endpoint, schema và ma trận kiểm chứng ở
+[R6_CONTRACT.md](R6_CONTRACT.md) và [R6_RELEASE_EVIDENCE.md](R6_RELEASE_EVIDENCE.md).
+
+## Trạng thái mới nhất — R5 Task 2, CAP-BI Dashboard và Audit Explorer backend
+
+`GET /api/v1/dashboard?as_of=<RFC3339 timezone-aware>` là snapshot read-only
+cho `admin`/`director` theo tenant, active site và building grant từ server.
+Nó trả đúng năm KPI SLA quá hạn, maintenance đến hạn, vệ sinh phải làm lại,
+incident mở và công nợ. `GET /api/v1/dashboard/drill-down/{metric}` chỉ nhận
+allowlist metric, dùng cùng cutoff và trả source rows reconcile được với KPI;
+công nợ luôn lấy AR ledger `SUM(debit-credit)` theo `effective_at`, không dùng
+invoice balance cache (`INV-01`).
+
+`GET /api/v1/audit-events?correlation_id=<UUID>` là Audit Explorer scoped;
+accountant vẫn chỉ xem resource tài chính và không có quyền dashboard vận hành.
+R5 Task 2 không cần migration mới vì chỉ là projection của schema đến `0011`.
+
+Runner PostgreSQL/TLS disposable ngày 15/09/2026 PASS `0010 -> 0011 -> 0010
+-> 0011`, DB trống/seed lặp, `alembic check` và **222 tests pass, 2 warnings**.
+Đây là **Implemented & Verified Local** cho `AC-25`, backend `AC-45` và
+`INV-01`; chưa bao gồm frontend Dashboard, Gate/production/Aiven hay review độc
+lập. Contract, cutoff semantics và test oracle nằm ở [R5_CONTRACT.md](R5_CONTRACT.md).
+
+## Trạng thái trước đó — R5 Task 1, outbox và correlation
+
+Revision `0011` cùng [R5_CONTRACT.md](R5_CONTRACT.md) bổ sung transactional
+outbox trên `DomainEvent`: lease, retry, dead-letter, notification read model,
+audit explorer scoped và manual retry cho operator site-wide. Backend vẫn chỉ có
+8 role thực; mock Auditor frontend không phát sinh quyền API. Không cấu hình
+provider Email/SMS/Push hoặc scheduler daemon; Dashboard/KPI thuộc Task 2 bên
+trên.
+
+Runner PostgreSQL/TLS disposable ngày 15/09/2026 PASS migration `0010 -> 0011
+-> 0010 -> 0011`, DB trống tới head, migration/seed lặp, `alembic check` và
+**220 tests pass, 2 warnings**. Evidence Task 1 này là **Implemented & Verified Local**
+cho R5 Task 1 (`AC-22`, `NFR-05`), không phải Gate/production/independent-review
+proof hay xác nhận toàn bộ R5.
+
+## Trạng thái trước đó — R4 Task 5 local evidence
 
 ## Trạng thái mới nhất — kiểm soát và Exit evidence R4
 

@@ -345,6 +345,43 @@ def seed_database(session: Session) -> None:
                 )
                 session.add(acc_role)
 
+    # R6 resident demo identity: link through the trusted Person relationship
+    # created above.  Re-running seed is safe; a conflicting existing link is
+    # rejected rather than silently widening a resident's scope.
+    resident_account = session.execute(select(Account).where(
+        Account.tenant_id == tenant.id,
+        Account.username == "resident_west",
+    )).scalar_one_or_none()
+    if resident_account is None:
+        resident_account = Account(
+            tenant_id=tenant.id,
+            username="resident_west",
+            hashed_password=default_hashed_pwd,
+            full_name=person_an.full_name,
+            is_active=True,
+            person_id=person_an.id,
+        )
+        session.add(resident_account)
+        session.flush()
+    elif resident_account.person_id not in (None, person_an.id):
+        raise ValueError("resident_west is already linked to a different Person")
+    elif resident_account.person_id is None:
+        resident_account.person_id = person_an.id
+        session.flush()
+    resident_role = session.execute(select(AccountRole).where(
+        AccountRole.account_id == resident_account.id,
+        AccountRole.role == RoleEnum.RESIDENT,
+        AccountRole.site_id == site_west.id,
+        AccountRole.building_id == building_w1.id,
+    )).scalar_one_or_none()
+    if resident_role is None:
+        session.add(AccountRole(
+            account_id=resident_account.id,
+            role=RoleEnum.RESIDENT,
+            site_id=site_west.id,
+            building_id=building_w1.id,
+        ))
+
     # R4 seeds only stable billing setup. It never creates invoice, payment,
     # allocation, credit, unmatched-payment, or AR-ledger history.
     for site, building, unit in (

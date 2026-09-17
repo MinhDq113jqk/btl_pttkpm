@@ -295,6 +295,21 @@ class AssetView(ApiModel):
     version: int
 
 
+class MaintenanceHistoryView(ApiModel):
+    id: UUID
+    asset_id: UUID
+    occurrence_id: UUID
+    work_order_id: UUID
+    performed_by_id: UUID
+    accepted_by_id: UUID
+    result_summary: str
+    completed_at: datetime
+
+
+class MaintenanceHistoryListResponse(BaseModel):
+    items: list[MaintenanceHistoryView]
+
+
 class MaintenancePlanCreate(InputModel):
     asset_id: UUID
     code: str = Field(min_length=2, max_length=50, pattern=r"^[A-Z0-9][A-Z0-9_-]*$")

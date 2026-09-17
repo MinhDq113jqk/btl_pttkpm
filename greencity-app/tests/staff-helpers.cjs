@@ -32,6 +32,8 @@ async function installAuthApiMocks(page, { role = 'cskh', items } = {}) {
     if (pathname.endsWith('/auth/me')) return route.fulfill({ status: 200, headers, body: JSON.stringify(user) });
     if (pathname.endsWith('/service-requests')) return route.fulfill({ status: 200, headers, body: JSON.stringify({ items: responseItems, page: 1, page_size: 20, total: responseItems.length }) });
     if (/\/units\/[^/]+\/360$/.test(pathname)) return route.fulfill({ status: 200, headers, body: JSON.stringify({ ...unit, id: decodeURIComponent(pathname.split('/').at(-2)) }) });
+    if (pathname.endsWith('/notifications')) return route.fulfill({ status: 200, headers, body: JSON.stringify({ items: [] }) });
+    if (pathname.endsWith('/outbox/events')) return route.fulfill({ status: 200, headers, body: JSON.stringify({ items: [] }) });
     return route.fulfill({ status: 404, headers, body: JSON.stringify({ error: { code: 'ERR-NOTFOUND', message: 'Không tìm thấy.', correlation_id: randomUUID() } }) });
   });
 }

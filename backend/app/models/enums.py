@@ -10,6 +10,15 @@ class RoleEnum(StrEnum):
     TECHNICIAN = "technician"
     CLEANING = "cleaning"
     SECURITY = "security"
+    RESIDENT = "resident"
+
+
+class DomainEventDeliveryStatusEnum(StrEnum):
+    PENDING = "PENDING"
+    PROCESSING = "PROCESSING"
+    RETRY_SCHEDULED = "RETRY_SCHEDULED"
+    PUBLISHED = "PUBLISHED"
+    DEAD_LETTER = "DEAD_LETTER"
 
 
 class UnitStatusEnum(StrEnum):
@@ -101,6 +110,15 @@ class OverpaymentCreditStatusEnum(StrEnum):
     OPEN = "OPEN"
     EXHAUSTED = "EXHAUSTED"
     VOID = "VOID"
+
+
+class ParcelStatusEnum(StrEnum):
+    RECEIVED = "RECEIVED"
+    READY_FOR_PICKUP = "READY_FOR_PICKUP"
+    HANDED_OVER = "HANDED_OVER"
+    RETURNED = "RETURNED"
+    LOST = "LOST"
+    DAMAGED = "DAMAGED"
 
 
 class ArLedgerEntryTypeEnum(StrEnum):

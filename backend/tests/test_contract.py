@@ -80,6 +80,7 @@ def test_production_app_has_no_test_probes():
     expected = {
         "/api/v1/assets",
         "/api/v1/assets/{asset_id}",
+        "/api/v1/assets/{asset_id}/maintenance-history",
         "/api/v1/attachments/{attachment_id}/content",
         "/api/v1/attachments/{attachment_id}/signed-link",
         "/api/v1/health",
@@ -127,10 +128,41 @@ def test_production_app_has_no_test_probes():
         "/api/v1/maintenance-plans",
         "/api/v1/maintenance-plans/{plan_id}",
         "/api/v1/maintenance/scheduler/run",
+        "/api/v1/audit-events",
+        "/api/v1/dashboard",
+        "/api/v1/dashboard/drill-down/{metric}",
+        "/api/v1/notifications",
+        "/api/v1/notifications/{notification_id}/read",
+        "/api/v1/outbox/events",
+        "/api/v1/outbox/events/{event_id}/retry",
+        "/api/v1/parcels",
+        "/api/v1/parcels/{parcel_id}",
+        "/api/v1/parcels/{parcel_id}/case",
+        "/api/v1/parcels/{parcel_id}/incident",
+        "/api/v1/parcels/{parcel_id}/incident-link",
+        "/api/v1/parcels/{parcel_id}/timeline",
+        "/api/v1/parcels/{parcel_id}/evidence",
+        "/api/v1/parcels/{parcel_id}/evidence/{attachment_id}/signed-link",
+        "/api/v1/parcels/{parcel_id}/evidence/{attachment_id}/content",
+        "/api/v1/parcels/{parcel_id}/ready",
+        "/api/v1/parcels/{parcel_id}/handover",
+        "/api/v1/parcels/{parcel_id}/exception",
         "/api/v1/pending-charges/{charge_id}/decision",
         "/api/v1/pending-charges/{charge_id}/post",
-        "/api/v1/persons/{person_id}/units",
-        "/api/v1/service-request-form-options",
+         "/api/v1/persons/{person_id}/units",
+         "/api/v1/resident/service-requests",
+         "/api/v1/resident/service-request-options",
+         "/api/v1/resident/service-requests/{request_id}",
+         "/api/v1/resident/service-requests/{request_id}/evidence",
+         "/api/v1/resident/service-requests/{request_id}/evidence/{attachment_id}/content",
+         "/api/v1/resident/service-requests/{request_id}/evidence/{attachment_id}/signed-link",
+         "/api/v1/resident/service-requests/{request_id}/timeline",
+         "/api/v1/resident/billing/summary",
+         "/api/v1/resident/billing/invoices",
+         "/api/v1/resident/billing/payments",
+         "/api/v1/resident/notifications",
+         "/api/v1/resident/notifications/{notification_id}/read",
+         "/api/v1/service-request-form-options",
         "/api/v1/service-requests",
         "/api/v1/service-requests/sla/run",
         "/api/v1/service-requests/{request_id}",
@@ -169,13 +201,35 @@ def test_production_app_has_no_test_probes():
     assert set(app.openapi()["paths"]) == expected
 
 
+def test_r6_resident_openapi_surface_has_only_intended_methods(contract_client):
+    """Release contract: resident endpoints do not grow unreviewed write methods."""
+    http, _ = contract_client
+    paths = http.get("/openapi.json").json()["paths"]
+    expected_methods = {
+        "/api/v1/resident/service-requests": {"get", "post"},
+        "/api/v1/resident/service-request-options": {"get"},
+        "/api/v1/resident/service-requests/{request_id}": {"get", "patch"},
+        "/api/v1/resident/service-requests/{request_id}/timeline": {"get"},
+        "/api/v1/resident/service-requests/{request_id}/evidence": {"get", "post"},
+        "/api/v1/resident/service-requests/{request_id}/evidence/{attachment_id}/content": {"get"},
+        "/api/v1/resident/service-requests/{request_id}/evidence/{attachment_id}/signed-link": {"get"},
+        "/api/v1/resident/billing/summary": {"get"},
+        "/api/v1/resident/billing/invoices": {"get"},
+        "/api/v1/resident/billing/payments": {"get"},
+        "/api/v1/resident/notifications": {"get"},
+        "/api/v1/resident/notifications/{notification_id}/read": {"post"},
+    }
+    for path, methods in expected_methods.items():
+        assert set(paths[path]) == methods
+
+
 def test_readiness_requires_exact_schema_head(contract_client):
     http, database = contract_client
-    database.current_revision.return_value = "0010"
+    database.current_revision.return_value = "0015"
     response = http.get("/api/v1/readiness")
     assert response.status_code == 200
     assert response.json() == {
-        "status": "ready", "database": "connected", "schema_revision": "0010",
+        "status": "ready", "database": "connected", "schema_revision": "0015",
     }
     database.current_revision.return_value = "0005"
     response = http.get("/api/v1/readiness")

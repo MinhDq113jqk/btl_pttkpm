@@ -1,5 +1,127 @@
 # Plan 2 — Foundation API contract (P1, partial)
 
+## Delta V1 Parcel Task 5 — Golden Flow, Case, Incident và private evidence
+
+V1 Parcel Task 1–5 mở rộng Parcel Desk từ intake/handover sang hồ sơ xử lý liên
+tục. Parcel được liên kết với `CaseRecord`, `SecurityIncident`, `Attachment` và
+`AuditEvent` hiện có; không tạo một store song song. Migration `0014` tạo parcel,
+còn `0015` thêm `source_parcel_id`, `parcel_id` và parent-union invariant.
+
+### Bề mặt OpenAPI được duyệt
+
+| Method | Path | Quy tắc chính |
+|---|---|---|
+| GET, POST | `/api/v1/parcels/{parcel_id}/case` | Một Case trực tiếp/parcel; POST cần `Idempotency-Key` |
+| GET | `/api/v1/parcels/{parcel_id}/incident` | Incident đang liên kết trong cùng building |
+| POST | `/api/v1/parcels/{parcel_id}/incident-link` | Link Incident cùng building; chỉ role security/admin/director |
+| GET, POST | `/api/v1/parcels/{parcel_id}/evidence` | Metadata private; upload PNG/JPEG, checksum/quarantine, key |
+| GET | `/api/v1/parcels/{parcel_id}/evidence/{attachment_id}/signed-link` | Signed link ngắn hạn, ràng actor/site/parcel/attachment |
+| GET | `/api/v1/parcels/{parcel_id}/evidence/{attachment_id}/content` | Bearer + signed token, `Cache-Control: private, no-store` |
+| GET | `/api/v1/parcels/{parcel_id}/timeline` | Audit timeline của Parcel và Case/Incident/Attachment liên kết |
+
+Scope tenant/site/building luôn được dựng từ `UserContext`; client không được
+gửi scope để nâng quyền. Case/evidence retry cùng fingerprint replay cùng
+resource; payload khác trả conflict. File private không trả storage key và file
+quarantine không được download. Một parcel chỉ có một Case trực tiếp, một
+Incident chỉ link một parcel và Attachment chỉ có đúng một parent.
+Case chỉ mở ở `HANDED_OVER` hoặc `RETURNED/LOST/DAMAGED`; Incident link tăng
+version/actor và audit before/after.
+
+### Bằng chứng local và giới hạn
+
+Ngày 17/09/2026, runner PostgreSQL/TLS cô lập đạt **253 passed, 2 warnings**;
+empty DB, repeat migration/seed, `alembic check`, migration tới `0015` và
+shutdown đều PASS. Frontend đạt `npm test` **68/68**, Vite build PASS và Parcel
+UX `npm run test:parcel` **13/13 checks**. Test chi tiết gồm
+`test_v1_parcel_foundation.py`, `test_v1_parcel_workflow_integration.py`,
+`test_migration_0015.py` và frontend API contract. Browser UX dùng transport
+intercept nên không phải evidence browser-to-PostgreSQL.
+
+Đây là **Implemented & Verified Local** cho V1 Parcel Task 1–5; không phải Gate C,
+production/Aiven hay independent-review sign-off. Contract chi tiết ở
+[V1_PARCEL_CONTRACT.md](V1_PARCEL_CONTRACT.md),
+[V1_PARCEL_WORKFLOW_CONTRACT.md](V1_PARCEL_WORKFLOW_CONTRACT.md) và
+[V1_PARCEL_CASE_EVIDENCE_CONTRACT.md](V1_PARCEL_CASE_EVIDENCE_CONTRACT.md).
+
+## Delta R6 — Resident Self-Service
+
+R6 là lát self-service read/write có giới hạn cho role `resident`. Danh tính
+được xác minh từ `Account.person_id` và `UnitPersonRelationship` đang hiệu lực;
+tenant, site đang hoạt động, building và unit đều được suy ra ở server. Client
+không được gửi hoặc tin cậy `tenant_id`, `site_id`, `building_id`, `role` hay
+`person_id` để mở rộng scope. Account cư dân không có quan hệ hiệu lực trả
+`404 ERR-SCOPE-NOTFOUND`; role khác trả `403 ERR-FORBIDDEN`.
+
+### Migration và seed
+
+- `0012_r6_resident_identity_scope.py` thêm `accounts.person_id`, composite FK
+  cùng tenant và unique `(tenant_id, person_id)`. Downgrade bị từ chối khi còn
+  liên kết identity.
+- `0013_r6_resident_service_request_evidence.py` cho phép Attachment có parent
+  là Work Order **hoặc** Resident Service Request (đúng một parent), FK/index
+  và downgrade fail-closed khi còn evidence cư dân.
+- Seed lặp tạo `resident_west` và liên kết Person/Unit West; không tạo dữ liệu
+  invoice/payment/ledger lịch sử.
+
+### Bề mặt OpenAPI được duyệt
+
+| Method | Path | Quy tắc chính |
+|---|---|---|
+| GET | `/api/v1/resident/service-request-options` | Options building/unit/category trong scope cư dân |
+| GET, POST | `/api/v1/resident/service-requests` | Danh sách phân trang; POST bắt buộc `Idempotency-Key` |
+| GET, PATCH | `/api/v1/resident/service-requests/{request_id}` | PATCH chỉ `NEW`/`WAITING_INFO`, bắt buộc `expected_version` + key |
+| GET | `/api/v1/resident/service-requests/{request_id}/timeline` | Audit timeline của request đó |
+| GET, POST | `/api/v1/resident/service-requests/{request_id}/evidence` | Private metadata; POST raw PNG/JPEG, checksum/quarantine, key |
+| GET | `/api/v1/resident/service-requests/{request_id}/evidence/{attachment_id}/signed-link` | Signed link ngắn hạn, ràng actor/site/request/attachment |
+| GET | `/api/v1/resident/service-requests/{request_id}/evidence/{attachment_id}/content` | Bearer cư dân + signed token; `no-store` |
+| GET | `/api/v1/resident/billing/summary` | Bắt buộc `as_of` RFC3339 có múi giờ; AR ledger read-only |
+| GET | `/api/v1/resident/billing/invoices` | Invoice phát hành trước cutoff, item snapshot read-only |
+| GET | `/api/v1/resident/billing/payments` | Payment của các billing account trong scope trước cutoff |
+| GET | `/api/v1/resident/notifications` | Inbox account/site; `include_read`, phân trang |
+| POST | `/api/v1/resident/notifications/{notification_id}/read` | Acknowledge idempotent; ghi audit lần đọc đầu |
+
+Tất cả route dùng ErrorEnvelope và `X-Correlation-ID` chung. `as_of` naive bị
+`422 ERR-AS-OF-TIMEZONE`; billing summary tính `SUM(debit_vnd-credit_vnd)` với
+`effective_at <= as_of` và luôn trả số nguyên VND. Portal không có endpoint ghi
+payment, allocation, invoice hoặc AR ledger.
+
+### Bất biến và retry
+
+- Cùng actor/operation/idempotency key và cùng fingerprint được replay cùng
+  resource; payload khác trả `409 ERR-CONFLICT`. Advisory lock và unique DB
+  chống race giữa request đồng thời.
+- PATCH khóa bản ghi, so sánh `expected_version` nguyên tử và tăng version;
+  phiên bản cũ trả `409`.
+- Evidence lưu private dưới root cấu hình, kiểm magic bytes/MIME/kích thước,
+  SHA-256 và path traversal; file bị quarantine không được download.
+- Audit/timeline và outbox được ghi cùng transaction nghiệp vụ. Notification
+  chỉ join được event cùng tenant/site và recipient account; correlation nguồn
+  được trả nhưng không lộ payload/event nội bộ không cần thiết.
+
+### Bằng chứng local và giới hạn
+
+Ngày 16/09/2026, runner PostgreSQL/TLS cô lập đạt **238 passed, 2 warnings**,
+migration tới `0013`, DB trống/seed lặp/drift/shutdown PASS; frontend đạt
+`npm test` **63/63**, Vite build PASS và Resident UX **17/17 checks**. Test chi
+tiết: `test_r6_resident_service_requests_integration.py`,
+`test_r6_resident_billing_integration.py`,
+`test_r6_resident_notifications_integration.py`,
+`test_r6_hardening_integration.py` và `test_contract.py`.
+
+Đây là **Implemented & Verified Local** cho R6 Resident Self-Service; không
+phải Gate C, production/Aiven, payment gateway thật, refund/chargeback, AI,
+đăng ký cư dân công khai hay independent-review sign-off. Xem ma trận phát hành
+tại [R6_RELEASE_EVIDENCE.md](R6_RELEASE_EVIDENCE.md).
+
+## Delta R5 Task 1 — Outbox, notification inbox và audit correlation
+
+[R5_CONTRACT.md](R5_CONTRACT.md) khóa revision `0011`: `DomainEvent` là
+transactional outbox có retry/dead-letter/lease, notification read model, audit
+explorer scoped và manual retry cho operator site-wide. Backend roster vẫn chỉ
+có tám role; mock Auditor frontend không tạo quyền API. Lát này không bao gồm
+Dashboard/KPI hay provider Email/SMS/Push thực; Dashboard được bổ sung riêng ở
+R5 Task 2 ngay bên dưới.
+
 ## Delta R4 — Billing, AR ledger và Payment foundation
 
 Contract đầy đủ tại [R4_CONTRACT.md](R4_CONTRACT.md). Revision `0010` kế thừa
@@ -16,6 +138,12 @@ all-or-nothing và database unique chặn trùng; Invoice Item snapshot là immu
 void thêm reversal thay vì sửa lịch sử. Task 4 thêm Golden Flow oracle,
 idempotent recovery sau response mất và regression financial; refund và
 maker-checker vẫn không được suy diễn từ schema hay route.
+
+Pending Charge đã `APPROVED` trước cutoff được Billing Run snapshot vào
+`billing_invoice_items`; cùng transaction tạo đúng một `invoice_items` R2
+posting anchor trước khi chuyển charge thành `POSTED`. Do đó một luồng
+CSKH-to-cash có thể đối soát từ Cost Line qua snapshot/anchor đến AR ledger và
+payment allocation mà không cần ghi tay vào database.
 
 ## Delta R1 — AC-03 Person--Unit read contract
 
@@ -59,6 +187,23 @@ Head local là `0007`. PostgreSQL local đã kiểm migration `0006 -> 0007 -> 0
 và **191 test pass**. `AC-02`/`AC-24` là **Implemented & Verified Local** theo
 ma trận closeout, không phải Gate/release claim; không có review Antigravity lần 3.
 
+## Delta R5 — CAP-BI Dashboard và Audit Explorer (backend)
+
+`GET /api/v1/dashboard?as_of=<timezone-aware RFC3339>` và
+`GET /api/v1/dashboard/drill-down/{metric}?as_of=...` là projection chỉ đọc cho
+`admin`/`director`. Không nhận tenant/site/building/role từ client: context server
+quyết active tenant/site và building grant. `as_of` là bắt buộc, không nhận
+datetime naive. Dashboard chỉ có năm KPI `sla_overdue`, `maintenance_due`,
+`cleaning_rework`, `open_incidents`, `ar_debt`; drill-down chỉ nhận đúng allowlist
+đó. Công nợ dùng AR ledger `SUM(debit_vnd-credit_vnd)` tại `effective_at <= as_of`
+và không dùng invoice balance cache (`INV-01`).
+
+Audit Explorer nhận `correlation_id` hoặc cặp `resource_type`/`resource_id`, kèm
+`as_of` timezone-aware tùy chọn: admin/director nhận event trong server scope,
+accountant chỉ audit resource tài chính. Roster backend không có `auditor`;
+frontend mock không cấp quyền API. Xem
+[R5_CONTRACT.md](R5_CONTRACT.md) để biết cutoff semantics/evidence và giới hạn.
+
 ## Delta R3 — data foundation vệ sinh và an ninh
 
 Contract R3 tại [R3_CONTRACT.md](R3_CONTRACT.md): schema scoped cho ca/tuyến,
@@ -74,6 +219,12 @@ mapping `AC-06`, `AC-08..10`, `AC-38..39` được khóa tại
 [R2_CONTRACT.md](R2_CONTRACT.md). OpenAPI hiện publish toàn bộ route R2 dưới
 `/api/v1`; mọi response lỗi dùng envelope chung và khai báo cả HTTP 400 cho
 idempotency key/input command không hợp lệ.
+
+`GET /api/v1/assets/{asset_id}/maintenance-history` là projection chỉ đọc của
+Maintenance History. Nó chỉ trả history của asset trong tenant/site/building do
+server suy từ phiên; không có route ghi/sửa/xóa history. `admin`, `director`,
+`cskh` và `technical_lead` có grant đúng building mới đọc được; asset ngoài
+scope trả `404 ERR-SCOPE-NOTFOUND`.
 
 Snapshot P1/R1 phía dưới là lịch sử hình thành contract, không còn là danh sách
 endpoint hiện tại. `AC-07` vẫn `SPEC-ONLY`; frontend list/search, outbox worker và

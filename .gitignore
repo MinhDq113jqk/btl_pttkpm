@@ -12,6 +12,7 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+!.env.pilot.example
 Tài_nguyên.md
 Tài_nguyên.txt
 *.pem

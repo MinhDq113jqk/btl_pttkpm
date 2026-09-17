@@ -16,6 +16,7 @@ export const navItems = [
   { id: "technical", label: "Kỹ thuật & Bảo trì", icon: "Wrench", count: null },
   { id: "cleaning", label: "Vệ sinh môi trường", icon: "Sparkles", count: null },
   { id: "security", label: "An ninh & Tuần tra", icon: "ShieldCheck", count: null },
+  { id: "parcels", label: "Bưu phẩm & Bàn giao", icon: "Package", count: null },
   { id: "residents", label: "Khách hàng & Cư dân", icon: "Users", count: null },
   { id: "finance", label: "Tài chính & Công nợ", icon: "BadgePercent", count: null },
   { id: "media", label: "Website & Fanpage", icon: "Globe", count: "Live" },

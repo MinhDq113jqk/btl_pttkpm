@@ -11,7 +11,13 @@ class Account(IdentityTimestampMixin, Base):
     __table_args__ = (
         UniqueConstraint("tenant_id", "username", name="uq_accounts_tenant_id_username"),
         UniqueConstraint("id", "tenant_id", name="uq_accounts_id_tenant_id"),
+        UniqueConstraint("tenant_id", "person_id", name="uq_accounts_tenant_id_person_id"),
+        ForeignKeyConstraint(
+            ["person_id", "tenant_id"], ["greencity.persons.id", "greencity.persons.tenant_id"],
+            name="fk_accounts_person_tenant", ondelete="RESTRICT",
+        ),
         Index("ix_greencity_accounts_tenant_id", "tenant_id"),
+        Index("ix_greencity_accounts_person_id", "person_id"),
     )
 
     tenant_id: Mapped[UUID] = mapped_column(ForeignKey("greencity.tenants.id", ondelete="CASCADE"), nullable=False)
@@ -19,6 +25,9 @@ class Account(IdentityTimestampMixin, Base):
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[str] = mapped_column(String(200), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # A resident identity is assigned by a trusted back-office path, never by a
+    # login request or token claim.  The composite FK keeps it in this tenant.
+    person_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True)
 
     roles = relationship("AccountRole", backref="account", cascade="all, delete-orphan")
 

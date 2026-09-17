@@ -28,8 +28,11 @@ class Settings(BaseSettings):
 
     def auth_secret(self) -> str:
         value = self.secret_key.get_secret_value() if self.secret_key else ""
+        normalized = value.strip().lower()
         if (len(value.strip().encode("utf-8")) < 32
-                or value.startswith(("your_", "greencity-default-development-"))):
+                or normalized.startswith((
+                    "your_", "greencity-default-development-", "change_me", "replace_",
+                ))):
             raise ValueError("SECRET_KEY must be explicitly configured with at least 32 bytes; use a randomly generated key")
         return value
 

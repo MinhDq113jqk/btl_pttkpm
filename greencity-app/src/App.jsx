@@ -10,11 +10,14 @@ import { Dialog } from './components/Dialog';
 import { Toast } from './components/Toast';
 import { GreenAssistant } from './components/assistant/GreenAssistant';
 import { SessionDashboard } from './components/staff/SessionDashboard';
+import { ExecutiveDashboardView } from './components/ExecutiveDashboardView';
 import { StaffLogin } from './components/staff/StaffLogin';
 import { CreateServiceRequestForm } from './components/staff/CreateServiceRequestForm';
 import { CleaningDesktopView } from './components/CleaningDesktopView';
 import { SecurityDesktopView } from './components/SecurityDesktopView';
+import { ParcelDeskView } from './components/ParcelDeskView';
 import { BillingDesktopView } from './components/BillingDesktopView';
+import { ResidentPortalView } from './components/ResidentPortalView';
 import { navItems } from './data/mockData';
 import { ASSISTANT_STORAGE_KEY } from './data/assistantStore';
 import { canViewTab, createAuthenticatedAccount, getAllowedNav, getSessionNotifications } from './data/authSession';
@@ -108,6 +111,8 @@ export default function App() {
   };
 
   if (!account) return <StaffLogin onLogin={login} notice={sessionNotice} error={loginError} isLoading={isLoggingIn} />;
+  if (account.isResident) return <ResidentPortalView account={account} client={clientRef.current}
+    onLogout={logout} onSwitchSite={switchSite} isSwitchingSite={isSwitchingSite} siteSwitchError={siteSwitchError} />;
   return <StaffWorkspace key={`${account.workspaceKey}:${workspaceReset}`} account={account} client={clientRef.current}
     onLogout={logout} onSwitchSite={switchSite} isSwitchingSite={isSwitchingSite} siteSwitchError={siteSwitchError} />;
 }
@@ -123,7 +128,7 @@ function StaffWorkspace({ account, client, onLogout, onSwitchSite, isSwitchingSi
   const pageSize = 20;
   const [retryKey, setRetryKey] = useState(0);
   const [requestState, setRequestState] = useState({ items: [], total: 0, loading: account.canViewServiceRequests, error: null });
-  const [notifications, setNotifications] = useState(() => getSessionNotifications(account));
+  const [unreadCount, setUnreadCount] = useState(0);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [toast, setToast] = useState({ message: '', type: 'success', id: 0 });
   const [createRequestOpen, setCreateRequestOpen] = useState(false);
@@ -159,6 +164,17 @@ function StaffWorkspace({ account, client, onLogout, onSwitchSite, isSwitchingSi
     const timer = setTimeout(() => setToast(previous => ({ ...previous, message: '' })), 5000);
     return () => clearTimeout(timer);
   }, [toast.id, toast.message]);
+
+  useEffect(() => {
+    if (!client?.listNotifications) return undefined;
+    const controller = new AbortController();
+    client.listNotifications({ includeRead: false, signal: controller.signal })
+      .then(result => {
+        setUnreadCount(result.items.length);
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [client, account.workspaceKey]);
 
   const changeTab = useCallback(id => {
     if (id === currentTab) return;
@@ -202,14 +218,14 @@ function StaffWorkspace({ account, client, onLogout, onSwitchSite, isSwitchingSi
     setRetryKey(value => value + 1);
     showToast(`Đã tạo yêu cầu ${created.code}.`);
   };
-  const readNotification = id => setNotifications(previous => previous.map(item => item.id === id ? { ...item, unread: false } : item));
-  const unreadCount = notifications.filter(item => item.unread).length;
   const activeName = navItems.find(item => item.id === currentTab)?.label || 'Tổng quan';
   const allowed = canViewTab(account, currentTab);
   const scopeNotice = currentTab === 'cleaning'
     ? 'Ca, checklist và quyền thao tác vệ sinh đều do backend quyết định theo phiên hiện tại.'
-    : currentTab === 'security'
-      ? 'Ca trực, tuần tra, ngoại lệ và quyền thao tác an ninh đều do backend quyết định theo phiên hiện tại.'
+      : currentTab === 'security'
+        ? 'Ca trực, tuần tra, ngoại lệ và quyền thao tác an ninh đều do backend quyết định theo phiên hiện tại.'
+      : currentTab === 'parcels'
+        ? 'Bưu phẩm, PIN và quyền bàn giao đều do backend quyết định theo phiên hiện tại; PIN không được lưu ở frontend.'
       : currentTab === 'finance'
         ? 'Biểu phí, kỳ, Billing Run và hóa đơn đều do backend quyết định theo phiên hiện tại; giao diện không tự tính tiền.'
       : 'CSKH có thể tạo yêu cầu bằng lựa chọn máy chủ cấp; danh tính, danh sách và Unit 360° tiếp tục dùng cùng phiên thật.';
@@ -226,13 +242,22 @@ function StaffWorkspace({ account, client, onLogout, onSwitchSite, isSwitchingSi
         <main id="main-content" ref={mainRef} tabIndex={-1} className="desktop-main">
           <div className="demo-notice"><Info size={16} aria-hidden="true" /><span><strong>Phiên và phạm vi do backend quyết định.</strong> {scopeNotice}</span></div>
           {allowed ? <>
-            {currentTab === 'overview' && <SessionDashboard account={account} items={tasks} total={requestState.total} loading={requestState.loading} onNavigate={changeTab} onSelectTask={setSelectedTask} onFilterTasks={filterFromDashboard} />}
+            {currentTab === 'overview' && (account.canViewExecutiveDashboard
+              ? <ExecutiveDashboardView account={account} client={client} onToast={showToast} onNavigate={changeTab} />
+              : <SessionDashboard account={account} items={tasks} total={requestState.total} loading={requestState.loading} onNavigate={changeTab} onSelectTask={setSelectedTask} onFilterTasks={filterFromDashboard} />)}
             {currentTab === 'tasks' && <TasksDesktopView tasks={tasks} scopeLabel={account.scope} filters={filters} onFiltersChange={updateFilters} onSelectTask={setSelectedTask} loading={requestState.loading} error={requestState.error} onRetry={() => setRetryKey(value => value + 1)} pagination={{ page, pageSize, total: requestState.total }} onPageChange={setPage} canCreate={account.canCreateServiceRequests} onCreate={() => setCreateRequestOpen(true)} />}
             {currentTab === 'cleaning' && <CleaningDesktopView account={account} client={client} onToast={showToast} />}
             {currentTab === 'security' && <SecurityDesktopView account={account} client={client} onToast={showToast} />}
+            {currentTab === 'parcels' && <ParcelDeskView account={account} client={client} onToast={showToast} />}
             {currentTab === 'finance' && <BillingDesktopView account={account} client={client} onToast={showToast} />}
             {currentTab === 'residents' && <Unit360View client={client} scopeLabel={account.scope} />}
-            {currentTab === 'notifications' && <NotificationsDesktopView notifications={notifications} onRead={readNotification} onReadAll={() => { setNotifications(previous => previous.map(item => ({ ...item, unread: false }))); showToast('Đã đánh dấu tất cả thông báo là đã đọc.'); }} onOpen={() => {}} />}
+            {currentTab === 'notifications' && <NotificationsDesktopView account={account} client={client} onToast={showToast} onUnreadChange={setUnreadCount} onOpen={item => {
+              const taskId = item.taskId || item.template_snapshot?.task_id;
+              if (taskId) {
+                const matched = tasks.find(t => t.id === taskId || t.recordId === taskId);
+                if (matched) setSelectedTask(matched);
+              }
+            }} />}
           </> : <div className="desktop-page"><section className="surface empty-state"><ShieldCheck size={38} aria-hidden="true" /><h1>Không có quyền xem phân hệ này</h1><p>Menu của phiên chỉ gồm các bề mặt được suy ra từ vai trò mà <code>/auth/me</code> trả về. Frontend không thể tự mở rộng phạm vi.</p><button className="button-primary" onClick={() => changeTab('overview')}>Về không gian của tôi</button></section></div>}
         </main>
         <footer className="desktop-statusbar"><span>{account.scope} · Phiên xác thực</span><span>Ctrl K · Tìm trong trang dữ liệu hiện tại</span></footer>

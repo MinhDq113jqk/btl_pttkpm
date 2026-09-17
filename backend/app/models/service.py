@@ -204,13 +204,24 @@ class CaseRecord(IdentityTimestampMixin, Base):
     __tablename__ = "cases"
     __table_args__ = scope_args() + (
         CheckConstraint("status IN ('NEW','TRIAGED','IN_PROGRESS','RESOLVED','CLOSED')", name="cases_status"),
+        CheckConstraint(
+            "num_nonnulls(source_work_order_id, source_parcel_id) = 1",
+            name="cases_one_source",
+        ),
+        UniqueConstraint("source_parcel_id", name="uq_cases_source_parcel_id"),
         Index("ix_cases_source_work_order", "source_work_order_id"),
+        Index("ix_cases_source_parcel", "source_parcel_id"),
     )
 
     tenant_id: Mapped[UUID] = mapped_column(ForeignKey("greencity.tenants.id", ondelete="CASCADE"), nullable=False)
     site_id: Mapped[UUID] = mapped_column(Uuid, nullable=False)
     building_id: Mapped[UUID] = mapped_column(Uuid, nullable=False)
-    source_work_order_id: Mapped[UUID] = mapped_column(ForeignKey("greencity.work_orders.id", ondelete="RESTRICT"), nullable=False)
+    source_work_order_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("greencity.work_orders.id", ondelete="RESTRICT"), nullable=True,
+    )
+    source_parcel_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("greencity.parcels.id", ondelete="RESTRICT"), nullable=True,
+    )
     reason: Mapped[str] = mapped_column(String(500), nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="NEW")
     created_by_id: Mapped[UUID] = mapped_column(ForeignKey("greencity.accounts.id", ondelete="RESTRICT"), nullable=False)

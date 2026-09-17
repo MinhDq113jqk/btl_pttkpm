@@ -21,7 +21,7 @@ from app.models.billing import (
     Payment,
     PaymentAllocation,
 )
-from app.models.service import CostLine, PendingCharge, ServiceRequest, WorkOrder
+from app.models.service import CostLine, InvoiceItem, PendingCharge, ServiceRequest, WorkOrder
 from app.models.unit import Unit
 from app.services.r2 import utc_now
 
@@ -101,7 +101,8 @@ def _calculate_run(session: Session, run: BillingRun, period: AccountingPeriod,
             "amount_vnd": fee_amount,
             "source_pending_charge_id": None,
         }]
-        for charge, cost_line in _approved_charges(session, account, run.cutoff_at):
+        approved_charges = _approved_charges(session, account, run.cutoff_at)
+        for charge, cost_line in approved_charges:
             item_specs.append({
                 "description": cost_line.description,
                 "basis": "PENDING_CHARGE",
@@ -154,7 +155,18 @@ def _calculate_run(session: Session, run: BillingRun, period: AccountingPeriod,
             effective_at=datetime.combine(period.period_end, datetime.min.time(), tzinfo=UTC),
             created_by_id=actor_id,
         ))
-        for charge, _ in _approved_charges(session, account, run.cutoff_at):
+        for charge, cost_line in approved_charges:
+            # A BillingInvoiceItem is the immutable billing snapshot.  Retain
+            # the pre-existing R2 posting anchor as well so every POSTED
+            # PendingCharge has exactly one durable source record.
+            session.add(InvoiceItem(
+                tenant_id=run.tenant_id,
+                site_id=run.site_id,
+                pending_charge_id=charge.id,
+                posting_reference=f"BR-{run.id.hex}-{charge.id.hex}",
+                amount_vnd=cost_line.amount_vnd,
+                created_by_id=actor_id,
+            ))
             charge.status = "POSTED"
             charge.posted_at = utc_now()
             charge.version += 1

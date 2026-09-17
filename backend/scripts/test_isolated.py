@@ -22,10 +22,11 @@ def run(command, env, label, *, show_output=False):
     print(f"{label}: running", flush=True)
     # Background postgres can inherit pipe handles on Windows. Infrastructure
     # commands use DEVNULL so communicate() cannot wait on the server's pipes.
+    timeout = 180 if command[:3] == [sys.executable, "-m", "pytest"] else 120
     result = subprocess.run(command, cwd=ROOT, env=env,
                             stdout=subprocess.PIPE if show_output else subprocess.DEVNULL,
                             stderr=subprocess.STDOUT if show_output else subprocess.DEVNULL,
-                            text=True, encoding="utf-8", errors="replace", timeout=120)
+                            text=True, encoding="utf-8", errors="replace", timeout=timeout)
     # Infrastructure errors can contain connection details: never echo them.
     if show_output:
         output = result.stdout
@@ -147,6 +148,16 @@ def main():
             show_output=True)
         run([sys.executable, "-m", "scripts.test_migration_0010"], env, "R4 Task 3 migration paths",
             show_output=True)
+        run([sys.executable, "-m", "scripts.test_migration_0011"], env, "R5 outbox migration paths",
+            show_output=True)
+        run([sys.executable, "-m", "scripts.test_migration_0012"], env,
+            "R6 resident identity migration paths", show_output=True)
+        run([sys.executable, "-m", "scripts.test_migration_0013"], env,
+            "R6 resident request evidence migration paths", show_output=True)
+        run([sys.executable, "-m", "scripts.test_migration_0014"], env,
+            "V1 parcel foundation migration paths", show_output=True)
+        run([sys.executable, "-m", "scripts.test_migration_0015"], env,
+            "V1 parcel case/evidence migration paths", show_output=True)
         run([sys.executable, "-m", "scripts.migrate", "upgrade", "head"], env, "Empty DB migration")
         run([sys.executable, "-m", "scripts.migrate", "upgrade", "head"], env, "Migration repeat")
         # Fixtures for legacy regression tests are created only in this new cluster.
