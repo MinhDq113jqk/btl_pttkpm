@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sơ đồ Use-case GreenCity / UrbanOps</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&family=Noto+Serif:ital@0;1&family=Noto+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@400&family=Noto+Sans+TC:wght@400;500;600&family=Noto+Serif+TC:wght@400&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --paper: #f5f5f5;
+      --paper-2: #ececec;
+      --ink: #2d3142;
+      --muted: #4f5d75;
+      --soft: #7a8399;
+      --rule: rgba(45,49,66,0.12);
+      --accent: #eb6c36;
+      --accent-tint: rgba(235,108,54,0.08);
+      --link: #2e5aa8;
+      --sans: 'Geist', 'Noto Sans', 'Segoe UI', sans-serif;
+      --serif: 'Instrument Serif', 'Noto Serif', 'Noto Serif KR', serif;
+      --mono: 'Geist Mono', 'Noto Sans Mono', 'Cascadia Mono', monospace;
+    }
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--sans);
+      min-height: 100vh;
+      padding: 40px 32px 56px;
+    }
+    .frame { width: min(1280px, 100%); margin: 0 auto; }
+    .eyebrow {
+      color: var(--muted);
+      font: 500 8px/1.2 var(--mono);
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    h1 {
+      color: var(--ink);
+      font: 400 clamp(30px, 3.2vw, 42px)/1.08 var(--serif);
+      letter-spacing: -.02em;
+      margin-bottom: 10px;
+    }
+    .lede {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.55;
+      max-width: 960px;
+      margin-bottom: 26px;
+    }
+    .diagram-shell {
+      border-top: 1px solid var(--rule);
+      padding-top: 18px;
+      overflow-x: auto;
+    }
+    svg.diagram { display: block; min-width: 1080px; width: 100%; height: auto; }
+    .summary {
+      display: grid;
+      grid-template-columns: 1.12fr 1fr .88fr;
+      gap: 16px;
+      margin-top: 26px;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid var(--rule);
+      border-radius: 6px;
+      padding: 20px;
+    }
+    .card:nth-child(2) { background: rgba(79,93,117,.055); }
+    .card:nth-child(3) { border-top: 3px solid var(--accent); }
+    .card-label {
+      color: var(--soft);
+      font: 500 8px/1.2 var(--mono);
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      margin-bottom: 9px;
+    }
+    .card h2, .section-title {
+      color: var(--ink);
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 1.25;
+      margin-bottom: 10px;
+    }
+    .card p, .card li {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+    .card ul { padding-left: 16px; }
+    .catalog { margin-top: 30px; }
+    .catalog-head {
+      border-top: 1px solid var(--rule);
+      padding-top: 18px;
+      margin-bottom: 14px;
+    }
+    .catalog-grid {
+      display: grid;
+      grid-template-columns: 1.35fr .95fr;
+      gap: 16px;
+      align-items: start;
+    }
+    .table-wrap {
+      background: #fff;
+      border: 1px solid var(--rule);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    table { border-collapse: collapse; width: 100%; }
+    th, td {
+      border-bottom: 1px solid rgba(45,49,66,.08);
+      padding: 11px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+    tr:last-child td { border-bottom: 0; }
+    th {
+      background: rgba(79,93,117,.06);
+      color: var(--soft);
+      font: 500 8px/1.3 var(--mono);
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+    td { color: var(--muted); font-size: 11px; line-height: 1.5; }
+    td:first-child { color: var(--ink); font-weight: 600; white-space: nowrap; }
+    .function-list { margin: 0; padding-left: 16px; }
+    .function-list li { margin-bottom: 3px; }
+    .status {
+      display: inline-block;
+      border: 1px solid rgba(45,49,66,.18);
+      border-radius: 3px;
+      color: var(--muted);
+      font: 500 8px/1.2 var(--mono);
+      letter-spacing: .04em;
+      padding: 3px 5px;
+      white-space: nowrap;
+    }
+    .status.build { background: rgba(45,49,66,.04); }
+    .status.spec { border-style: dashed; background: rgba(45,49,66,.02); }
+    .status.local { background: var(--accent-tint); border-color: rgba(235,108,54,.65); color: #a84622; }
+    .note {
+      color: var(--soft);
+      font-size: 11px;
+      line-height: 1.55;
+      margin-top: 12px;
+    }
+    .footer {
+      border-top: 1px solid var(--rule);
+      color: var(--soft);
+      font: 400 9px/1.5 var(--mono);
+      margin-top: 28px;
+      padding-top: 12px;
+    }
+    @media (max-width: 860px) {
+      body { padding: 28px 18px 40px; }
+      .summary, .catalog-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="frame">
+    <p class="eyebrow">UML USE-CASE · GREENCITY / URBANOPS · DOC-WIDE</p>
+    <h1>Sơ đồ use-case theo nhóm người dùng</h1>
+    <p class="lede">Bản đồ tổng quan cho hệ thống quản lý khu đô thị: actor được gom theo nghiệp vụ, use-case được đặt tên bằng động từ, mã được phân cấp theo capability và trạng thái được tô màu theo phạm vi <strong>BUILD</strong>, <strong>R6 local / V1</strong> và <strong>SPEC-ONLY</strong>.</p>
+
+    <section class="diagram-shell" aria-label="Sơ đồ use-case GreenCity UrbanOps">
+      <svg class="diagram" viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="greencity-usecase-title greencity-usecase-desc">
+        <title id="greencity-usecase-title">Sơ đồ use-case GreenCity UrbanOps</title>
+        <desc id="greencity-usecase-desc">Sơ đồ nhóm actor, use-case chính của GreenCity UrbanOps và các hệ thống bên ngoài như xác thực, thông báo, ngân hàng và AI.</desc>
+        <defs>
+          <marker id="greencity-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/>
+          </marker>
+          <marker id="greencity-arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#2e5aa8"/>
+          </marker>
+        </defs>
+
+        <rect width="1280" height="720" fill="#f5f5f5"/>
+
+        <!-- Zones: drawn before connectors and nodes. -->
+        <rect x="40" y="48" width="240" height="568" rx="8" fill="rgba(79,93,117,.035)" stroke="rgba(79,93,117,.22)" stroke-width=".8"/>
+        <rect x="320" y="48" width="640" height="568" rx="8" fill="rgba(45,49,66,.025)" stroke="rgba(45,49,66,.22)" stroke-width="1" stroke-dasharray="6 5"/>
+        <rect x="1000" y="48" width="240" height="568" rx="8" fill="rgba(46,90,168,.025)" stroke="rgba(46,90,168,.22)" stroke-width=".8" stroke-dasharray="6 5"/>
+
+        <rect x="56" y="52" width="98" height="14" rx="2" fill="#f5f5f5"/>
+        <text x="64" y="62" fill="#7a8399" font-size="8" font-family="'Geist Mono', 'Cascadia Mono', monospace" letter-spacing=".14em">ACTORS · NHÓM</text>
+        <rect x="336" y="52" width="184" height="14" rx="2" fill="#f5f5f5"/>
+        <text x="344" y="62" fill="#7a8399" font-size="8" font-family="'Geist Mono', 'Cascadia Mono', monospace" letter-spacing=".14em">GREENCITY / URBANOPS · SYSTEM</text>
+        <rect x="1016" y="52" width="150" height="14" rx="2" fill="#f5f5f5"/>
+        <text x="1024" y="62" fill="#7a8399" font-size="8" font-family="'Geist Mono', 'Cascadia Mono', monospace" letter-spacing=".14em">EXTERNAL SYSTEMS</text>
+
+        <!-- Actor associations: orthogonal, rounded corners, no diagonal lines. -->
+        <g fill="none" stroke="#4f5d75" stroke-width="1.1">
+          <path d="M256 126 H296 Q304 126 304 134 V552 Q304 560 312 560 H360"/>
+          <path d="M256 204 H280 Q288 204 288 196 V138 Q288 130 296 130 H360"/>
+          <path d="M256 236 H312 Q320 236 320 244 V252 Q320 260 328 260 H360"/>
+          <path d="M256 302 H288 Q296 302 296 310 V352 Q296 360 304 360 H360"/>
+          <path d="M256 390 H332 Q340 390 340 382 V318 Q340 310 348 310 H632 Q640 310 640 302 V268 Q640 260 648 260 H660"/>
+          <path d="M256 484 H320 Q328 484 328 476 V468 Q328 460 336 460 H360"/>
+          <path d="M256 566 H312 Q320 566 320 558 V518 Q320 510 328 510 H632 Q640 510 640 502 V468 Q640 460 648 460 H660"/>
+        </g>
+
+        <!-- External integrations: blue dashed orthogonal paths. -->
+        <g fill="none" stroke="#2e5aa8" stroke-width="1.1" stroke-dasharray="5 4" marker-end="url(#greencity-arrow-link)">
+          <path d="M1024 130 H920"/>
+          <path d="M1024 250 H992 Q984 250 984 258 V452 Q984 460 976 460 H920"/>
+          <path d="M1024 380 H1008 Q1000 380 1000 372 V368 Q1000 360 992 360 H920"/>
+          <path d="M1024 490 H976 Q968 490 968 498 V552 Q968 560 960 560 H920"/>
+        </g>
+
+        <!-- Connector labels use opaque masks and a visible gap from the stroke. -->
+        <g font-family="'Geist Mono', 'Cascadia Mono', monospace" font-size="8" fill="#2e5aa8" text-anchor="middle" letter-spacing=".06em">
+          <rect x="954" y="108" width="48" height="12" rx="2" fill="#f5f5f5"/>
+          <text x="978" y="117">AUTH</text>
+          <rect x="926" y="300" width="48" height="12" rx="2" fill="#f5f5f5"/>
+          <text x="950" y="309">NOTIFY</text>
+          <rect x="938" y="338" width="36" height="12" rx="2" fill="#f5f5f5"/>
+          <text x="956" y="347">PAY</text>
+          <rect x="932" y="538" width="32" height="12" rx="2" fill="#f5f5f5"/>
+          <text x="948" y="547">AI</text>
+        </g>
+
+        <!-- Actor group nodes. -->
+        <g font-family="'Geist', 'Noto Sans', 'Segoe UI', sans-serif" text-anchor="middle">
+          <g>
+            <rect x="64" y="96" width="192" height="60" rx="6" fill="rgba(79,93,117,.10)" stroke="#7a8399"/>
+            <text x="160" y="121" fill="#2d3142" font-size="12" font-weight="600">Cư dân</text>
+            <text x="160" y="139" fill="#4f5d75" font-size="9" font-family="'Geist Mono', 'Cascadia Mono', monospace">R6 local · V1</text>
+          </g>
+          <g>
+            <rect x="64" y="184" width="192" height="60" rx="6" fill="rgba(79,93,117,.10)" stroke="#7a8399"/>
+            <text x="160" y="209" fill="#2d3142" font-size="12" font-weight="600">Lễ tân / CSKH</text>
+            <text x="160" y="227" fill="#4f5d75" font-size="9" font-family="'Geist Mono', 'Cascadia Mono', monospace">quầy · tòa phụ trách</text>
+          </g>
+          <g>
+            <rect x="64" y="272" width="192" height="60" rx="6" fill="rgba(79,93,117,.10)" stroke="#7a8399"/>
+            <text x="160" y="297" fill="#2d3142" font-size="12" font-weight="600">Kế toán</text>
+            <text x="160" y="315" fill="#4f5d75" font-size="9" font-family="'Geist Mono', 'Cascadia Mono', monospace">site · tập tòa được cấp</text>
+          </g>
+          <g>
+            <rect x="64" y="360" width="192" height="60" rx="6" fill="rgba(79,93,117,.10)" stroke="#7a8399"/>
+            <text x="160" y="385" fill="#2d3142" font-size="12" font-weight="600">Vận hành</text>
+            <text x="160" y="403" fill="#4f5d75" font-size="9" font-family="'Geist Mono', 'Cascadia Mono', monospace">kỹ thuật · vệ sinh · an ninh</text>
+          </g>
+          <g>
+            <rect x="64" y="448" width="192" height="60" rx="6" fill="rgba(79,93,117,.10)" stroke="#7a8399"/>
+            <text x="160" y="473" fill="#2d3142" font-size="12" font-weight="600">Quản trị / Điều hành</text>
+            <text x="160" y="491" fill="#4f5d75" font-size="9" font-family="'Geist Mono', 'Cascadia Mono', monospace">Admin · Giám đốc · Kiểm toán</text>
+          </g>
+          <g>
+            <rect x="64" y="536" width="192" height="60" rx="6" fill="rgba(79,93,117,.10)" stroke="#7a8399"/>
+            <text x="160" y="561" fill="#2d3142" font-size="12" font-weight="600">System / Scheduler</text>
+            <text x="160" y="579" fill="#4f5d75" font-size="9" font-family="'Geist Mono', 'Cascadia Mono', monospace">job · outbox · escalation</text>
+          </g>
+        </g>
+
+        <!-- Use-case nodes. Use-case titles are verb phrases. -->
+        <g font-family="'Geist', 'Noto Sans', 'Segoe UI', sans-serif" text-anchor="middle">
+          <g>
+            <ellipse cx="490" cy="130" rx="130" ry="30" fill="#fff" stroke="#2d3142" stroke-width="1.1"/>
+            <text x="490" y="126" fill="#2d3142" font-size="12" font-weight="600">1.1 Đăng nhập, chọn phạm vi</text>
+            <text x="490" y="143" fill="#4f5d75" font-size="9" font-family="'Geist Mono', 'Cascadia Mono', monospace">UC-01 · BUILD</text>
+          </g>
+          <g>
+            <ellipse cx="790" cy="130" rx="130" ry="30" fill="#fff" stroke="#2d3142" stroke-width="1.1"/>
+            <text x="790" y="126" fill="#2d3142" font-size="12" font-weight="600">1.2 Nhập dữ liệu nền</text>
+            <text x="790" y="143" fill="#4f5d75" font-size="9" font-family="'Geist Mono', 'Cascadia Mono', monospace">UC-02 · BUILD</text>
+          </g>
+          <g>
+            <ellipse cx="490" cy="260" rx="130" ry="30" fill="#fff" stroke="#2d3142" stroke-width="1.1"/>
+            <text x="490" y="256" fill="#2d3142" font-size="12" font-weight="600">2.1 Tiếp nhận, phân loại yêu cầu</text>
+            <text x="490" y="273" fill="#4f5d75" font-size="9" font-family="'Geist Mono', 'Cascadia Mono', monospace">UC-04 · BUILD</text>
+          </g>
+          <g>
+            <ellipse cx="790" cy="260" rx="130" ry="30" fill="#fff" stroke="#2d3142" stroke-width="1.1"/>
+            <text x="790" y="256" fill="#2d3142" font-size="12" font-weight="600">2.2 Lập, thực hiện Work Order</text>
+            <text x="790" y="273" fill="#4f5d75" font-size="9" font-family="'Geist Mono', 'Cascadia Mono', monospace">UC-05/16/17/18 · BUILD</text>
+          </g>
+          <g>
+            <ellipse cx="490" cy="360" rx="130" ry="30" fill="#fff" stroke="#2d3142" stroke-width="1.1"/>
+            <text x="490" y="356" fill="#2d3142" font-size="12" font-weight="600">3.1 Quản lý phí, kỳ, hóa đơn</text>
+            <text x="490" y="373" fill="#4f5d75" font-size="9" font-family="'Geist Mono', 'Cascadia Mono', monospace">UC-07/13 BUILD · UC-14 SPEC</text>
+          </g>
+          <g>
+            <ellipse cx="790" cy="360" rx="130" ry="30" fill="#fff" stroke="#2d3142" stroke-width="1.1"/>
+            <text x="790" y="356" fill="#2d3142" font-size="12" font-weight="600">3.2 Ghi nhận, phân bổ thanh toán</text>
+            <text x="790" y="373" fill="#4f5d75" font-size="9" font-family="'Geist Mono', 'Cascadia Mono', monospace">UC-06/08 · BUILD</text>
+          </g>
+          <g>
+            <ellipse cx="490" cy="460" rx="130" ry="30" fill="#fff" stroke="#2d3142" stroke-width="1.1"/>
+            <text x="490" y="456" fill="#2d3142" font-size="12" font-weight="600">4.1 Theo dõi KPI, audit, báo cáo</text>
+            <text x="490" y="473" fill="#4f5d75" font-size="9" font-family="'Geist Mono', 'Cascadia Mono', monospace">UC-11 · BUILD</text>
+          </g>
+          <g>
+            <ellipse cx="790" cy="460" rx="130" ry="30" fill="#fff" stroke="#2d3142" stroke-width="1.1"/>
+            <text x="790" y="456" fill="#2d3142" font-size="12" font-weight="600">5.1 Chạy job, outbox, escalation</text>
+            <text x="790" y="473" fill="#4f5d75" font-size="9" font-family="'Geist Mono', 'Cascadia Mono', monospace">UC-15 · BUILD</text>
+          </g>
+          <g>
+            <ellipse cx="490" cy="560" rx="130" ry="30" fill="rgba(235,108,54,.08)" stroke="#eb6c36" stroke-width="1.2"/>
+            <text x="490" y="556" fill="#2d3142" font-size="12" font-weight="600">6.1 Thực hiện tự phục vụ cư dân</text>
+            <text x="490" y="573" fill="#a84622" font-size="9" font-family="'Geist Mono', 'Cascadia Mono', monospace">R6 local · V1 / backend local</text>
+          </g>
+          <g>
+            <ellipse cx="790" cy="560" rx="130" ry="30" fill="rgba(45,49,66,.02)" stroke="rgba(45,49,66,.45)" stroke-width="1" stroke-dasharray="5 4"/>
+            <text x="790" y="556" fill="#2d3142" font-size="12" font-weight="600">6.2 Hỏi trợ lý nghiệp vụ</text>
+            <text x="790" y="573" fill="#4f5d75" font-size="9" font-family="'Geist Mono', 'Cascadia Mono', monospace">UC-12 · SPEC-ONLY</text>
+          </g>
+        </g>
+
+        <!-- External systems. -->
+        <g font-family="'Geist', 'Noto Sans', 'Segoe UI', sans-serif" text-anchor="middle">
+          <g>
+            <rect x="1024" y="100" width="192" height="60" rx="6" fill="rgba(45,49,66,.03)" stroke="rgba(45,49,66,.30)"/>
+            <text x="1120" y="125" fill="#2d3142" font-size="12" font-weight="600">Nhà cung cấp xác thực</text>
+            <text x="1120" y="143" fill="#4f5d75" font-size="9" font-family="'Geist Mono', 'Cascadia Mono', monospace">phụ trợ · V1</text>
+          </g>
+          <g>
+            <rect x="1024" y="220" width="192" height="60" rx="6" fill="rgba(45,49,66,.03)" stroke="rgba(45,49,66,.30)"/>
+            <text x="1120" y="245" fill="#2d3142" font-size="12" font-weight="600">Email / SMS / Push</text>
+            <text x="1120" y="263" fill="#4f5d75" font-size="9" font-family="'Geist Mono', 'Cascadia Mono', monospace">retry qua outbox</text>
+          </g>
+          <g>
+            <rect x="1024" y="350" width="192" height="60" rx="6" fill="rgba(45,49,66,.03)" stroke="rgba(45,49,66,.30)"/>
+            <text x="1120" y="375" fill="#2d3142" font-size="12" font-weight="600">Ngân hàng / VietQR</text>
+            <text x="1120" y="393" fill="#4f5d75" font-size="9" font-family="'Geist Mono', 'Cascadia Mono', monospace">e-invoice · SPEC-ONLY</text>
+          </g>
+          <g>
+            <rect x="1024" y="460" width="192" height="60" rx="6" fill="rgba(45,49,66,.03)" stroke="rgba(45,49,66,.30)"/>
+            <text x="1120" y="485" fill="#2d3142" font-size="12" font-weight="600">Thiết bị / AI provider</text>
+            <text x="1120" y="503" fill="#4f5d75" font-size="9" font-family="'Geist Mono', 'Cascadia Mono', monospace">V2 · SPEC-ONLY</text>
+          </g>
+        </g>
+
+        <!-- Legend strip. -->
+        <line x1="40" y1="640" x2="1240" y2="640" stroke="rgba(45,49,66,.12)" stroke-width=".8"/>
+        <text x="40" y="664" fill="#4f5d75" font-size="8" font-family="'Geist Mono', 'Cascadia Mono', monospace" letter-spacing=".14em">LEGEND</text>
+        <line x1="118" y1="660" x2="158" y2="660" stroke="#4f5d75" stroke-width="1.1"/>
+        <text x="170" y="664" fill="#4f5d75" font-size="8" font-family="'Geist Mono', 'Cascadia Mono', monospace">ACTOR ↔ USE-CASE</text>
+        <line x1="330" y1="660" x2="370" y2="660" stroke="#2e5aa8" stroke-width="1.1" stroke-dasharray="5 4"/>
+        <text x="382" y="664" fill="#2e5aa8" font-size="8" font-family="'Geist Mono', 'Cascadia Mono', monospace">TÍCH HỢP NGOÀI</text>
+        <ellipse cx="566" cy="660" rx="18" ry="8" fill="#fff" stroke="#2d3142" stroke-width="1"/>
+        <text x="594" y="664" fill="#4f5d75" font-size="8" font-family="'Geist Mono', 'Cascadia Mono', monospace">BUILD</text>
+        <ellipse cx="700" cy="660" rx="18" ry="8" fill="rgba(235,108,54,.08)" stroke="#eb6c36" stroke-width="1"/>
+        <text x="728" y="664" fill="#a84622" font-size="8" font-family="'Geist Mono', 'Cascadia Mono', monospace">R6 LOCAL / V1</text>
+        <ellipse cx="884" cy="660" rx="18" ry="8" fill="rgba(45,49,66,.02)" stroke="rgba(45,49,66,.45)" stroke-width="1" stroke-dasharray="5 4"/>
+        <text x="912" y="664" fill="#4f5d75" font-size="8" font-family="'Geist Mono', 'Cascadia Mono', monospace">SPEC-ONLY</text>
+        <text x="1240" y="696" text-anchor="end" fill="#7a8399" font-size="8" font-family="'Geist Mono', 'Cascadia Mono', monospace">18 UC nguồn → 10 nút capability · actor/system names là danh từ; tên use-case là động từ</text>
+      </svg>
+    </section>
+
+    <section class="summary" aria-label="Tóm tắt actor và hệ thống tích hợp">
+      <article class="card">
+        <p class="card-label">01 · Nhóm người dùng</p>
+        <h2>Ai sử dụng hệ thống?</h2>
+        <ul>
+          <li><strong>Cư dân:</strong> tự phục vụ yêu cầu, công nợ và thông báo.</li>
+          <li><strong>Lễ tân / CSKH:</strong> tiếp nhận, tra cứu và điều phối phản ánh.</li>
+          <li><strong>Kế toán:</strong> quản lý phí, kỳ, hóa đơn và thanh toán.</li>
+          <li><strong>Vận hành:</strong> kỹ thuật, vệ sinh, an ninh và sự cố.</li>
+          <li><strong>Quản trị / Điều hành:</strong> quyền, phê duyệt, KPI và audit.</li>
+          <li><strong>System / Scheduler:</strong> job định kỳ, outbox và escalation.</li>
+        </ul>
+      </article>
+      <article class="card">
+        <p class="card-label">02 · Tương tác ngoài</p>
+        <h2>Hệ thống khác</h2>
+        <ul>
+          <li><strong>Nhà cung cấp xác thực:</strong> hỗ trợ đăng nhập/SSO khi được bật.</li>
+          <li><strong>Email/SMS/Push:</strong> nhận thông báo qua outbox và retry.</li>
+          <li><strong>Ngân hàng/VietQR/e-invoice:</strong> hướng V1/SPEC-ONLY.</li>
+          <li><strong>Thiết bị kiểm soát/AI provider:</strong> V2/SPEC-ONLY.</li>
+        </ul>
+        <p class="note">PostgreSQL, audit và private storage là thành phần nội bộ của hệ thống, không phải actor ngoài.</p>
+      </article>
+      <article class="card">
+        <p class="card-label">03 · Quy ước đọc</p>
+        <h2>Màu và mã</h2>
+        <p><span class="status build">BUILD</span> có code và bằng chứng nghiệm thu trong phạm vi Core MVP.</p>
+        <p style="margin-top:8px"><span class="status local">R6 LOCAL / V1</span> có bề mặt backend local nhưng không tự suy ra Gate/V1 hoàn tất.</p>
+        <p style="margin-top:8px"><span class="status spec">SPEC-ONLY</span> là tầm nhìn hoặc phạm vi chưa được coi là đã thi công.</p>
+      </article>
+    </section>
+
+    <section class="catalog" aria-labelledby="catalog-title">
+      <div class="catalog-head">
+        <p class="card-label">04 · Chức năng theo nhóm</p>
+        <h2 class="section-title" id="catalog-title">Danh mục use-case phân cấp</h2>
+      </div>
+      <div class="catalog-grid">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Mã / nhóm</th><th>Use-case và chức năng cung cấp</th><th>Phạm vi</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>1 · Nền tảng</td>
+                <td><ul class="function-list"><li><strong>UC-01</strong> Đăng nhập và chọn phạm vi.</li><li><strong>UC-02</strong> Nhập dữ liệu nền hàng loạt.</li><li><strong>UC-03</strong> Quản lý người, căn và trách nhiệm tài chính.</li></ul></td>
+                <td><span class="status build">BUILD</span></td>
+              </tr>
+              <tr>
+                <td>2 · Dịch vụ</td>
+                <td><ul class="function-list"><li><strong>UC-04</strong> Tiếp nhận và phân loại yêu cầu.</li><li><strong>UC-05</strong> Lập và thực hiện Work Order.</li><li><strong>UC-10</strong> Tiếp nhận và bàn giao bưu phẩm.</li></ul></td>
+                <td><span class="status build">UC-04/05 BUILD</span><br><span class="status spec" style="margin-top:5px">UC-10 SPEC</span></td>
+              </tr>
+              <tr>
+                <td>3 · Vận hành</td>
+                <td><ul class="function-list"><li><strong>UC-16</strong> Lập và thực hiện bảo trì kỹ thuật.</li><li><strong>UC-17</strong> Lập ca và kiểm tra vệ sinh.</li><li><strong>UC-18</strong> Ghi nhận tuần tra và xử lý sự cố an ninh.</li></ul></td>
+                <td><span class="status build">BUILD</span></td>
+              </tr>
+              <tr>
+                <td>4 · Tài chính</td>
+                <td><ul class="function-list"><li><strong>UC-06</strong> Kiểm tra khoản cư dân trả.</li><li><strong>UC-07</strong> Chốt kỳ và phát hành hóa đơn.</li><li><strong>UC-08</strong> Ghi nhận và phân bổ thanh toán.</li><li><strong>UC-09/14</strong> Xử lý điều chỉnh, hoàn tiền và quản trị kỳ.</li><li><strong>UC-13</strong> Cấu hình biểu phí và phiên bản chính sách.</li></ul></td>
+                <td><span class="status build">UC-06/07/08/13 BUILD</span><br><span class="status spec" style="margin-top:5px">UC-09/14 SPEC</span></td>
+              </tr>
+              <tr>
+                <td>5 · Điều hành</td>
+                <td><ul class="function-list"><li><strong>UC-11</strong> Theo dõi KPI và xuất báo cáo.</li><li><strong>UC-15</strong> Vận hành job hệ thống và hàng đợi.</li><li><strong>UC-12</strong> Hỏi trợ lý nghiệp vụ.</li></ul></td>
+                <td><span class="status build">UC-11/15 BUILD</span><br><span class="status spec" style="margin-top:5px">UC-12 SPEC</span></td>
+              </tr>
+              <tr>
+                <td>6 · Cư dân R6</td>
+                <td><ul class="function-list"><li><strong>R6-01</strong> Tạo, xem, chỉnh sửa yêu cầu dịch vụ.</li><li><strong>R6-02</strong> Xem timeline và tải bằng chứng private.</li><li><strong>R6-03</strong> Xem công nợ, hóa đơn và thanh toán tại mốc <code>as_of</code>.</li><li><strong>R6-04</strong> Đọc và xác nhận thông báo.</li></ul></td>
+                <td><span class="status local">LOCAL EVIDENCE</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Actor</th><th>Chức năng chính</th></tr></thead>
+            <tbody>
+              <tr><td>Cư dân</td><td>Tạo yêu cầu; xem timeline/bằng chứng; xem công nợ; đọc thông báo.</td></tr>
+              <tr><td>Lễ tân / CSKH</td><td>Đăng nhập; nhập dữ liệu; quản lý người/căn; tiếp nhận và phân loại yêu cầu.</td></tr>
+              <tr><td>Kế toán</td><td>Cấu hình phí; chốt kỳ; phát hành hóa đơn; ghi nhận và phân bổ thanh toán.</td></tr>
+              <tr><td>Vận hành</td><td>Lập Work Order; thực hiện checklist; bảo trì; kiểm tra vệ sinh; ghi nhận tuần tra/sự cố.</td></tr>
+              <tr><td>Quản trị / Điều hành</td><td>Quản lý tài khoản/vai trò; phê duyệt; theo dõi KPI; truy vấn audit; xuất báo cáo.</td></tr>
+              <tr><td>System / Scheduler</td><td>Chạy outbox; retry; escalation SLA; tự khóa kỳ; ghi audit kỹ thuật.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <p class="note">Lưu ý ngôn ngữ: actor và hệ thống tích hợp được gọi bằng vai trò/tên hệ thống theo quy ước UML; mọi tên use-case trong sơ đồ và danh mục đều dùng cụm động từ.</p>
+    </section>
+
+    <p class="footer">Nguồn nội dung: roadmap_v2.md, R5/R6 contracts của GreenCity/UrbanOps · Bản này là sơ đồ phạm vi, không thay thế permission matrix hoặc release gate chính thức.</p>
+  </main>
+</body>
+</html>

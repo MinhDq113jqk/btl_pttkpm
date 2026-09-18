@@ -1,5 +1,8 @@
-# Project reference documents and personal-data files stay local.
-documents/
+# Project reference documents are published to btl_pttkpm only.
+documents/*
+!documents/
+!documents/greencity-project/
+!documents/greencity-project/**
 
 # Microsoft Office temporary files
 ~$*
@@ -29,5 +32,7 @@ __pycache__/
 htmlcov/
 *.log
 
-# Project documentation is kept outside the repository under ..\documents\greencity-project.
+# Keep ad-hoc Markdown files out; the published bundle is explicitly included below.
 *.md
+!documents/greencity-project/
+!documents/greencity-project/**
