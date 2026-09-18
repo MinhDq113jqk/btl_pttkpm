@@ -20,9 +20,13 @@ const { installAuthApiMocks, loginAs } = require('./staff-helpers.cjs');
     check('assistant opens only after authenticated workspace mounts', await panel.isVisible());
 
     await input.fill('Công việc quá hạn');
+    const firstAssistantRequest = page.waitForRequest(request => request.url().endsWith('/api/v1/assistant/chat') && request.method() === 'POST');
     await panel.getByRole('button', { name: 'Gửi tin nhắn', exact: true }).click();
+    check('assistant shows loading while backend request is pending', await panel.getByText('Green Assistant đang trả lời...', { exact: true }).isVisible());
+    const firstRequestBody = await (await firstAssistantRequest).postDataJSON();
+    check('assistant sends only the question body without client scope', JSON.stringify(firstRequestBody) === JSON.stringify({ message: 'Công việc quá hạn' }) && !JSON.stringify(firstRequestBody).match(/tenant_id|site_id|building_id|role/));
     await page.waitForFunction(() => !document.querySelector('.assistant-message.is-pending'));
-    check('assistant uses only the visible service-request page', await panel.locator('.assistant-message-assistant').innerText().then(text => text.includes('1 công việc')));
+    check('assistant renders the backend reply', await panel.locator('.assistant-message-assistant').innerText().then(text => text.includes('Backend đã xử lý')));
 
     await input.fill('thử lỗi');
     await panel.getByRole('button', { name: 'Gửi tin nhắn', exact: true }).click();
@@ -33,7 +37,7 @@ const { installAuthApiMocks, loginAs } = require('./staff-helpers.cjs');
     check('assistant retry recovers without duplicating the user message', await panel.locator('.assistant-message-user').count() === 2 && await panel.locator('.assistant-message.is-error').count() === 0);
 
     await page.reload();
-    check('reload drops the auth token and returns to real login', await page.getByRole('heading', { name: 'Đăng nhập không gian làm việc' }).isVisible());
+    check('reload drops the auth token and returns to real login', await page.getByRole('heading', { name: 'Đăng nhập GreenCity' }).isVisible());
     check('no runtime JavaScript errors', errors.length === 0);
     console.log(`ASSISTANT AUTH UX: ${checks.length} checks passed.`);
   } finally { await browser.close(); }

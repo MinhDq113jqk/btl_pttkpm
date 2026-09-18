@@ -654,6 +654,15 @@ function assertAuditEventList(payload, correlationId = '') {
   return payload;
 }
 
+function assertAssistantChatResponse(payload, correlationId = '') {
+  if (!payload || typeof payload.reply !== 'string' || !payload.reply.trim()) {
+    throw new ApiError('Phản hồi Green Assistant không đúng định dạng.', {
+      code: 'ERR-INVALID-RESPONSE', correlationId,
+    });
+  }
+  return payload.reply;
+}
+
 export function createApiClient({
   baseUrl = DEFAULT_BASE_URL,
   fetchImpl = globalThis.fetch,
@@ -738,6 +747,16 @@ export function createApiClient({
   }
 
   return {
+    async chatAssistant(message, { signal } = {}) {
+      if (typeof message !== 'string' || !message.trim()) throw new TypeError('message must be a non-empty string');
+      const result = await request('/assistant/chat', {
+        method: 'POST',
+        body: { message: message.trim() },
+        signal,
+      });
+      return assertAssistantChatResponse(result.payload, result.correlationId);
+    },
+
     async authenticate(username, password, { signal } = {}) {
       clearSession();
       const login = await request('/auth/login', {

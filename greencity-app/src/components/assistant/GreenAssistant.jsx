@@ -2,11 +2,28 @@ import React, { useEffect, useLayoutEffect, useReducer, useRef, useState } from 
 import { ArrowDown, ArrowLeft, ArrowUp, Check, ChevronDown, Copy, History, Info, LoaderCircle, MessageCircle, Plus, RotateCcw, ShieldCheck, AlertCircle } from 'lucide-react';
 import { GreenPet } from './GreenPet';
 import { ASSISTANT_STORAGE_KEY, MAX_QUESTION_LENGTH, assistantReducer, createAssistantState, createConversation, loadAssistantHistory, persistAssistantHistory, shouldSendOnEnter } from '../../data/assistantStore';
-import { requestDemoReply } from '../../services/greenAssistant';
+import { requestAssistantReply } from '../../services/greenAssistant';
 import './green-assistant.css';
 
 const formatTime = time => new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit' }).format(time);
 const formatDate = time => new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(time);
+
+function formatAssistantError(error, timedOut) {
+  if (timedOut) return 'Hệ thống xử lý quá lâu. Câu hỏi đã được giữ lại; chọn Gửi lại để thử tiếp.';
+  if (error?.name === 'AbortError') return 'Yêu cầu đã bị hủy. Câu hỏi vẫn được giữ lại; chọn Gửi lại để thử tiếp.';
+  const messages = {
+    'ERR-NETWORK': 'Không thể kết nối Green Assistant. Kiểm tra mạng rồi thử lại.',
+    'ERR-UNAUTHORIZED': 'Phiên đăng nhập không còn hợp lệ. Vui lòng đăng nhập lại.',
+    'ERR-GEMINI-UNAVAILABLE': 'Green Assistant tạm thời không khả dụng.',
+    'ERR-INVALID-RESPONSE': 'Backend trả về phản hồi không hợp lệ.',
+  };
+  const base = messages[error?.code]
+    || (error?.name === 'ApiError' && typeof error.message === 'string' && error.message.trim()
+      ? error.message.trim()
+      : 'Chưa nhận được câu trả lời từ hệ thống.');
+  const correlation = error?.correlationId ? ` Mã đối chiếu: ${error.correlationId}.` : '';
+  return `${base} Câu hỏi vẫn được giữ lại; chọn Gửi lại để thử tiếp.${correlation}`;
+}
 
 function initializeHistory(historyKey) {
   try { return { state: loadAssistantHistory(window.localStorage, historyKey), canPersist: true, error: '' }; }
@@ -15,7 +32,7 @@ function initializeHistory(historyKey) {
   }
 }
 
-export function GreenAssistant({ contextKey, requestReply = requestDemoReply, historyKey = ASSISTANT_STORAGE_KEY, suggestions = ['Xem công việc quá hạn', 'Hướng dẫn kiểm tra phiếu hoàn tiền'] }) {
+export function GreenAssistant({ contextKey, requestReply = requestAssistantReply, historyKey = ASSISTANT_STORAGE_KEY, suggestions = ['Xem công việc quá hạn', 'Hướng dẫn kiểm tra phiếu hoàn tiền'] }) {
   const [initial] = useState(() => initializeHistory(historyKey));
   const [state, dispatch] = useReducer(assistantReducer, initial.state);
   const [open, setOpen] = useState(false);
@@ -157,7 +174,7 @@ export function GreenAssistant({ contextKey, requestReply = requestDemoReply, hi
       if (!openRef.current) setClosedReply(true);
     } catch (error) {
       if (!mounted.current || (controller.signal.aborted && !request.timedOut)) return;
-      const errorText = request.timedOut ? 'Hệ thống xử lý quá lâu. Câu hỏi đã được giữ lại; chọn Gửi lại để thử tiếp.' : requestReply === requestDemoReply || error.name === 'DemoAssistantError' ? error.message : 'Chưa nhận được câu trả lời từ hệ thống. Câu hỏi vẫn được giữ lại; chọn Gửi lại để thử tiếp.';
+      const errorText = formatAssistantError(error, request.timedOut);
       dispatch({ type: 'reject', conversationId, messageId: message.id, error: errorText, now: Date.now() });
       if (!openRef.current) setClosedReply(true);
     } finally {
@@ -240,7 +257,7 @@ export function GreenAssistant({ contextKey, requestReply = requestDemoReply, hi
           <MessageCircle size={18} aria-hidden="true" /><span><strong>{item.messages.length ? item.title : item.draft || 'Cuộc trò chuyện mới'}</strong><small>{formatDate(item.updatedAt)} · {item.messages.filter(message => message.role === 'user').length} câu hỏi{item.draft ? ' · Có nháp' : ''}</small></span>{item.messages.some(message => message.status === 'pending') && <LoaderCircle size={16} className="assistant-spinner" aria-label="Đang xử lý" />}
         </button>)}</div>
       </div> : <>
-        <div className="assistant-conversation-label"><span>{conversation.messages.length ? conversation.title : 'Cuộc trò chuyện mới'}</span><span className="assistant-demo-badge">Mô phỏng</span></div>
+        <div className="assistant-conversation-label"><span>{conversation.messages.length ? conversation.title : 'Cuộc trò chuyện mới'}</span><span className="assistant-demo-badge">Backend</span></div>
         <div className="assistant-log-wrap">
           <div ref={messagesRef} className="assistant-messages" role="log" aria-label="Nội dung trò chuyện" aria-live="polite" aria-relevant="additions text" aria-busy={pending} tabIndex={0} onScroll={event => {
             const list = event.currentTarget;
@@ -271,7 +288,7 @@ export function GreenAssistant({ contextKey, requestReply = requestDemoReply, hi
           <div className="assistant-input-hint"><span id="assistant-keyboard-hint">Enter để gửi · Shift + Enter xuống dòng</span>{conversation.draft.length > 1600 && <span>{conversation.draft.length}/{MAX_QUESTION_LENGTH}</span>}</div>
         </form>
       </>}
-      <details className="assistant-privacy"><summary><ShieldCheck size={13} aria-hidden="true" />{storageError ? 'Lịch sử chưa được lưu' : 'Lịch sử lưu trên máy này'}<Info size={13} aria-hidden="true" /></summary><p>Bản mô phỏng, chưa kết nối AI. Nội dung không gửi ra ngoài và chưa đồng bộ tài khoản. Không nhập mật khẩu, OTP hay dữ liệu cư dân thật. Xóa dữ liệu trình duyệt sẽ mất lịch sử. Nhập “thử lỗi” để thử báo lỗi và gửi lại.</p></details>
+      <details className="assistant-privacy"><summary><ShieldCheck size={13} aria-hidden="true" />{storageError ? 'Lịch sử chưa được lưu' : 'Lịch sử lưu trên máy này'}<Info size={13} aria-hidden="true" /></summary><p>Câu hỏi được gửi qua backend đã đăng nhập; API key không nằm trong trình duyệt. Lịch sử chỉ lưu trên máy này và chưa đồng bộ tài khoản. Không nhập mật khẩu, OTP hay dữ liệu cư dân thật. Xóa dữ liệu trình duyệt sẽ mất lịch sử.</p></details>
     </section>}
   </div>;
 }

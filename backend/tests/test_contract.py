@@ -88,6 +88,7 @@ def test_production_app_has_no_test_probes():
         "/api/v1/auth/login",
         "/api/v1/auth/me",
         "/api/v1/auth/switch-site",
+        "/api/v1/assistant/chat",
         "/api/v1/billing/accounts",
         "/api/v1/billing/accounts/{billing_account_id}",
         "/api/v1/billing/fee-policies",

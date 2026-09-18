@@ -24,12 +24,24 @@ async function installAuthApiMocks(page, { role = 'cskh', items } = {}) {
     building_code: 'A', building_name: 'Tòa A', site_id: siteId, site_code: 'CENTRAL',
     site_name: 'GreenCity Central', residents_visible: true, residents: [],
   };
+  let assistantAttempts = 0;
 
-  await page.route('**/api/v1/**', route => {
+  await page.route('**/api/v1/**', async route => {
     const pathname = new URL(route.request().url()).pathname;
     const headers = { 'Content-Type': 'application/json', 'X-Correlation-ID': randomUUID() };
     if (pathname.endsWith('/auth/login')) return route.fulfill({ status: 200, headers, body: JSON.stringify({ access_token: accessToken }) });
     if (pathname.endsWith('/auth/me')) return route.fulfill({ status: 200, headers, body: JSON.stringify(user) });
+    if (pathname.endsWith('/assistant/chat')) {
+      const message = route.request().postDataJSON()?.message;
+      assistantAttempts += 1;
+      if (message === 'thử lỗi' && assistantAttempts === 2) return route.fulfill({
+        status: 503,
+        headers,
+        body: JSON.stringify({ error: { code: 'ERR-GEMINI-UNAVAILABLE', message: 'Trợ lý tạm thời không khả dụng.', correlation_id: headers['X-Correlation-ID'] } }),
+      });
+      await new Promise(resolve => setTimeout(resolve, 150));
+      return route.fulfill({ status: 200, headers, body: JSON.stringify({ reply: 'Backend đã xử lý câu hỏi. Trong phạm vi phiên có 1 công việc cần kiểm tra.' }) });
+    }
     if (pathname.endsWith('/service-requests')) return route.fulfill({ status: 200, headers, body: JSON.stringify({ items: responseItems, page: 1, page_size: 20, total: responseItems.length }) });
     if (/\/units\/[^/]+\/360$/.test(pathname)) return route.fulfill({ status: 200, headers, body: JSON.stringify({ ...unit, id: decodeURIComponent(pathname.split('/').at(-2)) }) });
     if (pathname.endsWith('/notifications')) return route.fulfill({ status: 200, headers, body: JSON.stringify({ items: [] }) });

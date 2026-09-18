@@ -23,7 +23,7 @@ import { ASSISTANT_STORAGE_KEY } from './data/assistantStore';
 import { canViewTab, createAuthenticatedAccount, getAllowedNav, getSessionNotifications } from './data/authSession';
 import { mapServiceRequest } from './data/serviceRequestView';
 import { createApiClient } from './services/apiClient';
-import { requestDemoReply } from './services/greenAssistant';
+import { requestAssistantReply } from './services/greenAssistant';
 
 const tabFromLocation = () => {
   const id = window.location.hash.replace(/^#\/?/, '');
@@ -137,7 +137,7 @@ function StaffWorkspace({ account, client, onLogout, onSwitchSite, isSwitchingSi
 
   const tasks = requestState.items;
   const showToast = useCallback((message, type = 'success') => setToast({ message, type, id: Date.now() }), []);
-  const assistantReply = useCallback(args => requestDemoReply({ ...args, visibleTasks: tasks, allowedTabs: account.menu, roleLabel: account.label }), [tasks, account]);
+  const assistantReply = useCallback(args => requestAssistantReply({ client, ...args }), [client]);
 
   useEffect(() => {
     if (!account.canViewServiceRequests) {

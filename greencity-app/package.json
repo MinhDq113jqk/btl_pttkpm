@@ -10,6 +10,7 @@
     "test": "node --test tests/logic.test.js tests/assistant.test.js tests/staff.test.js tests/frontend-integration.test.js tests/runtime-config.test.js",
     "test:ux": "node tests/desktop-ux.cjs",
     "test:assistant": "node tests/assistant-ux.cjs",
+    "test:assistant:security": "npm run build && node tests/assistant-security.cjs",
     "test:staff": "node tests/staff-ux.cjs",
     "test:cleaning": "node tests/cleaning-ux.cjs",
     "test:security": "node tests/security-ux.cjs",

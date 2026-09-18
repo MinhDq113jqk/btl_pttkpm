@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ASSISTANT_STORAGE_KEY, assistantReducer, createAssistantState, createConversation, loadAssistantHistory, persistAssistantHistory, restoreAssistantState, shouldSendOnEnter } from '../src/data/assistantStore.js';
-import { requestDemoReply, demoAnswer } from '../src/services/greenAssistant.js';
+import { requestAssistantReply } from '../src/services/greenAssistant.js';
 
 const fresh = () => createAssistantState(createConversation('one', 1000));
 const user = { id: 'u1', role: 'user', text: 'Công việc quá hạn', status: 'complete', createdAt: 1001 };
@@ -80,18 +80,24 @@ test('Enter sends, Shift+Enter and composing Enter do not', () => {
   for (const modifiers of [{ shiftKey: true }, { isComposing: true }, { keyCode: 229 }, { ctrlKey: true }, { altKey: true }, { metaKey: true }]) assert.equal(shouldSendOnEnter({ key: 'Enter', ...modifiers }), false);
   assert.equal(shouldSendOnEnter({ key: 'a' }), false);
 });
-test('demo answer clearly describes its limits and sample data', () => {
-  assert.match(demoAnswer('Xin chào'), /chưa kết nối mô hình AI/);
-  assert.match(demoAnswer('công việc quá hạn'), /7 công việc, 1 việc quá hạn/);
-  assert.match(demoAnswer('hoàn tiền'), /không chuyển tiền/);
-});
-test('demo request is cancellable without leaving a timer running', async () => {
+test('assistant adapter sends only the question and AbortSignal to the authenticated client', async () => {
   const controller = new AbortController();
-  const result = requestDemoReply({ question: 'Xin chào', signal: controller.signal });
-  controller.abort();
-  await assert.rejects(result, { name: 'AbortError' });
-});
-test('explicit error demo fails once then succeeds on retry', async () => {
-  await assert.rejects(requestDemoReply({ question: 'thử lỗi', attempt: 1 }), /lỗi mô phỏng/);
-  assert.match(await requestDemoReply({ question: 'thử lỗi', attempt: 2 }), /gửi lại thành công/);
+  const calls = [];
+  const client = {
+    chatAssistant(message, options) {
+      calls.push({ message, options });
+      return Promise.resolve('Câu trả lời từ backend');
+    },
+  };
+
+  const result = await requestAssistantReply({
+    client,
+    question: '  Xin chào  ',
+    signal: controller.signal,
+    tenant_id: 'must-not-be-forwarded',
+    role: 'admin',
+  });
+
+  assert.equal(result, 'Câu trả lời từ backend');
+  assert.deepEqual(calls, [{ message: '  Xin chào  ', options: { signal: controller.signal } }]);
 });

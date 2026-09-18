@@ -106,6 +106,41 @@ test('API client performs login then /auth/me and keeps the issued token in memo
   assert.equal(client.hasSession(), true);
 });
 
+test('assistant client posts only the message with the authenticated session and correlation ID', async () => {
+  const issuedToken = randomUUID();
+  const calls = [];
+  const client = createApiClient({
+    baseUrl: '/api/v1',
+    correlationIdFactory: () => correlationId,
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      if (url.endsWith('/auth/login')) return jsonResponse({ access_token: issuedToken });
+      if (url.endsWith('/auth/me')) return jsonResponse(userInfo());
+      return jsonResponse({ reply: 'Câu trả lời từ backend' });
+    },
+  });
+
+  await client.authenticate('cskh.integration', 'local-test-password');
+  const reply = await client.chatAssistant('  Xin chào  ', {
+    tenant_id: randomUUID(), site_id: randomUUID(), building_id: randomUUID(), role: 'admin',
+  });
+
+  assert.equal(reply, 'Câu trả lời từ backend');
+  assert.equal(calls[2].url, '/api/v1/assistant/chat');
+  assert.equal(calls[2].options.method, 'POST');
+  assert.deepEqual(JSON.parse(calls[2].options.body), { message: 'Xin chào' });
+  assert.equal(calls[2].options.headers.Authorization, `Bearer ${issuedToken}`);
+  assert.equal(calls[2].options.headers['X-Correlation-ID'], correlationId);
+  assert.ok(!JSON.stringify(calls[2].options).match(/tenant_id|site_id|building_id|role/));
+});
+
+test('assistant client rejects malformed backend replies', async () => {
+  const client = createApiClient({ fetchImpl: async () => jsonResponse({ answer: 'wrong field' }) });
+  await assert.rejects(client.chatAssistant('Xin chào'), error => (
+    error instanceof ApiError && error.code === 'ERR-INVALID-RESPONSE'
+  ));
+});
+
 test('service-request query is allow-listed and Authorization is attached', async () => {
   const issuedToken = randomUUID();
   const calls = [];

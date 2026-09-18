@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { staffAccounts, findStaffAccount, getAllowedNav, canViewTab, canSubmitRefund, canApproveRefund, getScopedTasks, getScopedNotifications, loadStaffSession } from '../src/data/staffRoles.js';
-import { demoAnswer } from '../src/services/greenAssistant.js';
 import { loadAssistantHistory, persistAssistantHistory, createAssistantState, createConversation } from '../src/data/assistantStore.js';
 
 test('eight staff roles share one account model', () => {
@@ -49,13 +48,6 @@ test('unknown account and corrupt sessions are rejected; stored roles are not tr
   assert.equal(account.id, 'cleaning');
   assert.equal(account.refund, 'none');
   assert.ok(!canViewTab(account, 'settings'));
-});
-test('assistant respects the same task and module scope', () => {
-  const account = findStaffAccount('demo-cleaning');
-  const context = { visibleTasks: getScopedTasks(account), allowedTabs: account.menu, roleLabel: account.label };
-  assert.match(demoAnswer('công việc quá hạn', context), /1 công việc, 0 việc quá hạn/);
-  assert.ok(!demoAnswer('công việc quá hạn', context).includes('KT-2608-097'));
-  assert.match(demoAnswer('hoàn tiền', context), /không có quyền/);
 });
 test('assistant history storage is separated by account', () => {
   const map = new Map();

@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.health import legacy_router as legacy_health_router
 from app.api.health import router as health_router
+from app.api.assistant import router as assistant_router
 from app.api.cleaning import router as cleaning_router
 from app.api.billing import router as billing_router
 from app.api.security import router as security_router
@@ -54,6 +55,7 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
     from app.api.units import router as units_router
     from app.api.parcels import router as parcels_router
     app.include_router(auth_router, prefix="/api/v1")
+    app.include_router(assistant_router, prefix="/api/v1")
     app.include_router(import_runs_router, prefix="/api/v1")
     app.include_router(persons_router, prefix="/api/v1")
     app.include_router(units_router, prefix="/api/v1")
