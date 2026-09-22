@@ -1,0 +1,112 @@
+name: Release evidence
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing annotated vX.Y.Z tag that points to a commit already green on main
+        required: true
+        type: string
+      change_record_url:
+        description: HTTPS link to the approved change record and checklist
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  evidence:
+    name: Create protected release evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: release-candidate
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ inputs.release_tag }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Node.js for version verification
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+      - name: Verify approved tag candidate
+        id: target
+        env:
+          TAG: ${{ inputs.release_tag }}
+          CHANGE_RECORD_URL: ${{ inputs.change_record_url }}
+        run: |
+          case "$CHANGE_RECORD_URL" in
+            https://*) ;;
+            *) echo 'change_record_url must use HTTPS'; exit 1 ;;
+          esac
+          REF="refs/tags/${TAG}"
+          test "$(git cat-file -t "$REF")" = tag
+          COMMIT="$(git rev-list -n 1 "$REF")"
+          git merge-base --is-ancestor "$COMMIT" origin/main
+          VERSION="${TAG#v}"
+          test "$TAG" != "$VERSION"
+          test "$(node -p "require('./greencity-app/package.json').version")" = "$VERSION"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
+          echo "change_record_url=$CHANGE_RECORD_URL" >> "$GITHUB_OUTPUT"
+      - name: Require successful quality gate for the same commit
+        id: quality
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_COMMIT: ${{ steps.target.outputs.commit }}
+        run: |
+          QUALITY_RUN_ID="$(gh api --paginate "/repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${TARGET_COMMIT}&status=completed&per_page=100" --jq '.workflow_runs[] | select(.name == "Quality and security gates" and .event == "push" and .head_branch == "main" and .conclusion == "success") | .id' | head -n 1)"
+          test -n "$QUALITY_RUN_ID"
+          echo "run_id=$QUALITY_RUN_ID" >> "$GITHUB_OUTPUT"
+      - name: Create source archive and SHA-256 manifest
+        env:
+          TAG: ${{ steps.target.outputs.tag }}
+          TARGET_COMMIT: ${{ steps.target.outputs.commit }}
+          CHANGE_RECORD_URL: ${{ steps.target.outputs.change_record_url }}
+          QUALITY_RUN_ID: ${{ steps.quality.outputs.run_id }}
+        run: |
+          mkdir -p release-evidence
+          git archive --format=tar.gz --output "release-evidence/greencity-${TAG}.tar.gz" "$TARGET_COMMIT"
+          sha256sum "release-evidence/greencity-${TAG}.tar.gz" > release-evidence/SHA256SUMS.txt
+          {
+            echo "tag=${TAG}"
+            echo "commit=${TARGET_COMMIT}"
+            echo "quality_run_url=https://github.com/${GITHUB_REPOSITORY}/actions/runs/${QUALITY_RUN_ID}"
+            echo "change_record_url=${CHANGE_RECORD_URL}"
+            echo "created_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } > release-evidence/metadata.txt
+      - name: Generate SPDX SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          path: .
+          format: spdx-json
+          output-file: release-evidence/sbom.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+      - name: Upload release evidence
+        id: upload-evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-evidence-${{ steps.target.outputs.tag }}
+          path: release-evidence/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Record artifact digest in job summary
+        env:
+          TAG: ${{ steps.target.outputs.tag }}
+          TARGET_COMMIT: ${{ steps.target.outputs.commit }}
+          QUALITY_RUN_ID: ${{ steps.quality.outputs.run_id }}
+        run: |
+          {
+            echo '## Release evidence'
+            echo ''
+            echo "- Tag: \`${TAG}\`"
+            echo "- Commit: \`${TARGET_COMMIT}\`"
+            echo "- Quality run: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${QUALITY_RUN_ID}"
+            echo "- Artifact SHA-256: \`${{ steps.upload-evidence.outputs.artifact-digest }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

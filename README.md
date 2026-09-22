@@ -109,3 +109,9 @@ Bundle tài liệu dự án được publish trong `documents/greencity-project`
 repository `btl_pttkpm`. Repository `greencity` chỉ nhận mã nguồn, không nhận
 bundle tài liệu này. `.env`, `.venv`, `node_modules` và `dist` không đưa lên
 GitHub.
+
+Tài liệu báo cáo đặc tả hệ thống hoàn chỉnh:
+- [Báo cáo đặc tả hệ thống GreenCity (.docx)](documents/greencity-project/BAO_CAO_DAC_TA_HE_THONG_GREENCITY_HOAN_CHINH.docx)
+- [Tra cứu Use Case tương tác (.html)](documents/greencity-project/greencity-use-case-srs.html)
+- [Lộ trình phát triển hệ thống](documents/greencity-project/roadmap_v2.md)
+

@@ -60,6 +60,17 @@ Các smoke suite theo phân hệ có sẵn dưới dạng `npm run test:<module>
 
 ## Quy ước repository
 
-README là tài liệu duy nhất được giữ trong repository. Các tài liệu Markdown
-khác được lưu ngoài project tại `..\documents\greencity-project`; `.env`,
-`.venv`, `node_modules` và `dist` không đưa lên GitHub.
+Repository `btl_pttkpm` công bố bundle tài liệu dưới
+`documents/greencity-project`, gồm cả governance Phase 1. Repository
+`greencity` chỉ nhận mã nguồn, không nhận bundle này. `.env`, `.venv`,
+`node_modules` và `dist` không đưa lên GitHub.
+
+## Danh mục tài liệu đặc tả & quản trị
+
+- **`BAO_CAO_DAC_TA_HE_THONG_GREENCITY_HOAN_CHINH.docx`**: Báo cáo tổng hợp đặc tả yêu cầu hệ thống và kiến trúc toàn diện GreenCity (SRS, danh mục Use Case phân cấp động từ chuẩn UML, kiến trúc module, kế hoạch định hướng sản phẩm và ma trận truy vết RTM) đã hoàn thiện qua 5 vòng phản biện học thuật.
+- **`greencity-use-case-srs.html`**: Giao diện trực quan tra cứu chi tiết kịch bản tương tác Use Case.
+- **`greencity-use-case.html`**: Sơ đồ Use Case theo từng phân hệ chức năng.
+- **`greencity-database-schema.html`**: Thiết kế cơ sở dữ liệu vật lý và lược đồ quan hệ thực thể.
+- **`roadmap_v2.md`**: Bản đồ lộ trình phát triển qua các Tranche R1-R7 & V1.
+- **`governance/phase-1/`**: Bộ tài liệu thẩm định bảo mật, kiểm soát thay đổi và bằng chứng vận hành Phase 1.
+

@@ -1,0 +1,110 @@
+name: Quality and security gates
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-regression:
+    name: Backend migration and regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout clean source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/requirements.lock.txt
+      - name: Install backend dependencies
+        run: python -m pip install --requirement backend/requirements.lock.txt
+      - name: Install disposable PostgreSQL tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql libpq-dev openssl
+      - name: Run migration and isolated regression
+        run: |
+          PG_BIN="$(pg_config --bindir)"
+          test -x "$PG_BIN/initdb"
+          python backend/scripts/test_isolated.py --pg-bin "$PG_BIN" --openssl "$(command -v openssl)"
+
+  frontend-quality:
+    name: Frontend tests and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout clean source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: greencity-app/package-lock.json
+      - name: Install locked frontend dependencies
+        working-directory: greencity-app
+        run: npm ci
+      - name: Run frontend regression
+        working-directory: greencity-app
+        run: npm test
+      - name: Build frontend
+        working-directory: greencity-app
+        run: npm run build
+      - name: Check assistant bundle boundary
+        working-directory: greencity-app
+        run: npm run test:assistant:security
+
+  dependency-audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout clean source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Audit locked Python dependencies
+        run: |
+          python -m pip install pip-audit==2.10.1
+          python -m pip_audit --no-deps --requirement backend/requirements.lock.txt
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: greencity-app/package-lock.json
+      - name: Audit locked frontend dependencies
+        working-directory: greencity-app
+        run: npm audit --audit-level=high
+
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout full history for scan
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Scan committed history
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+          GITLEAKS_ENABLE_COMMENTS: 'false'
