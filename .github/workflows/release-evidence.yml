@@ -44,6 +44,10 @@ jobs:
             https://*) ;;
             *) echo 'change_record_url must use HTTPS'; exit 1 ;;
           esac
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo 'release_tag must have format vX.Y.Z'
+            exit 1
+          fi
           REF="refs/tags/${TAG}"
           test "$(git cat-file -t "$REF")" = tag
           COMMIT="$(git rev-list -n 1 "$REF")"
