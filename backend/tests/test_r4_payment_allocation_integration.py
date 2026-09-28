@@ -12,7 +12,6 @@ from sqlalchemy.exc import DBAPIError
 
 from app.core.config import Settings
 from app.core.database import Database
-from app.core.security import create_token
 from app.main import create_app
 from app.models.account import Account, AccountRole
 from app.models.billing import (
@@ -32,6 +31,7 @@ from app.models.building import Building
 from app.models.site import Site
 from app.models.tenant import Tenant
 from app.models.unit import Unit
+from auth_test_support import mint_session_token
 from test_r2_integration import r2_case, with_key
 
 
@@ -290,9 +290,9 @@ def test_ac30_two_accountants_with_different_idempotency_keys_create_one_payment
             session.add_all((billing_account, period))
             session.commit()
 
-        headers = {"Authorization": "Bearer " + create_token({
-            "sub": str(accountant.id), "active_site_id": str(site.id), "purpose": "session",
-        }, settings.auth_secret())}
+        headers = {"Authorization": "Bearer " + mint_session_token(
+            database, accountant.id, settings.auth_secret(), claims={"active_site_id": str(site.id)},
+        )}
         body = {
             "billing_account_id": str(billing_account.id), "accounting_period_id": str(period.id),
             "payment_source": "BANK_TRANSFER", "source_reference": f"race-source-{uuid4().hex}",

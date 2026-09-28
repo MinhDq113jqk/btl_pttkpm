@@ -1,54 +1,68 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { staffAccounts, findStaffAccount, getAllowedNav, canViewTab, canSubmitRefund, canApproveRefund, getScopedTasks, getScopedNotifications, loadStaffSession } from '../src/data/staffRoles.js';
-import { loadAssistantHistory, persistAssistantHistory, createAssistantState, createConversation } from '../src/data/assistantStore.js';
+import {
+  canViewTab,
+  createAuthenticatedAccount,
+  getAllowedNav,
+  getStaffTabFromHash,
+} from '../src/data/authSession.js';
+import {
+  loadAssistantHistory,
+  persistAssistantHistory,
+  createAssistantState,
+  createConversation,
+} from '../src/data/assistantStore.js';
 
-test('eight staff roles share one account model', () => {
-  assert.equal(staffAccounts.length, 8);
-  assert.equal(new Set(staffAccounts.map(item => item.accountId)).size, 8);
-  for (const account of staffAccounts) assert.ok(getAllowedNav(account).some(item => item.id === 'overview'));
+const makeUser = (roles, extras = {}) => ({
+  account_id: 'account-1',
+  username: 'staff-1',
+  full_name: 'Nguyễn Nhân viên',
+  roles,
+  allowed_sites: [{ id: 'site-a', code: 'GC-A', name: 'GreenCity A' }],
+  active_site_id: 'site-a',
+  ...extras,
 });
-test('financial maker/checker and read-only roles are separated', () => {
-  assert.ok(canSubmitRefund(findStaffAccount('demo-accountant')));
-  assert.ok(!canApproveRefund(findStaffAccount('demo-accountant')));
-  assert.ok(canApproveRefund(findStaffAccount('demo-director')));
-  assert.ok(!canSubmitRefund(findStaffAccount('demo-director')));
-  for (const role of ['admin', 'auditor']) {
-    const account = findStaffAccount(`demo-${role}`);
-    assert.ok(canViewTab(account, 'refund-form'));
-    assert.ok(!canSubmitRefund(account));
-    assert.ok(!canApproveRefund(account));
-  }
-  assert.ok(!canApproveRefund(findStaffAccount('demo-director'), 'demo-director'));
-});
-test('execution roles see assigned tasks only and no financial module', () => {
-  for (const [role, count] of [['technical', 2], ['cleaning', 1], ['security', 1]]) {
-    const account = findStaffAccount(`demo-${role}`);
-    assert.equal(getScopedTasks(account).length, count);
-    assert.ok(!canViewTab(account, 'refund-form'));
-    assert.ok(!canViewTab(account, 'settings'));
-    assert.ok(getScopedTasks(account).every(task => task.department !== 'Tài chính'));
-  }
-});
-test('CSKH and accounting have distinct work queues', () => {
-  assert.equal(getScopedTasks(findStaffAccount('demo-cskh')).length, 3);
-  assert.ok(getScopedTasks(findStaffAccount('demo-cskh')).every(item => item.department === 'CSKH'));
-  assert.equal(getScopedTasks(findStaffAccount('demo-accountant')).length, 1);
-});
-test('notifications refer only to visible tasks', () => {
-  for (const account of staffAccounts) {
-    const ids = new Set(getScopedTasks(account).map(item => item.id));
-    assert.ok(getScopedNotifications(account).every(item => !item.taskId || ids.has(item.taskId)));
+
+test('workspace menu is derived from the server roles for all supported roles', () => {
+  const expectedMenus = new Map([
+    ['admin', ['overview', 'tasks', 'cleaning', 'security', 'parcels', 'finance', 'residents', 'imports', 'notifications']],
+    ['director', ['overview', 'tasks', 'cleaning', 'security', 'parcels', 'finance', 'residents', 'notifications']],
+    ['accountant', ['overview', 'tasks', 'finance', 'residents', 'notifications']],
+    ['cskh', ['overview', 'tasks', 'parcels', 'residents', 'imports', 'notifications']],
+    ['technical_lead', ['overview', 'tasks', 'maintenance', 'residents', 'notifications']],
+    ['technician', ['overview', 'tasks', 'maintenance', 'notifications']],
+    ['cleaning', ['overview', 'cleaning', 'notifications']],
+    ['security', ['overview', 'security', 'parcels', 'residents', 'notifications']],
+    ['resident', ['overview', 'notifications']],
+  ]);
+
+  for (const [role, expected] of expectedMenus) {
+    const account = createAuthenticatedAccount(makeUser([role]));
+    const expectedSet = [...expected].sort();
+    assert.deepEqual([...account.menu].sort(), expectedSet, role);
+    assert.deepEqual(getAllowedNav(account).map(item => item.id).sort(), expectedSet, role);
   }
 });
-test('unknown account and corrupt sessions are rejected; stored roles are not trusted', () => {
-  assert.equal(findStaffAccount('unknown'), null);
-  for (const raw of ['{', '{}', '{"accountId":"unknown"}']) assert.equal(loadStaffSession({ getItem: () => raw }), null);
-  const account = loadStaffSession({ getItem: () => JSON.stringify({ accountId: 'demo-cleaning', refund: 'approve', menu: ['settings'] }) });
-  assert.equal(account.id, 'cleaning');
-  assert.equal(account.refund, 'none');
-  assert.ok(!canViewTab(account, 'settings'));
+
+test('unrecognized and client-supplied menu values never grant extra pages', () => {
+  const account = createAuthenticatedAccount(makeUser(['custom_role'], {
+    menu: ['refund-form', 'settings', 'media'],
+    refund: 'approve',
+  }));
+
+  assert.deepEqual(account.menu, ['overview', 'notifications']);
+  for (const tab of ['refund-form', 'settings', 'media', 'amenities', 'reports']) {
+    assert.equal(canViewTab(account, tab), false, tab);
+  }
 });
+
+test('only supported workspace hashes resolve to a tab', () => {
+  assert.equal(getStaffTabFromHash('#/maintenance'), 'maintenance');
+  for (const hash of ['#/refund-form', '#/media', '#/unknown', '']) {
+    assert.equal(getStaffTabFromHash(hash), 'overview', hash);
+  }
+});
+
 test('assistant history storage is separated by account', () => {
   const map = new Map();
   const storage = { getItem: key => map.get(key), setItem: (key, value) => map.set(key, value) };

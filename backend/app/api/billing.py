@@ -50,7 +50,13 @@ from app.schemas.r4 import (
     UnmatchedPaymentMatch,
     UnmatchedPaymentView,
 )
-from app.services.billing import allocate_payment, execute_run, record_payment_received, void_invoice
+from app.services.billing import (
+    allocate_payment,
+    execute_run,
+    match_unmatched_payment_command,
+    receive_payment_command,
+    void_invoice,
+)
 from app.services.r2 import audit, emit, idempotency_replay, remember_idempotency, require_version
 
 
@@ -266,47 +272,20 @@ def receive_payment(
         ).with_for_update())
         if period is None:
             raise scope_not_found()
-        if period.status not in {"OPEN", "CLOSING"}:
-            raise AppError("ERR-ACCOUNTING-PERIOD-CLOSED", "Kỳ kế toán không nhận giao dịch mới.", 409)
-
-        duplicate = session.scalar(select(Payment.id).where(
-            *current_user.scope_conditions(Payment),
-            or_(
-                and_(Payment.payment_source == body.payment_source,
-                     Payment.source_reference == body.source_reference),
-                Payment.receipt_number == body.receipt_number,
-            ),
-        ).limit(1))
-        if duplicate is not None:
-            raise AppError("ERR-DUPLICATE-PAYMENT", "Nguồn thanh toán hoặc biên lai đã tồn tại.", 409)
-
-        payment = Payment(
+        payment = receive_payment_command(
+            session,
             tenant_id=current_user.tenant_id,
             site_id=current_user.assert_active_site(),
             building_id=building_id,
-            billing_account_id=account.id if account is not None else None,
-            accounting_period_id=period.id,
+            period=period,
+            account=account,
             payment_source=body.payment_source,
             source_reference=body.source_reference,
             receipt_number=body.receipt_number,
             amount_vnd=body.amount_vnd,
             received_at=body.received_at,
-            received_by_id=current_user.account_id,
-            status="RECEIVED" if account is not None else "UNMATCHED",
+            actor_id=current_user.account_id,
         )
-        session.add(payment)
-        session.flush()
-        if account is not None:
-            record_payment_received(session, payment, current_user.account_id)
-        else:
-            session.add(UnmatchedPayment(
-                tenant_id=payment.tenant_id,
-                site_id=payment.site_id,
-                building_id=payment.building_id,
-                payment_id=payment.id,
-                amount_vnd=payment.amount_vnd,
-                reason="Thiếu mã Billing Account khi nhận thanh toán.",
-            ))
         audit(
             session,
             current_user,
@@ -401,25 +380,14 @@ def match_unmatched_payment(
         if replay is not None:
             return _payment_view(_scoped_record(session, current_user, Payment, replay.resource_id))
         unmatched = _scoped_record(session, current_user, UnmatchedPayment, unmatched_payment_id, lock=True)
-        if unmatched.status != "OPEN":
-            raise AppError("ERR-STATE-TRANSITION", "Payment unmatched này không còn chờ match.", 409)
         payment = _scoped_record(session, current_user, Payment, unmatched.payment_id, lock=True)
-        if payment.status != "UNMATCHED" or payment.billing_account_id is not None:
-            raise AppError("ERR-PAYMENT-INTEGRITY", "Payment unmatched không nhất quán.", 409)
         account = _scoped_account(session, current_user, body.billing_account_id, lock=True)
-        if account.status != "ACTIVE" or account.building_id != payment.building_id:
-            raise scope_not_found()
-        period = _scoped_record(session, current_user, AccountingPeriod, payment.accounting_period_id, lock=True)
-        if period.building_id != payment.building_id:
-            raise scope_not_found()
-        if period.status not in {"OPEN", "CLOSING"}:
-            raise AppError("ERR-ACCOUNTING-PERIOD-CLOSED", "Kỳ kế toán không nhận giao dịch mới.", 409)
-        payment.billing_account_id = account.id
-        payment.status = "RECEIVED"
-        payment.version += 1
-        unmatched.status = "RESOLVED"
-        unmatched.version += 1
-        record_payment_received(session, payment, current_user.account_id)
+        payment = match_unmatched_payment_command(
+            session,
+            unmatched=unmatched,
+            account=account,
+            actor_id=current_user.account_id,
+        )
         audit(session, current_user, request, event_type="PaymentMatched", action="match",
               resource_type="UnmatchedPayment", resource_id=unmatched.id, building_id=payment.building_id,
               before={"status": "OPEN"}, after={"status": "RESOLVED", "billing_account_id": str(account.id)})

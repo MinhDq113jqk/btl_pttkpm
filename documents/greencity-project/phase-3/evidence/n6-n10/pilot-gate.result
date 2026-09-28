@@ -1,0 +1,10 @@
+date=2026-09-26
+local_disposable_demo=GO_CONDITIONAL
+controlled_pilot=NO_GO
+real_browser_gf03_gf08=PASS_LOCAL_BACKEND_REAL
+baseline_reconciliation=EVIDENCE_READY_SIGNOFF_OPEN
+uat_fake_data_internal_users=EVIDENCE_READY_SIGNOFF_OPEN
+runbook_recovery=EVIDENCE_READY_SIGNOFF_OPEN
+pilot_evidence_pack=CREATED
+open_gates=deployment_target_controls,formal_gate_c_d,owner_po_signoff
+notes=local_fake_data_only; controlled pilot remains NO_GO until owner signoff and deployment-target controls

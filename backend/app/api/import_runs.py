@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse, Response
 
 from app.core.database import Database
 from app.core.exceptions import AppError
-from app.core.policy import UserContext, get_current_user_context
+from app.core.policy import UserContext, get_current_user_context, scope_not_found
 from app.schemas.import_run import (
     ImportRunApplyRequest,
     ImportRunPreviewRequest,

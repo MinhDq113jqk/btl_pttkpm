@@ -1,0 +1,11 @@
+date=2026-09-26
+environment=local_docker_compose_https_postgresql_real
+gf03=PASS_10_checks
+gf04=PASS_14_checks
+gf05=PASS_17_checks
+page_errors=0
+unexpected_api_failures=0
+scripts=real-browser-gf03.cjs,real-browser-gf04.cjs,real-browser-gf05.cjs
+evidence=gf03-real-browser.json,gf04-real-browser.json,gf05-real-browser.json
+scope=controlled_local_rehearsal_only
+gate_claim=formal_gate_and_pilot_approval_not_claimed

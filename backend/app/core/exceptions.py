@@ -13,23 +13,28 @@ logger = logging.getLogger("greencity")
 
 
 class AppError(Exception):
-    def __init__(self, code: str, message: str, status_code: int = 400):
+    def __init__(self, code: str, message: str, status_code: int = 400,
+                 *, headers: dict[str, str] | None = None):
         self.code, self.message, self.status_code = code, message, status_code
+        self.headers = headers or {}
 
 
-def error_response(request: Request, status: int, code: str, message: str):
+def error_response(request: Request, status: int, code: str, message: str,
+                   headers: dict[str, str] | None = None):
     correlation_id = getattr(request.state, "correlation_id", None) or str(uuid4())
     envelope = ErrorEnvelope(error=ErrorDetail(
         code=code, message=message, correlation_id=correlation_id,
     ))
+    response_headers = dict(headers or {})
+    response_headers["X-Correlation-ID"] = str(envelope.error.correlation_id)
     return JSONResponse(status_code=status, content=envelope.model_dump(mode="json"),
-                        headers={"X-Correlation-ID": str(envelope.error.correlation_id)})
+                        headers=response_headers)
 
 
 def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)
     async def app_error(request: Request, exc: AppError):
-        return error_response(request, exc.status_code, exc.code, exc.message)
+        return error_response(request, exc.status_code, exc.code, exc.message, exc.headers)
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(request: Request, exc: RequestValidationError):

@@ -5,13 +5,13 @@ export const GreenCityLogo = ({ collapsed = false, className = "" }) => {
     <div className={`flex items-center gap-3 select-none ${className}`}>
       {/* Brand Icon: Smart Urban Building + Green Sprout Leaf */}
       <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-md shadow-emerald-500/20 text-white flex-shrink-0 group">
-        <svg 
-          viewBox="0 0 24 24" 
-          fill="none" 
-          stroke="currentColor" 
-          strokeWidth="2" 
-          strokeLinecap="round" 
-          strokeLinejoin="round" 
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
           className="w-6 h-6"
         >
           {/* Smart Modern Urban Towers */}
@@ -23,11 +23,11 @@ export const GreenCityLogo = ({ collapsed = false, className = "" }) => {
           <line x1="8" y1="15" x2="8.01" y2="15" strokeWidth="2.5" />
           <line x1="16" y1="15" x2="16.01" y2="15" strokeWidth="2.5" />
           {/* Green Leaf Accent - Eco Architecture */}
-          <path 
-            d="M17 3c0 4-4 5-4 5s1-3 4-5z" 
-            fill="#a7f3d0" 
-            stroke="#10b981" 
-            strokeWidth="1.2" 
+          <path
+            d="M17 3c0 4-4 5-4 5s1-3 4-5z"
+            fill="#a7f3d0"
+            stroke="#10b981"
+            strokeWidth="1.2"
           />
         </svg>
         <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-400 rounded-full border-2 border-white ring-1 ring-emerald-600/30"></div>

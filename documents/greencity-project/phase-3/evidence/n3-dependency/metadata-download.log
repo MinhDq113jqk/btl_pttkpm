@@ -1,0 +1,12 @@
+Collecting httpx2==2.13.1
+  Downloading httpx2-2.13.1-py3-none-any.whl.metadata (9.8 kB)
+Collecting starlette==1.7.0
+  Downloading starlette-1.7.0-py3-none-any.whl.metadata (6.6 kB)
+Downloading httpx2-2.13.1-py3-none-any.whl (95 kB)
+Downloading starlette-1.7.0-py3-none-any.whl (78 kB)
+Saved c:\users\legion\btl\_phase3_n1_rehearsal_20260925\backend\httpx2-2.13.1-py3-none-any.whl
+Saved c:\users\legion\btl\_phase3_n1_rehearsal_20260925\backend\starlette-1.7.0-py3-none-any.whl
+Successfully downloaded httpx2 starlette
+
+[notice] A new release of pip is available: 25.0.1 -> 26.2.1
+[notice] To update, run: C:\Users\LEGION\btl\_phase3_n1_rehearsal_20260925\backend\.venv\Scripts\python.exe -m pip install --upgrade pip

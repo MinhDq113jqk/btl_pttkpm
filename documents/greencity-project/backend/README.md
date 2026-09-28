@@ -177,8 +177,8 @@ tạm; lệnh migration/seed bên dưới dùng database đã được cấp an 
 .\scripts\with-resources.ps1 -PythonArgs @('-m','scripts.migrate','current')
 .\scripts\with-resources.ps1 -PythonArgs @('-m','scripts.migrate','check')
 
-# Seed lặp an toàn: chỉ tenant/site/building/unit/account/policy/version/kỳ OPEN.
-.\scripts\with-resources.ps1 -PythonArgs @('-m','scripts.seed')
+# Demo seed bị tắt mặc định và cần credential riêng ngoài repository.
+# Chỉ seed DB development/test tách biệt theo hướng dẫn tại ../../../README.md.
 
 # OpenAPI sống chỉ sau khi backend đang chạy với cấu hình DB an toàn.
 Invoke-RestMethod http://127.0.0.1:8000/openapi.json
@@ -245,8 +245,10 @@ Các mục Phase/Plan cũ bên dưới là lịch sử, không ghi đè trạng 
 OpenAPI; DTO lỗi chung khớp OpenAPI/runtime. Chưa có auth/RBAC/Data Scope,
 seed, Unit 360°, audit nghiệp vụ hoặc migration test trên DB trống cô lập.
 
-Nguồn hiện tại: [plan2.md](../plan2.md),
-[BACKEND_BASELINE.md](../BACKEND_BASELINE.md), [API_CONTRACT.md](API_CONTRACT.md).
+Các nguồn hiện hành thay thế snapshot này là
+[roadmap_v2.md](../roadmap_v2.md), [roadmap_v3.md](../roadmap_v3.md),
+[FINAL_CODE_SUBMISSION_PLAN.md](../FINAL_CODE_SUBMISSION_PLAN.md) và
+[API_CONTRACT.md](API_CONTRACT.md).
 `PHASE_0_AUDIT.md` được README cũ tham chiếu nhưng không tồn tại tại checkout.
 Nội dung Phase bên dưới mô tả foundation lịch sử; mọi hướng phát triển AI,
 refund hoặc frontend trong kế hoạch cũ bị hoãn theo Plan 2.
@@ -281,10 +283,10 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.lock.txt
 ```
 
-Máy hiện tại chưa có `py` trên PATH; môi trường `.venv` đã được tạo bằng Python bundled. Khi cần tạo lại trên máy này:
+Nếu `py` không có trên PATH, dùng đường dẫn Python đã cài trên máy:
 
 ```powershell
-& 'C:\Users\LEGION\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -m venv .venv
+& 'C:\path\to\python.exe' -m venv .venv
 ```
 
 ## Environment variables
@@ -296,7 +298,7 @@ Máy hiện tại chưa có `py` trên PATH; môi trường `.venv` đã đượ
 | DATABASE_URL | PostgreSQL URI, bắt buộc; postgres:// được đổi driver trong bộ nhớ |
 | APP_ENV | development / test / production; mặc định development |
 | DATABASE_SSL_ROOT_CERT | CA Aiven cục bộ; khi có dùng verify-full |
-| CORS_ORIGINS | JSON array origin cụ thể; local mặc định 5173 và 3000, production phải HTTPS |
+| CORS_ORIGINS | JSON array origin cụ thể; frontend local hiện dùng port 3000, production phải HTTPS |
 | SECRET_KEY | Dành cho JWT Phase 2; chưa dùng ở Phase 1 |
 | GEMINI_API_KEY | Dành riêng chatbot Phase 8; chưa dùng ở Phase 1 |
 
@@ -375,8 +377,9 @@ try {
 
 Integration không DROP bảng/schema, không seed, không commit fixture. Bộ này
 không thay thế test migration từ DB trống cô lập. Test auth/site chưa có vì
-module chưa build; refund/chat nằm ngoài Plan 2. Xem
-[baseline](../BACKEND_BASELINE.md). Bộ test hiện tại có deprecation warnings
+module chưa build; refund/chat nằm ngoài Plan 2. Đây là snapshot lịch sử; xem
+[roadmap_v2.md](../roadmap_v2.md) và [VALIDATION.md](VALIDATION.md) để xác định
+phạm vi cùng bằng chứng hiện hành. Bộ test tại mốc Plan 2 có deprecation warnings
 từ test client của thư viện, không giấu warnings.
 
 Kết quả lệnh đã chạy và các giới hạn: [VALIDATION.md](VALIDATION.md).

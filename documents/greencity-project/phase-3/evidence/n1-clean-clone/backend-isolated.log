@@ -1,0 +1,9 @@
+Fresh cluster init: running
+Fresh cluster init: PASS
+Test TLS certificate: running
+Test TLS certificate: PASS
+Test PostgreSQL startup: running
+Isolated verification failed (RuntimeError); no shared database was used.
+Test PostgreSQL startup timed out; details suppressed
+Test PostgreSQL shutdown: running
+Test PostgreSQL shutdown: PASS

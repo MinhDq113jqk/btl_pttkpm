@@ -12,7 +12,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.core.config import Settings
 from app.core.database import Database
-from app.core.security import create_token, hash_password
+from app.core.security import hash_password
 from app.main import create_app
 from app.models.account import Account, AccountRole
 from app.models.building import Building
@@ -21,6 +21,7 @@ from app.models.platform import AuditEvent, DomainEvent, NotificationReadModel
 from app.models.site import Site
 from app.models.tenant import Tenant
 from app.models.unit import Unit
+from auth_test_support import mint_session_token
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.skipif(
@@ -276,10 +277,11 @@ def test_resident_notification_scope_is_account_specific_and_server_derived(resi
         "/api/v1/resident/notifications", headers=_headers(case, "staff"),
     ).status_code == 403
 
-    forged_tenant_and_role = create_token({
-        "sub": str(case["residents"]["resident"][0].id), "tenant_id": str(uuid4()),
-        "roles": ["admin", "resident"], "active_site_id": str(case["site"].id), "purpose": "session",
-    }, case["settings"].auth_secret())
+    forged_tenant_and_role = mint_session_token(
+        case["database"], case["residents"]["resident"][0].id, case["settings"].auth_secret(),
+        claims={"tenant_id": str(uuid4()), "roles": ["admin", "resident"],
+                "active_site_id": str(case["site"].id)},
+    )
     forged_allowed = case["client"].get(
         "/api/v1/resident/notifications", headers={"Authorization": "Bearer " + forged_tenant_and_role},
         params={"include_read": True},
@@ -289,10 +291,11 @@ def test_resident_notification_scope_is_account_specific_and_server_derived(resi
         str(case["notifications"]["unread"][0].id), str(case["notifications"]["read"][0].id),
     }
 
-    forged_site = create_token({
-        "sub": str(case["residents"]["resident"][0].id), "tenant_id": str(case["tenant"].id),
-        "roles": ["resident"], "active_site_id": str(case["other_site"].id), "purpose": "session",
-    }, case["settings"].auth_secret())
+    forged_site = mint_session_token(
+        case["database"], case["residents"]["resident"][0].id, case["settings"].auth_secret(),
+        claims={"tenant_id": str(case["tenant"].id), "roles": ["resident"],
+                "active_site_id": str(case["other_site"].id)},
+    )
     _scope_error(case["client"].get(
         "/api/v1/resident/notifications", headers={"Authorization": "Bearer " + forged_site},
     ))

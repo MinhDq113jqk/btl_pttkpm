@@ -6,6 +6,7 @@ business mutations.  The small SQL checks at the end are read-only oracles for
 the financial invariants that have no public write path.
 """
 from datetime import UTC, datetime, timedelta
+import json
 import os
 from uuid import UUID, uuid4
 
@@ -25,8 +26,11 @@ pytestmark = [pytest.mark.integration, pytest.mark.skipif(
     reason="Run scripts.test_isolated; R5 Golden Flows require its disposable PostgreSQL cluster",
 )]
 
-DEMO_PASSWORD = "Password@123"
 PNG = b"\x89PNG\r\n\x1a\nR5 evidence\x00\x00\x00\x00IEND\xaeB\x60\x82"
+
+
+def seeded_password(username: str) -> str:
+    return json.loads(os.environ["DEMO_SEED_CREDENTIALS_JSON"])[username]
 
 
 @pytest.fixture(scope="module")
@@ -51,7 +55,7 @@ def seeded_api_case():
         auth, identities = {}, {}
         for actor, username in usernames.items():
             response = client.post("/api/v1/auth/login", json={
-                "username": username, "password": DEMO_PASSWORD,
+                "username": username, "password": seeded_password(username),
             })
             assert response.status_code == 200, response.text
             payload = response.json()

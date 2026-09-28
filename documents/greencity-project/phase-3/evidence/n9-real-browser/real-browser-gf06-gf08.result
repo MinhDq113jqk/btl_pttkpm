@@ -1,0 +1,14 @@
+date=2026-09-26
+environment=local_docker_compose_https_postgresql_real
+gf06=PASS_13_checks
+gf07=PASS_15_checks
+gf08=PASS_20_checks
+page_errors=0
+unexpected_api_failures=0
+gf06_scope=parcel_intake_pin_exception_private_evidence_mobile_overflow
+gf07_scope=fee_policy_accounting_period_billing_run_invoice_payment_unmatched_credit_resident_billing
+gf08_scope=five_kpi_drilldowns_audit_timeline_notifications_shared_as_of
+scripts=real-browser-gf06.cjs,real-browser-gf07.cjs,real-browser-gf08.cjs
+evidence=gf06-real-browser.json,gf07-real-browser.json,gf08-real-browser.json
+scope=controlled_local_rehearsal_only
+gate_claim=formal_gate_and_pilot_approval_not_claimed

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Info, ShieldCheck } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
-import { TasksDesktopView, StatusBadge } from './components/TasksDesktopView';
+import { TasksDesktopView } from './components/TasksDesktopView';
 import { Unit360View } from './components/Unit360View';
 import { NotificationsDesktopView } from './components/NotificationsDesktopView';
 import { SearchDialog } from './components/SearchDialog';
@@ -12,23 +12,25 @@ import { GreenAssistant } from './components/assistant/GreenAssistant';
 import { SessionDashboard } from './components/staff/SessionDashboard';
 import { ExecutiveDashboardView } from './components/ExecutiveDashboardView';
 import { StaffLogin } from './components/staff/StaffLogin';
+import { PasswordChange } from './components/staff/PasswordChange';
 import { CreateServiceRequestForm } from './components/staff/CreateServiceRequestForm';
 import { CleaningDesktopView } from './components/CleaningDesktopView';
 import { SecurityDesktopView } from './components/SecurityDesktopView';
 import { ParcelDeskView } from './components/ParcelDeskView';
 import { BillingDesktopView } from './components/BillingDesktopView';
 import { ResidentPortalView } from './components/ResidentPortalView';
-import { navItems } from './data/mockData';
-import { ASSISTANT_STORAGE_KEY } from './data/assistantStore';
-import { canViewTab, createAuthenticatedAccount, getAllowedNav, getSessionNotifications } from './data/authSession';
+import { navItems } from './data/navigation';
+import { ASSISTANT_STORAGE_KEY, clearAssistantHistoryForAccount } from './data/assistantStore';
+import { canViewTab, createAuthenticatedAccount, getAllowedNav, getSessionNotifications, getStaffTabFromHash } from './data/authSession';
 import { mapServiceRequest } from './data/serviceRequestView';
 import { createApiClient } from './services/apiClient';
 import { requestAssistantReply } from './services/greenAssistant';
 
-const tabFromLocation = () => {
-  const id = window.location.hash.replace(/^#\/?/, '');
-  return navItems.some(item => item.id === id) ? id : 'overview';
-};
+const WorkOrderWorkspace = React.lazy(() => import('./components/WorkOrderWorkspace').then(module => ({ default: module.WorkOrderWorkspace })));
+const ImportRunsView = React.lazy(() => import('./components/ImportRunsView').then(module => ({ default: module.ImportRunsView })));
+const MaintenanceDesktopView = React.lazy(() => import('./components/MaintenanceDesktopView').then(module => ({ default: module.MaintenanceDesktopView })));
+
+const tabFromLocation = () => getStaffTabFromHash(window.location.hash);
 
 const loginErrorView = error => ({
   message: error?.code === 'ERR-NETWORK'
@@ -53,16 +55,30 @@ export default function App() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isSwitchingSite, setIsSwitchingSite] = useState(false);
   const [siteSwitchError, setSiteSwitchError] = useState(null);
+  const [passwordChangeError, setPasswordChangeError] = useState(null);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [workspaceReset, setWorkspaceReset] = useState(0);
   const clientRef = useRef(null);
+  const accountRef = useRef(account);
+  accountRef.current = account;
+
+  const clearAccountAssistantHistory = () => {
+    try {
+      clearAssistantHistoryForAccount(window.localStorage, accountRef.current?.accountId);
+      return true;
+    } catch {
+      return false;
+    }
+  };
 
   if (!clientRef.current) {
     clientRef.current = createApiClient({
       onUnauthorized: error => {
+        const historyCleared = clearAccountAssistantHistory();
         setAccount(null);
         setLoginError(null);
         setSiteSwitchError(null);
-        setSessionNotice(`Phiên đã hết hạn. Vui lòng đăng nhập lại.${error.correlationId ? ` Mã đối chiếu: ${error.correlationId}` : ''}`);
+        setSessionNotice(`Phiên đã hết hạn. Vui lòng đăng nhập lại.${historyCleared ? '' : ' Không xóa được lịch sử trợ lý; hãy xóa dữ liệu website trong cài đặt trình duyệt.'}${error.correlationId ? ` Mã đối chiếu: ${error.correlationId}` : ''}`);
       },
     });
   }
@@ -75,6 +91,7 @@ export default function App() {
       const user = await clientRef.current.authenticate(username, password);
       setAccount(createAuthenticatedAccount(user));
       setSiteSwitchError(null);
+      setPasswordChangeError(null);
       setWorkspaceReset(0);
     } catch (error) {
       setLoginError(loginErrorView(error));
@@ -83,13 +100,41 @@ export default function App() {
     }
   };
 
-  const logout = () => {
-    clientRef.current.clearSession();
+  const logout = async () => {
+    const historyCleared = clearAccountAssistantHistory();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+    let sessionRevoked = false;
+    try {
+      sessionRevoked = await clientRef.current.logoutCurrentSession({ signal: controller.signal });
+    } finally {
+      clearTimeout(timeout);
+    }
     window.history.replaceState(null, '', '#/overview');
     setLoginError(null);
     setSiteSwitchError(null);
-    setSessionNotice('Đã đăng xuất. Token của phiên trước đã được xóa khỏi bộ nhớ.');
+    setSessionNotice(`Đã đăng xuất.${sessionRevoked ? ' Phiên đã được thu hồi trên máy chủ.' : ' Máy chủ chưa xác nhận thu hồi phiên; hãy đăng xuất lại khi có kết nối.'}${historyCleared ? '' : ' Không xóa được lịch sử trợ lý; hãy xóa dữ liệu website trong cài đặt trình duyệt.'}`);
     setAccount(null);
+  };
+
+  const changePassword = async ({ currentPassword, newPassword }) => {
+    setIsChangingPassword(true);
+    setPasswordChangeError(null);
+    try {
+      await clientRef.current.changePassword(currentPassword, newPassword);
+      const historyCleared = clearAccountAssistantHistory();
+      window.history.replaceState(null, '', '#/overview');
+      setLoginError(null);
+      setAccount(null);
+      setSessionNotice(`Mật khẩu đã được đổi. Hãy đăng nhập lại bằng mật khẩu mới.${historyCleared ? '' : ' Không xóa được lịch sử trợ lý; hãy xóa dữ liệu website trong cài đặt trình duyệt.'}`);
+    } catch (error) {
+      setPasswordChangeError({
+        message: error?.message || 'Không thể đổi mật khẩu. Hãy thử lại.',
+        correlationId: error?.correlationId || '',
+      });
+    } finally {
+      setIsChangingPassword(false);
+    }
   };
 
   const switchSite = async siteId => {
@@ -111,6 +156,8 @@ export default function App() {
   };
 
   if (!account) return <StaffLogin onLogin={login} notice={sessionNotice} error={loginError} isLoading={isLoggingIn} />;
+  if (account.mustChangePassword) return <PasswordChange username={account.username} onChangePassword={changePassword}
+    onLogout={logout} error={passwordChangeError} isLoading={isChangingPassword} />;
   if (account.isResident) return <ResidentPortalView account={account} client={clientRef.current}
     onLogout={logout} onSwitchSite={switchSite} isSwitchingSite={isSwitchingSite} siteSwitchError={siteSwitchError} />;
   return <StaffWorkspace key={`${account.workspaceKey}:${workspaceReset}`} account={account} client={clientRef.current}
@@ -129,6 +176,7 @@ function StaffWorkspace({ account, client, onLogout, onSwitchSite, isSwitchingSi
   const [retryKey, setRetryKey] = useState(0);
   const [requestState, setRequestState] = useState({ items: [], total: 0, loading: account.canViewServiceRequests, error: null });
   const [unreadCount, setUnreadCount] = useState(0);
+  const [dashboardAsOf, setDashboardAsOf] = useState(() => new Date().toISOString());
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [toast, setToast] = useState({ message: '', type: 'success', id: 0 });
   const [createRequestOpen, setCreateRequestOpen] = useState(false);
@@ -168,38 +216,56 @@ function StaffWorkspace({ account, client, onLogout, onSwitchSite, isSwitchingSi
   useEffect(() => {
     if (!client?.listNotifications) return undefined;
     const controller = new AbortController();
-    client.listNotifications({ includeRead: false, signal: controller.signal })
+    client.listNotifications({
+      includeRead: false,
+      asOf: account.canViewExecutiveDashboard ? dashboardAsOf : undefined,
+      signal: controller.signal,
+    })
       .then(result => {
         setUnreadCount(result.items.length);
       })
       .catch(() => {});
     return () => controller.abort();
-  }, [client, account.workspaceKey]);
+  }, [client, account.workspaceKey, account.canViewExecutiveDashboard, dashboardAsOf]);
 
   const changeTab = useCallback(id => {
-    if (id === currentTab) return;
+    const nextTab = getStaffTabFromHash(`#/${id}`);
+    if (nextTab === currentTab) {
+      if (window.location.hash !== `#/${nextTab}`) window.history.replaceState(null, '', `#/${nextTab}`);
+      return;
+    }
     positions.current[currentTab] = mainRef.current?.scrollTop || 0;
-    window.history.pushState(null, '', `#/${id}`);
-    setCurrentTab(id);
+    window.history.pushState(null, '', `#/${nextTab}`);
+    setCurrentTab(nextTab);
   }, [currentTab]);
 
   useEffect(() => {
+    if (window.location.hash !== `#/${currentTab}`) window.history.replaceState(null, '', `#/${currentTab}`);
     document.title = `${navItems.find(item => item.id === currentTab)?.label || 'Tổng quan'} · GreenCity`;
     mainRef.current?.focus({ preventScroll: true });
     if (mainRef.current) mainRef.current.scrollTop = positions.current[currentTab] || 0;
   }, [currentTab]);
 
   useEffect(() => {
-    const onPopState = () => setCurrentTab(tabFromLocation());
+    const onLocationChange = () => {
+      const nextTab = tabFromLocation();
+      if (window.location.hash !== `#/${nextTab}`) window.history.replaceState(null, '', `#/${nextTab}`);
+      setCurrentTab(nextTab);
+    };
     const onKeyDown = event => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k' && !document.querySelector('dialog[open]')) {
         event.preventDefault();
         setSearchOpen(true);
       }
     };
-    window.addEventListener('popstate', onPopState);
+    window.addEventListener('popstate', onLocationChange);
+    window.addEventListener('hashchange', onLocationChange);
     window.addEventListener('keydown', onKeyDown);
-    return () => { window.removeEventListener('popstate', onPopState); window.removeEventListener('keydown', onKeyDown); };
+    return () => {
+      window.removeEventListener('popstate', onLocationChange);
+      window.removeEventListener('hashchange', onLocationChange);
+      window.removeEventListener('keydown', onKeyDown);
+    };
   }, []);
 
   const updateFilters = next => {
@@ -243,15 +309,19 @@ function StaffWorkspace({ account, client, onLogout, onSwitchSite, isSwitchingSi
           <div className="demo-notice"><Info size={16} aria-hidden="true" /><span><strong>Phiên và phạm vi do backend quyết định.</strong> {scopeNotice}</span></div>
           {allowed ? <>
             {currentTab === 'overview' && (account.canViewExecutiveDashboard
-              ? <ExecutiveDashboardView account={account} client={client} onToast={showToast} onNavigate={changeTab} />
-              : <SessionDashboard account={account} items={tasks} total={requestState.total} loading={requestState.loading} onNavigate={changeTab} onSelectTask={setSelectedTask} onFilterTasks={filterFromDashboard} />)}
+              ? <ExecutiveDashboardView account={account} client={client} onToast={showToast} onNavigate={changeTab}
+                initialAsOf={dashboardAsOf} onAsOfChange={setDashboardAsOf} />
+              : <SessionDashboard account={account} items={tasks} total={requestState.total} loading={requestState.loading} error={requestState.error} onRetry={() => setRetryKey(value => value + 1)} onNavigate={changeTab} onSelectTask={setSelectedTask} onFilterTasks={filterFromDashboard} />)}
             {currentTab === 'tasks' && <TasksDesktopView tasks={tasks} scopeLabel={account.scope} filters={filters} onFiltersChange={updateFilters} onSelectTask={setSelectedTask} loading={requestState.loading} error={requestState.error} onRetry={() => setRetryKey(value => value + 1)} pagination={{ page, pageSize, total: requestState.total }} onPageChange={setPage} canCreate={account.canCreateServiceRequests} onCreate={() => setCreateRequestOpen(true)} />}
+            {currentTab === 'maintenance' && <React.Suspense fallback={<div className="desktop-page" role="status">Đang mở không gian bảo trì…</div>}><MaintenanceDesktopView account={account} client={client} /></React.Suspense>}
             {currentTab === 'cleaning' && <CleaningDesktopView account={account} client={client} onToast={showToast} />}
             {currentTab === 'security' && <SecurityDesktopView account={account} client={client} onToast={showToast} />}
             {currentTab === 'parcels' && <ParcelDeskView account={account} client={client} onToast={showToast} />}
             {currentTab === 'finance' && <BillingDesktopView account={account} client={client} onToast={showToast} />}
+            {currentTab === 'imports' && <React.Suspense fallback={<div className="desktop-page" role="status">Đang mở màn nhập dữ liệu…</div>}><ImportRunsView account={account} client={client} /></React.Suspense>}
             {currentTab === 'residents' && <Unit360View client={client} scopeLabel={account.scope} />}
-            {currentTab === 'notifications' && <NotificationsDesktopView account={account} client={client} onToast={showToast} onUnreadChange={setUnreadCount} onOpen={item => {
+            {currentTab === 'notifications' && <NotificationsDesktopView account={account} client={client} onToast={showToast} onUnreadChange={setUnreadCount}
+              asOf={account.canViewExecutiveDashboard ? dashboardAsOf : undefined} onOpen={item => {
               const taskId = item.taskId || item.template_snapshot?.task_id;
               if (taskId) {
                 const matched = tasks.find(t => t.id === taskId || t.recordId === taskId);
@@ -265,14 +335,14 @@ function StaffWorkspace({ account, client, onLogout, onSwitchSite, isSwitchingSi
     </div>
     <SearchDialog navItems={availableNav} tasks={tasks} open={searchOpen} onClose={() => setSearchOpen(false)} onNavigate={changeTab} onSelectTask={setSelectedTask} />
     <Dialog open={Boolean(selectedTask)} onClose={() => setSelectedTask(null)} title={selectedTask?.id || 'Chi tiết yêu cầu'}>
-      {selectedTask && <div className="dialog-body"><StatusBadge task={selectedTask} /><h3 className="task-detail-title">{selectedTask.title}</h3><dl className="confirmation-details"><div><dt>ID hồ sơ</dt><dd>{selectedTask.recordId}</dd></div><div><dt>Vị trí</dt><dd>{selectedTask.location}</dd></div><div><dt>Ưu tiên</dt><dd>{selectedTask.priorityLabel}</dd></div><div><dt>Thời điểm tạo</dt><dd>{selectedTask.createdAt}</dd></div><div><dt>Hạn SLA</dt><dd>{selectedTask.deadline}</dd></div></dl><p className="context-note">Hồ sơ chỉ đọc. Phân công, đổi trạng thái và nhật ký thực hiện chưa được nối trong lượt này.</p></div>}
+      {selectedTask && <React.Suspense fallback={<div className="dialog-body" role="status">Đang tải hồ sơ công việc…</div>}><WorkOrderWorkspace account={account} client={client} selectedTask={selectedTask} /></React.Suspense>}
       <div className="dialog-actions"><button className="button-secondary" onClick={() => setSelectedTask(null)}>Đóng chi tiết</button></div>
     </Dialog>
-    <Dialog open={logoutOpen} onClose={() => setLogoutOpen(false)} title="Đăng xuất GreenCity?"><div className="dialog-body"><p>Token chỉ tồn tại trong bộ nhớ của phiên hiện tại và sẽ bị xóa khi đăng xuất hoặc tải lại ứng dụng.</p></div><div className="dialog-actions"><button className="button-secondary" onClick={() => setLogoutOpen(false)}>Ở lại</button><button className="button-danger" onClick={onLogout}>Đăng xuất</button></div></Dialog>
+    <Dialog open={logoutOpen} onClose={() => setLogoutOpen(false)} title="Đăng xuất GreenCity?"><div className="dialog-body"><p>Token chỉ tồn tại trong bộ nhớ của phiên hiện tại. Khi đăng xuất, ứng dụng sẽ thử xóa lịch sử trợ lý của tài khoản trên thiết bị này.</p></div><div className="dialog-actions"><button className="button-secondary" onClick={() => setLogoutOpen(false)}>Ở lại</button><button className="button-danger" onClick={onLogout}>Đăng xuất</button></div></Dialog>
     <Dialog open={createRequestOpen} onClose={() => setCreateRequestOpen(false)} title="Tạo yêu cầu dịch vụ" busy={false} wide initialFocusId="service-request-building">
       {createRequestOpen && <CreateServiceRequestForm client={client} onCreated={handleServiceRequestCreated} onClose={() => setCreateRequestOpen(false)} />}
     </Dialog>
     <Toast message={toast.message} type={toast.type} onClose={() => setToast(previous => ({ ...previous, message: '' }))} />
-    <GreenAssistant contextKey={currentTab} historyKey={`${ASSISTANT_STORAGE_KEY}:${account.workspaceKey}`} requestReply={assistantReply} suggestions={['Xem công việc quá hạn', 'Hướng dẫn xem thông báo']} />
+    <GreenAssistant accountId={account.accountId} contextKey={currentTab} historyKey={`${ASSISTANT_STORAGE_KEY}:${account.workspaceKey}`} requestReply={assistantReply} suggestions={['Xem công việc quá hạn', 'Hướng dẫn xem thông báo']} />
   </>;
 }

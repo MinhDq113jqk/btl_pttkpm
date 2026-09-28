@@ -1,0 +1,17 @@
+npm error code EPERM
+npm error syscall unlink
+npm error path C:\Users\LEGION\node_modules\.package-lock.json
+npm error errno -4048
+npm error [Error: EPERM: operation not permitted, unlink 'C:\Users\LEGION\node_modules\.package-lock.json'] {
+npm error   errno: -4048,
+npm error   code: 'EPERM',
+npm error   syscall: 'unlink',
+npm error   path: 'C:\\Users\\LEGION\\node_modules\\.package-lock.json'
+npm error }
+npm error
+npm error The operation was rejected by your operating system.
+npm error It's possible that the file was already in use (by a text editor or antivirus), or that you lack permissions to access it.
+npm error
+npm error If you believe this might be a permissions issue, please double-check the permissions of the file and its containing directories, or try running the command again as root/Administrator.
+npm error Log files were not written due to an error writing to the directory: C:\Users\LEGION\AppData\Local\npm-cache\_logs
+npm error You can rerun the command with `--loglevel=verbose` to see the logs in your terminal

@@ -19,6 +19,7 @@ def _settings() -> Settings:
         app_env="test",
         database_url="postgresql://fixture@db.invalid/fixture",
         secret_key=secrets.token_urlsafe(32),
+        assistant_enabled=True,
     )
 
 
@@ -62,6 +63,43 @@ def test_assistant_chat_requires_login():
     assert response.status_code == 401
     assert response.json()["error"]["code"] == "ERR-UNAUTHORIZED"
     UUID(response.headers["x-correlation-id"])
+    assert response.headers["cache-control"] == "private, no-store"
+
+
+def test_assistant_disabled_does_not_call_provider(monkeypatch):
+    settings = _settings().model_copy(update={"assistant_enabled": False})
+    app = create_app(settings, MagicMock(spec=Database))
+    context = UserContext(
+        account_id=uuid4(), tenant_id=uuid4(), username="assistant-user",
+        full_name="Assistant User", roles=["cskh"], active_site_id=uuid4(),
+        allowed_site_ids=[], unit_grants=(), role_grants=(),
+    )
+    app.dependency_overrides[get_current_user_context] = lambda: context
+    calls = []
+
+    class ShouldNotCallGemini:
+        def generate_content(self, prompt, *, correlation_id):
+            calls.append(prompt)
+            raise AssertionError("disabled assistant reached Gemini")
+
+    monkeypatch.setattr(assistant_api, "GeminiClient", ShouldNotCallGemini)
+    with TestClient(app) as client:
+        response = client.post("/api/v1/assistant/chat", json={"message": "Xin chào"})
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "ERR-ASSISTANT-DISABLED"
+    assert response.headers["cache-control"] == "private, no-store"
+    assert calls == []
+
+
+def test_assistant_enabled_defaults_to_false():
+    settings = Settings(
+        _env_file=None,
+        app_env="test",
+        database_url="postgresql://fixture@db.invalid/fixture",
+        secret_key=secrets.token_urlsafe(32),
+    )
+    assert settings.assistant_enabled is False
 
 
 def test_assistant_chat_uses_server_derived_scope(assistant_case):
@@ -77,6 +115,7 @@ def test_assistant_chat_uses_server_derived_scope(assistant_case):
     assert response.status_code == 200, response.text
     assert response.json() == {"reply": "Câu trả lời từ Gemini"}
     assert response.headers["x-correlation-id"] == correlation_id
+    assert response.headers["cache-control"] == "private, no-store"
     assert len(calls) == 1
     prompt, sent_correlation_id = calls[0]
     assert str(context.tenant_id) in prompt
@@ -102,6 +141,7 @@ def test_assistant_chat_rejects_client_scope_fields(assistant_case):
 
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "ERR-VALIDATION"
+    assert response.headers["cache-control"] == "private, no-store"
     assert calls == []
 
 
@@ -118,3 +158,4 @@ def test_assistant_chat_hides_gemini_failure(assistant_case, monkeypatch):
     assert response.status_code == 503
     assert private_detail not in response.text
     assert response.json()["error"]["message"] == "Trợ lý tạm thời không khả dụng."
+    assert response.headers["cache-control"] == "private, no-store"

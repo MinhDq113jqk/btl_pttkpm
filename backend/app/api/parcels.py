@@ -63,6 +63,7 @@ from app.services.r2 import (
     validate_idempotency_key,
     validate_image_evidence,
 )
+from app.services.private_storage import verified_private_path, write_private_bytes
 
 
 router = APIRouter(tags=["V1 parcels"])
@@ -459,12 +460,7 @@ async def upload_parcel_evidence(
             extension = ".png" if detected_mime == "image/png" else ".jpg"
             storage_key = f"parcel/{parcel.tenant_id}/{parcel.site_id}/{uuid4().hex}{extension}"
             stored_mime = detected_mime
-        root = request.app.state.settings.private_storage_path.resolve()
-        target = (root / storage_key).resolve()
-        if root not in target.parents:
-            raise AppError("ERR-FILE-REJECTED", "Không thể lưu tệp.", 422)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(content)
+        target = write_private_bytes(request.app.state.settings.private_storage_path, storage_key, content)
         try:
             attachment = Attachment(
                 tenant_id=parcel.tenant_id,
@@ -571,9 +567,11 @@ def download_parcel_evidence(
         if attachment is None:
             raise scope_not_found()
         _assert_signed_parcel_attachment_token(request, signed_token, current_user, parcel, attachment)
-        root = request.app.state.settings.private_storage_path.resolve()
-        target = (root / attachment.storage_key).resolve()
-        if not target.is_file() or root not in target.parents:
+        target = verified_private_path(
+            request.app.state.settings.private_storage_path, attachment.storage_key,
+            attachment.sha256, attachment.size_bytes,
+        )
+        if target is None:
             raise scope_not_found()
         audit(
             session, current_user, request, event_type="ParcelAttachmentDownloaded", action="download",

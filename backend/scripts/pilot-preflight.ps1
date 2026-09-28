@@ -33,14 +33,14 @@ try {
     # TLS policy and CORS, and emits only a redacted summary.
     Invoke-PilotPython @('-m', 'scripts.runtime_check')
 
+    if ($SeedDemo) {
+        throw 'SeedDemo is not available from pilot preflight. Use an approved non-production provisioning workflow with unique credentials.'
+    }
     if (-not $SkipMigration) {
         Invoke-PilotPython @('-m', 'scripts.migrate', 'upgrade', 'head')
     }
-    if ($SeedDemo) {
-        Invoke-PilotPython @('-m', 'scripts.seed')
-    }
     if (-not $SkipDbProbe) {
-        Invoke-PilotPython @('-m', 'scripts.db_probe', '--expected-revision', '0015')
+        Invoke-PilotPython @('-m', 'scripts.db_probe', '--expected-revision', '0018')
     }
     Write-Host 'Pilot preflight PASS: configuration, migration and schema readiness checks completed.'
 }

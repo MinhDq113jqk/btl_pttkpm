@@ -88,6 +88,7 @@ const EMPTY_NOTIFICATIONS = [];
 export function NotificationsDesktopView({
   account,
   client,
+  asOf,
   onToast,
   onUnreadChange,
   notifications: fallbackNotifications = EMPTY_NOTIFICATIONS,
@@ -157,12 +158,12 @@ export function NotificationsDesktopView({
     setLoading(true);
     setError(null);
     try {
-      const notifResult = await client.listNotifications({ includeRead: true, signal });
+      const notifResult = await client.listNotifications({ includeRead: true, asOf, signal });
       setNotifications(notifResult.items);
       onUnreadChangeRef.current?.(notifResult.items.filter(item => !item.read_at).length);
       if (canManageOutbox && client.listOutboxEvents) {
         try {
-          const outboxResult = await client.listOutboxEvents({ limit: 50, signal });
+          const outboxResult = await client.listOutboxEvents({ limit: 50, asOf, signal });
           setOutboxEvents(outboxResult.items);
           setOutboxError(null);
         } catch (outboxErr) {
@@ -182,7 +183,7 @@ export function NotificationsDesktopView({
     } finally {
       setLoading(false);
     }
-  }, [canManageOutbox, client, fallbackNotifications, isApiMode]);
+  }, [asOf, canManageOutbox, client, fallbackNotifications, isApiMode]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -341,6 +342,7 @@ export function NotificationsDesktopView({
           <p role="status">
             {unreadCount} thông báo chưa đọc · Trạng thái giao nhận được đồng bộ trực tiếp từ backend R5.
           </p>
+          {asOf && <p className="helper-text" role="note">Danh sách giới hạn bản ghi tạo trước {new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date(asOf))}; trạng thái đọc/giao nhận là trạng thái hiện tại.</p>}
         </div>
         <div className="page-actions">
           <button

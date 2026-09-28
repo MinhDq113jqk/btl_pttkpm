@@ -81,9 +81,9 @@ const METRIC_CONFIG = {
   },
 };
 
-export function ExecutiveDashboardView({ account, client, onToast, onNavigate }) {
+export function ExecutiveDashboardView({ account, client, onToast, onNavigate, initialAsOf, onAsOfChange }) {
   const isApiMode = Boolean(client?.getDashboard && client?.hasSession?.());
-  const [asOf, setAsOf] = useState(() => new Date().toISOString());
+  const [asOf, setAsOf] = useState(() => initialAsOf || new Date().toISOString());
   const [customAsOf, setCustomAsOf] = useState('');
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -112,6 +112,10 @@ export function ExecutiveDashboardView({ account, client, onToast, onNavigate })
   const auditLastActiveElementRef = useRef(null);
   const dashboardRequestRef = useRef(0);
   const auditSearchId = useId();
+
+  useEffect(() => {
+    onAsOfChange?.(asOf);
+  }, [asOf, onAsOfChange]);
 
   const loadDashboard = useCallback(async cutoffToUse => {
     const requestId = dashboardRequestRef.current + 1;

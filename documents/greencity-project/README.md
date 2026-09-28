@@ -1,62 +1,9 @@
 # Hệ thống quản lý vận hành khu đô thị
 
-## Chạy nhanh frontend
-
-```powershell
-cd greencity-app
-npm install
-npm run dev
-```
-
-Mở `http://localhost:5173`. Với checkout sạch, dùng `npm ci` thay cho
-`npm install` để cài đúng `package-lock.json`.
-
-## Chạy backend local
-
-Yêu cầu Python 3.12+ và PostgreSQL đã chạy. Từ thư mục project:
-
-```powershell
-cd backend
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.lock.txt
-Copy-Item .env.example .env
-# Điền DATABASE_URL và SECRET_KEY riêng trong .env; không commit file này.
-.\.venv\Scripts\python.exe -m scripts.migrate upgrade head
-.\.venv\Scripts\python.exe -m scripts.seed
-.\.venv\Scripts\python.exe -m uvicorn app.main:create_app --factory --reload --host 127.0.0.1 --port 8000
-```
-
-Backend Swagger: `http://127.0.0.1:8000/docs`.
-
-## Kiểm thử
-
-Backend unit/contract tests:
-
-```powershell
-cd backend
-.\.venv\Scripts\python.exe -m pytest -q
-```
-
-Full regression trên PostgreSQL cô lập (cần PostgreSQL và OpenSSL local):
-
-```powershell
-cd backend
-.\.venv\Scripts\python.exe scripts\test_isolated.py `
-  --pg-bin "C:\Program Files\PostgreSQL\18\bin" `
-  --openssl "C:\Program Files\Git\usr\bin\openssl.exe"
-```
-
-Frontend tests và production build:
-
-```powershell
-cd greencity-app
-npm ci
-npm test
-npm run build
-```
-
-Các smoke suite theo phân hệ có sẵn dưới dạng `npm run test:<module>` trong
-`package.json` (ví dụ `test:parcel`, `test:resident`, `test:billing`).
+Hướng dẫn cài đặt, cấu hình database local, seed/reset, khởi chạy và kiểm thử
+được duy trì tại [README gốc của repository](../../README.md). Dùng tài liệu đó
+làm nguồn thao tác duy nhất để tránh lệch port hoặc hướng dẫn seed. Demo seed
+bị tắt mặc định; credential phải được cấp ngoài repository.
 
 ## Quy ước repository
 
@@ -68,9 +15,22 @@ Repository `btl_pttkpm` công bố bundle tài liệu dưới
 ## Danh mục tài liệu đặc tả & quản trị
 
 - **`BAO_CAO_DAC_TA_HE_THONG_GREENCITY_HOAN_CHINH.docx`**: Báo cáo tổng hợp đặc tả yêu cầu hệ thống và kiến trúc toàn diện GreenCity (SRS, danh mục Use Case phân cấp động từ chuẩn UML, kiến trúc module, kế hoạch định hướng sản phẩm và ma trận truy vết RTM) đã hoàn thiện qua 5 vòng phản biện học thuật.
-- **`greencity-use-case-srs.html`**: Giao diện trực quan tra cứu chi tiết kịch bản tương tác Use Case.
-- **`greencity-use-case.html`**: Sơ đồ Use Case theo từng phân hệ chức năng.
-- **`greencity-database-schema.html`**: Thiết kế cơ sở dữ liệu vật lý và lược đồ quan hệ thực thể.
-- **`roadmap_v2.md`**: Bản đồ lộ trình phát triển qua các Tranche R1-R7 & V1.
+- **`roadmap_v2.md`**: Nguồn yêu cầu và phạm vi chức năng qua các Tranche R1-R7 & V1.
+- **`roadmap_v3.md`**: Roadmap triển khai bổ sung cho luồng demo và hoàn thiện
+  local; không thay thế roadmap v2.
+- **`FINAL_CODE_SUBMISSION_PLAN.md`**: Kế hoạch cuối để tích hợp `excel-data` và
+  hoàn tất code nộp giáo viên.
+- **`FINAL_CODE_SUBMISSION_20_TASKS.md`**: Checklist thực thi `FCS-01..FCS-20`
+  kèm dependency, DoD và evidence.
+- **`DATA_PROVENANCE.md`**: Hồ sơ nguồn `excel-data`, phân loại local-only và
+  năm quyết định User/Owner còn chờ phê duyệt trước khi tích hợp dữ liệu thật.
+- **`DATA_SOURCE_MANIFEST.json`**: Inventory metadata-only của 12 workbook,
+  gồm hash, cấu trúc sheet và số dòng; không chứa giá trị ô hoặc header gốc.
+- **`FINAL_SUBMISSION_CHECKLIST.md`**: Danh sách test và Final Submission Gate
+  phải chạy trên cùng package candidate trước khi nộp.
+- **`V3-00_TRACEABILITY_MATRIX.md`**: Ma trận menu → UI → API → database → test và bằng chứng triển khai local.
+- **`diagrams/diagram_0_overview.png`**: Sơ đồ tổng quan các luồng nghiệp vụ hiện có.
 - **`governance/phase-1/`**: Bộ tài liệu thẩm định bảo mật, kiểm soát thay đổi và bằng chứng vận hành Phase 1.
-
+- **`phase-3/PHASE_3_IMPLEMENTATION.md`**: Bằng chứng diễn tập triển khai local; chưa phải phê duyệt production hoặc Go/No-Go.
+- **`phase-3/V3-16_PRESENTATION_EVIDENCE.md`**: Checklist trình bày, recovery và
+  output kiểm chứng V3-12..V3-16.

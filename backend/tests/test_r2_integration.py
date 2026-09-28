@@ -388,6 +388,57 @@ def create_work_order(case, request_id: str, suffix: str):
     return response.json()
 
 
+def test_work_order_detail_lists_and_assignee_options_keep_building_scope(r2_case):
+    case = r2_case
+    service_request = create_request(case, "workflow-options")
+    base = f"/api/v1/service-requests/{service_request['id']}"
+
+    cskh_options = case["client"].get(
+        f"{base}/assignees?purpose=triage", headers=case["auth"]["cskh"],
+    )
+    assert cskh_options.status_code == 200, cskh_options.text
+    assert {item["role"] for item in cskh_options.json()} <= {"cskh", "technical_lead"}
+    lead_options = case["client"].get(
+        f"{base}/assignees?purpose=work_order", headers=case["auth"]["lead"],
+    )
+    assert lead_options.status_code == 200, lead_options.text
+    assert all(item["role"] == "technician" for item in lead_options.json())
+    assert any(item["id"] == str(case["accounts"]["tech"].id) for item in lead_options.json())
+    denied_options = case["client"].get(
+        f"{base}/assignees?purpose=work_order", headers=case["auth"]["cskh"],
+    )
+    assert denied_options.status_code == 403
+
+    first = create_work_order(case, service_request["id"], "workflow-options-a")
+    second = create_work_order(case, service_request["id"], "workflow-options-b")
+    work_order_assignees = case["client"].get(
+        f"/api/v1/work-orders/{first['id']}/assignees", headers=case["auth"]["lead"],
+    )
+    assert work_order_assignees.status_code == 200, work_order_assignees.text
+    assert any(item["id"] == str(case["accounts"]["tech"].id) for item in work_order_assignees.json())
+    denied_work_order_assignees = case["client"].get(
+        f"/api/v1/work-orders/{first['id']}/assignees", headers=case["auth"]["cskh"],
+    )
+    assert denied_work_order_assignees.status_code == 403
+    listed = case["client"].get(f"{base}/work-orders", headers=case["auth"]["cskh"])
+    assert listed.status_code == 200, listed.text
+    assert {item["id"] for item in listed.json()} == {first["id"], second["id"]}
+
+    first = assign_and_start(case, first)
+    technician_list = case["client"].get(
+        f"{base}/work-orders", headers=case["auth"]["tech"],
+    )
+    assert technician_list.status_code == 200, technician_list.text
+    assert [item["id"] for item in technician_list.json()] == [first["id"]]
+
+    evidence = upload_evidence(case, first["id"], "workflow-options")
+    evidence_list = case["client"].get(
+        f"/api/v1/work-orders/{first['id']}/evidence", headers=case["auth"]["tech"],
+    )
+    assert evidence_list.status_code == 200, evidence_list.text
+    assert [item["id"] for item in evidence_list.json()] == [evidence["id"]]
+
+
 def assign_and_start(case, work_order: dict, *, technician="tech"):
     response = case["client"].post(
         f"/api/v1/work-orders/{work_order['id']}/assign",
@@ -454,7 +505,7 @@ def submit_work_order(case, work_order: dict, *, technician="tech"):
 def test_r2_readiness_reports_migrated_head(r2_case):
     response = r2_case["client"].get("/api/v1/readiness")
     assert response.status_code == 200
-    assert response.json()["schema_revision"] == "0015"
+    assert response.json()["schema_revision"] == "0018"
 
 
 def test_r2_request_idempotency_and_scope_are_enforced(r2_case):
@@ -938,6 +989,12 @@ def test_ac08_ac09_ac10_charge_sod_audit_and_reversal(r2_case):
     )
     assert management.status_code == 201, management.text
     assert management.json()["pending_charge_id"] is None
+    cost_lines = case["client"].get(
+        f"/api/v1/work-orders/{work_order['id']}/cost-lines",
+        headers=case["auth"]["maker"],
+    )
+    assert cost_lines.status_code == 200, cost_lines.text
+    assert {item["id"] for item in cost_lines.json()} == {resident.json()["id"], management.json()["id"]}
 
     self_approval = case["client"].post(
         f"/api/v1/pending-charges/{charge_id}/decision",
@@ -1023,6 +1080,11 @@ def test_ac08_ac09_ac10_charge_sod_audit_and_reversal(r2_case):
 def test_ac38_ac39_scheduler_and_maintenance_completion(r2_case):
     case = r2_case
     due_at = datetime.now(UTC) - timedelta(days=1)
+    buildings = case["client"].get("/api/v1/maintenance/buildings", headers=case["auth"]["lead"])
+    assert buildings.status_code == 200, buildings.text
+    assert any(item["id"] == str(case["buildings"][0].id) for item in buildings.json())
+    denied_buildings = case["client"].get("/api/v1/maintenance/buildings", headers=case["auth"]["cskh"])
+    assert denied_buildings.status_code == 403
     asset_response = case["client"].post(
         "/api/v1/assets",
         headers=with_key(case, "lead", "asset-ac38-0001"),
@@ -1036,6 +1098,12 @@ def test_ac38_ac39_scheduler_and_maintenance_completion(r2_case):
     )
     assert asset_response.status_code == 201, asset_response.text
     asset = asset_response.json()
+    assets = case["client"].get(
+        f"/api/v1/maintenance/assets?building_id={case['buildings'][0].id}",
+        headers=case["auth"]["lead"],
+    )
+    assert assets.status_code == 200, assets.text
+    assert any(item["id"] == asset["id"] for item in assets.json())
     plan_response = case["client"].post(
         "/api/v1/maintenance-plans",
         headers=with_key(case, "lead", "plan-ac38-00001"),
@@ -1051,6 +1119,11 @@ def test_ac38_ac39_scheduler_and_maintenance_completion(r2_case):
     )
     assert plan_response.status_code == 201, plan_response.text
     plan = plan_response.json()
+    plans = case["client"].get(
+        f"/api/v1/maintenance/assets/{asset['id']}/plans", headers=case["auth"]["lead"],
+    )
+    assert plans.status_code == 200, plans.text
+    assert [item["id"] for item in plans.json()] == [plan["id"]]
     as_of = datetime.now(UTC)
     first = case["client"].post(
         "/api/v1/maintenance/scheduler/run",
@@ -1077,6 +1150,13 @@ def test_ac38_ac39_scheduler_and_maintenance_completion(r2_case):
     assert existing.json()["items"][0]["occurrence_id"] == created["occurrence_id"]
     assert existing.json()["items"][0]["work_order_id"] == created["work_order_id"]
     assert existing.json()["items"][0]["replayed"] is True
+    occurrences = case["client"].get(
+        f"/api/v1/maintenance/occurrences?building_id={case['buildings'][0].id}",
+        headers=case["auth"]["lead"],
+    )
+    assert occurrences.status_code == 200, occurrences.text
+    assert any(item["id"] == created["occurrence_id"] and item["work_order_id"] == created["work_order_id"]
+               for item in occurrences.json()["items"])
     with case["database"].get_session() as session:
         assert session.scalar(select(func.count(MaintenanceOccurrence.id)).where(
             MaintenanceOccurrence.plan_id == plan["id"],
@@ -1090,6 +1170,11 @@ def test_ac38_ac39_scheduler_and_maintenance_completion(r2_case):
         headers=case["auth"]["lead"],
     ).json()
     work_order = assign_and_start(case, work_order)
+    assigned = case["client"].get(
+        "/api/v1/maintenance/assigned-work-orders", headers=case["auth"]["tech"],
+    )
+    assert assigned.status_code == 200, assigned.text
+    assert [item["id"] for item in assigned.json()] == [work_order["id"]]
     while_in_progress = case["client"].post(
         "/api/v1/maintenance/scheduler/run",
         headers=with_key(case, "lead", "scheduler-ac38-03"),
@@ -1121,6 +1206,11 @@ def test_ac38_ac39_scheduler_and_maintenance_completion(r2_case):
     )
     assert completed.status_code == 200, completed.text
     assert completed.json()["status"] == "COMPLETED"
+    history = case["client"].get(
+        f"/api/v1/assets/{asset['id']}/maintenance-history", headers=case["auth"]["lead"],
+    )
+    assert history.status_code == 200, history.text
+    assert len(history.json()["items"]) == 1
     with case["database"].get_session() as session:
         occurrence = session.get(MaintenanceOccurrence, created["occurrence_id"])
         updated_plan = session.get(MaintenancePlan, plan["id"])

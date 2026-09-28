@@ -11,10 +11,9 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.config import Settings
 from app.core.database import Database
-from app.core.security import hash_password
-from app.models.account import Account
 from app.models.person import Person
 from app.models.tenant import Tenant
+from scripts.migration_fixtures import add_legacy_account
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -76,30 +75,33 @@ def main() -> int:
                                     phone_masked="***", email_masked="***@example.invalid")
             session.add_all((person, foreign_person))
             session.flush()
-            account = Account(tenant_id=tenant.id, username=f"resident_{uuid4().hex}",
-                              full_name="Resident fixture", hashed_password=hash_password("migration-only"),
-                              person_id=person.id)
-            session.add(account)
+            account_id = add_legacy_account(
+                session, tenant_id=tenant.id, username=f"resident_{uuid4().hex}",
+                full_name="Resident fixture", person_id=person.id,
+            )
             session.commit()
-            account_id, person_id, foreign_person_id = account.id, person.id, foreign_person.id
+            person_id, foreign_person_id = person.id, foreign_person.id
 
         with database.get_session() as session:
-            account = session.get(Account, account_id)
-            account.person_id = foreign_person_id
             try:
-                session.flush()
+                session.execute(text(
+                    "UPDATE greencity.accounts SET person_id = :person_id WHERE id = :account_id"
+                ), {"person_id": foreign_person_id, "account_id": account_id})
+                session.commit()
             except IntegrityError:
                 session.rollback()
             else:
                 raise RuntimeError("0012 allowed an Account to link a foreign-tenant Person")
 
         with database.get_session() as session:
-            duplicate = Account(tenant_id=session.get(Account, account_id).tenant_id,
-                                username=f"duplicate_{uuid4().hex}", full_name="Duplicate fixture",
-                                hashed_password=hash_password("migration-only"), person_id=person_id)
-            session.add(duplicate)
+            tenant_id = session.scalar(text(
+                "SELECT tenant_id FROM greencity.accounts WHERE id = :account_id"
+            ), {"account_id": account_id})
             try:
-                session.flush()
+                add_legacy_account(session, tenant_id=tenant_id,
+                                   username=f"duplicate_{uuid4().hex}",
+                                   full_name="Duplicate fixture", person_id=person_id)
+                session.commit()
             except IntegrityError:
                 session.rollback()
             else:
@@ -110,7 +112,9 @@ def main() -> int:
             if revision(connection) != "0012":
                 raise RuntimeError("Rejected resident-identity downgrade changed the active revision")
         with database.get_session() as session:
-            session.get(Account, account_id).person_id = None
+            session.execute(text(
+                "UPDATE greencity.accounts SET person_id = NULL WHERE id = :account_id"
+            ), {"account_id": account_id})
             session.commit()
         migrate("downgrade", "0011")
         with database.engine.connect() as connection:

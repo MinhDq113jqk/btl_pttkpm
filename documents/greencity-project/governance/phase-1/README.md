@@ -1,7 +1,6 @@
 # Phase 1 — Baseline và release governance
 
-Gói này triển khai các artefact của Phase 1 theo
-`C:\Users\LEGION\btl\documents\greencity-project\5phase.md`.
+Gói này triển khai các artefact của Phase 1 cho GreenCity.
 
 | Hạng mục | Artefact | Trạng thái tại 2026-09-22 |
 | --- | --- | --- |
@@ -9,7 +8,7 @@ Gói này triển khai các artefact của Phase 1 theo
 | OR-02 | [Inventory, data flow, third-party register, RACI](SYSTEM_AND_DATA_INVENTORY.md) | Có bản dự thảo; owner theo vai trò cần xác nhận |
 | OR-03 | [Threat model và risk register](THREAT_MODEL_AND_RISK_REGISTER.md) | Có năm finding; chưa finding nào được chấp nhận rủi ro |
 | OR-03 | [Dự thảo policy](SECURITY_POLICY_DRAFT.md) | Chờ PO + Security phê duyệt trước khi công bố `SECURITY.md` ở gốc repo |
-| OR-04 | `.github/workflows/quality-security.yml` | Đã cấu hình; cần một run GitHub từ clean clone |
+| OR-04 | `.github/workflows/quality-security.yml` | Đã cấu hình; hai run GitHub đều fail ở backend regression, cần sửa và có run clean-clone green |
 | OR-05 | [Change control](RELEASE_CHANGE_CONTROL.md) và `.github/workflows/release-evidence.yml` | Đã cấu hình; không tạo tag/release tự động |
 
 Xem [evidence pack](PHASE_1_EVIDENCE_PACK.md) để biết phần nào đã được chạy

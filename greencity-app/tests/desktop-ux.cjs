@@ -28,7 +28,8 @@ fs.mkdirSync(output, { recursive: true });
     check('sort direction toggles from keyboard-reachable control', await page.getByRole('columnheader', { name: /SLA/ }).getAttribute('aria-sort') === 'descending');
 
     await page.getByRole('button', { name: 'Mở yêu cầu SR-UX-001' }).click();
-    check('read-only detail shows record id and SLA', await page.getByRole('dialog', { name: 'SR-UX-001' }).getByText('ID hồ sơ', { exact: true }).isVisible() && await page.getByRole('dialog', { name: 'SR-UX-001' }).getByText('Hạn SLA', { exact: true }).isVisible());
+    await page.getByRole('dialog', { name: 'SR-UX-001' }).getByText('Phiên bản', { exact: true }).waitFor();
+    check('request detail loads persisted request version and SLA workflow', await page.getByRole('dialog', { name: 'SR-UX-001' }).getByText('Phiên bản', { exact: true }).isVisible() && await page.getByRole('dialog', { name: 'SR-UX-001' }).getByText('Hạn SLA', { exact: true }).isVisible());
     await page.getByRole('button', { name: 'Đóng chi tiết' }).click();
 
     await page.getByRole('button', { name: 'Tìm kiếm công việc và phân hệ' }).click();
@@ -37,8 +38,10 @@ fs.mkdirSync(output, { recursive: true });
     await page.keyboard.press('Escape');
 
     await page.goto(`${process.env.UX_BASE_URL || 'http://127.0.0.1:3000/'}#/refund-form`);
-    await page.getByRole('heading', { name: 'Không có quyền xem phân hệ này' }).waitFor();
-    check('deep link cannot mount a hidden mock operation', await page.locator('.refund-page').count() === 0);
+    await page.waitForFunction(() => window.location.hash === '#/overview');
+    check('deep link to unsupported refund page returns to Overview without a false permission error', await page.getByRole('button', { name: 'Tổng quan' }).getAttribute('aria-current') === 'page'
+      && await page.getByRole('heading', { name: 'Không có quyền xem phân hệ này' }).count() === 0
+      && await page.locator('.refund-page').count() === 0);
 
     for (const [width, height] of [[1440, 900], [1024, 768], [800, 600]]) {
       await page.setViewportSize({ width, height });

@@ -1,0 +1,5 @@
+GreenCity frontend active-source scan
+UTC: 2026-09-25T11:44:59.0913696Z
+PASS legacy prototype/fake metric scan: no matches in active src
+PASS debug/TODO scan: no matches in active src
+PASS secret/provider-key scan: no matches in frontend source

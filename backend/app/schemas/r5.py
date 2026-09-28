@@ -26,6 +26,7 @@ class NotificationView(ApiModel):
 
 class NotificationListResponse(BaseModel):
     items: list[NotificationView]
+    as_of: datetime | None = None
 
 
 class OutboxEventView(ApiModel):
@@ -44,6 +45,7 @@ class OutboxEventView(ApiModel):
 
 class OutboxEventListResponse(BaseModel):
     items: list[OutboxEventView]
+    as_of: datetime | None = None
 
 
 class AuditEventView(ApiModel):

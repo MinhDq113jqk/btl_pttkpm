@@ -60,7 +60,7 @@ Signed token được kiểm tra lại tenant/site/account/parcel/attachment và
 ## Lệnh kiểm chứng authoritative
 
 ```powershell
-cd C:\Users\LEGION\btl\_pttkpm\backend
+cd .\backend
 .\.venv\Scripts\python.exe -m scripts.test_isolated `
   --pg-bin "C:\Program Files\PostgreSQL\18\bin" `
   --openssl "C:\Program Files\Git\usr\bin\openssl.exe"

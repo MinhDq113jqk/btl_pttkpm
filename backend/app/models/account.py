@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import Boolean, CheckConstraint, ForeignKey, ForeignKeyConstraint, Index, String, UniqueConstraint, Uuid
+from sqlalchemy import Boolean, CheckConstraint, ForeignKey, ForeignKeyConstraint, Index, Integer, String, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, IdentityTimestampMixin
@@ -18,6 +18,7 @@ class Account(IdentityTimestampMixin, Base):
         ),
         Index("ix_greencity_accounts_tenant_id", "tenant_id"),
         Index("ix_greencity_accounts_person_id", "person_id"),
+        CheckConstraint("session_version >= 1", name="accounts_session_version_positive"),
     )
 
     tenant_id: Mapped[UUID] = mapped_column(ForeignKey("greencity.tenants.id", ondelete="CASCADE"), nullable=False)
@@ -25,6 +26,8 @@ class Account(IdentityTimestampMixin, Base):
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[str] = mapped_column(String(200), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    session_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    must_change_password: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     # A resident identity is assigned by a trusted back-office path, never by a
     # login request or token claim.  The composite FK keeps it in this tenant.
     person_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True)

@@ -1,0 +1,67 @@
+
+> greencity-app@1.0.0 test
+> node --test tests/logic.test.js tests/assistant.test.js tests/staff.test.js tests/frontend-integration.test.js tests/runtime-config.test.js
+
+✔ new chat does not create duplicate empty conversations (4.2953ms)
+✔ clear replaces the complete assistant state (0.501ms)
+✔ send creates distinct user/pending assistant messages and clears draft (0.2387ms)
+✔ another send is ignored while this conversation is pending (0.2532ms)
+✔ new conversation retains old messages and draft (0.2388ms)
+✔ late response updates only its original conversation (0.2131ms)
+✔ retry replaces failed reply state without duplicating question (0.1949ms)
+✔ reload converts in-flight replies to recoverable errors (0.5084ms)
+✔ storage round trip preserves conversations and drafts (0.9207ms)
+✔ malformed history is rejected, not silently overwritten (0.5103ms)
+✔ storage read/write failures propagate for visible recovery feedback (0.1731ms)
+✔ history deletion removes one site key only (0.1457ms)
+✔ account logout clears every site key without touching another account and broadcasts the clear (0.4164ms)
+✔ out-of-range dates in saved history do not reach the renderer (0.2901ms)
+✔ Enter sends, Shift+Enter and composing Enter do not (0.3245ms)
+✔ assistant adapter sends only the question and AbortSignal to the authenticated client (0.4537ms)
+✔ API client performs login then /auth/me and keeps the issued token in memory (59.3143ms)
+✔ assistant client posts only the message with the authenticated session and correlation ID (2.5782ms)
+✔ assistant client rejects malformed backend replies (1.0568ms)
+✔ service-request query is allow-listed and Authorization is attached (2.5538ms)
+✔ parcel client keeps scope server-owned and sends stable command contracts (3.8821ms)
+✔ parcel linkage and evidence client keep private file and audit requests scoped (1.8005ms)
+✔ parcel evidence view replays signed-link with Bearer and omits blank optional incident reason (2.5668ms)
+✔ CSKH form choices and create payload stay scoped to server-issued resources (2.2155ms)
+✔ Unit 360 sends only the Unit ID path and validates the response contract (1.8338ms)
+✔ Unit 360 hidden projection keeps an explicit empty residents list (1.6495ms)
+✔ 401 clears the in-memory session and notifies the app (1.4439ms)
+✔ logout revokes the current server session before clearing the in-memory token (1.2446ms)
+✔ password change sends only current/new password and clears the revoked token (3.0713ms)
+✔ site switch sends only site_id, installs the new token, then trusts /auth/me (1.6741ms)
+✔ a 401 response from the previous site cannot clear the switched session (1.3602ms)
+✔ scope and network failures keep actionable structured errors (1.2203ms)
+✔ cleaning client uses only server-owned route, building and task identifiers (6.7767ms)
+✔ security client keeps scope server-owned across shift, patrol and incident commands (3.1622ms)
+✔ account menus are derived only from roles returned by /auth/me (0.8906ms)
+✔ service-request adapter exposes the fields needed by the read-only table (23.598ms)
+✔ notifications API client lists notifications and marks read with schema assertion (2.1272ms)
+✔ outbox API client lists events and retries with Idempotency-Key (AC-22, AC-36) (1.9403ms)
+✔ AC-36: lost response retains Idempotency-Key on retry and does not report false success (1.4952ms)
+✔ role visibility: outbox management is restricted to admin and director (3.7525ms)
+✔ dashboard API client fetches KPI snapshot with as_of and validates schema (AC-25) (1.4332ms)
+✔ dashboard drill-down API client fetches source items for KPI reconciliation (AC-25) (0.8743ms)
+✔ audit events API client lists events and supports correlation filtering (0.6454ms)
+✔ AC-25 / AC-45: API error does not silently fallback to mock and propagates structured error with correlationId (2.1603ms)
+✔ role visibility: executive dashboard is restricted to admin and director, audit events to admin, director and accountant (0.3792ms)
+✔ resident API client keeps scope identifiers server-owned and reuses one as_of snapshot (3.2075ms)
+✔ role menus expose only implemented staff pages and unsupported legacy tabs stay hidden (0.9718ms)
+✔ Unit CSV import/export client keeps scope server-owned and reuses signed downloads (5.6208ms)
+✔ search normalization ignores Vietnamese accents, case and surrounding spaces (1.2588ms)
+✔ frontend API base URL keeps same-origin proxy as the safe default (1.1038ms)
+✔ Vite proxy target is configurable but restricted to http(s) (0.4878ms)
+✔ workspace menu is derived from the server roles for all supported roles (4.5238ms)
+✔ unrecognized and client-supplied menu values never grant extra pages (0.3447ms)
+✔ only supported workspace hashes resolve to a tab (0.2503ms)
+✔ assistant history storage is separated by account (3.4395ms)
+ℹ tests 55
+ℹ suites 0
+ℹ pass 55
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1098.9347

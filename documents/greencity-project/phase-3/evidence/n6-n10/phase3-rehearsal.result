@@ -1,0 +1,7 @@
+date=2026-09-25
+status=PASS
+migrations=upgrade_rollback_reupgrade_drift_pass
+runtime_role=dml_pass_ddl_denied
+database_restore=tables_61_rows_2_checksum_pass
+private_evidence_restore=objects_2_checksum_pass_path_isolation_pass
+container_restore=NOT_RUN_docker_engine_blocked

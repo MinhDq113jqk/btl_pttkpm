@@ -1,3 +1,6 @@
+import os
+import re
+
 from alembic import context
 from sqlalchemy import inspect
 
@@ -28,6 +31,11 @@ else:
     database = Database(Settings())
     try:
         with database.engine.connect() as connection:
+            migration_role = os.getenv("MIGRATION_ROLE", "").strip()
+            if migration_role:
+                if re.fullmatch(r"[a-z_][a-z0-9_]{0,62}", migration_role) is None:
+                    raise RuntimeError("MIGRATION_ROLE contains invalid characters")
+                connection.exec_driver_sql(f'SET ROLE "{migration_role}"')
             # Version table needs its namespace before Alembic can initialize.
             # CREATE SCHEMA is transactional and belongs to the migration runner.
             if SCHEMA not in inspect(connection).get_schema_names():
@@ -39,6 +47,11 @@ else:
             else:
                 # Inspection starts a transaction; finish it before Alembic owns one.
                 connection.rollback()
+            if migration_role:
+                connection.exec_driver_sql(f'SET ROLE "{migration_role}"')
+                # Finish the transaction opened by SET ROLE so Alembic can
+                # own and commit its migration transaction on this connection.
+                connection.commit()
             configure(connection=connection)
             with context.begin_transaction():
                 context.run_migrations()

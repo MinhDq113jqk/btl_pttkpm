@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 from datetime import date
+from datetime import UTC, datetime
+import time
 from uuid import UUID
 
 from fastapi import Header, Request
@@ -9,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.exceptions import AppError
 from app.core.security import decode_token
 from app.models.account import Account, AccountRole
+from app.models.auth_session import AuthSession
 from app.models.building import Building
 from app.models.enums import RoleEnum
 from app.models.person import UnitPersonRelationship
@@ -21,6 +24,9 @@ SITE_WIDE_UNIT_ROLES = frozenset({"admin", "director", "accountant"})
 BUILDING_UNIT_ROLES = frozenset({"cskh", "technical_lead", "security"})
 RESIDENT_READ_ROLES = frozenset({"admin", "director", "cskh", "accountant"})
 RESIDENT_ROLE = RoleEnum.RESIDENT.value
+PASSWORD_CHANGE_ALLOWED_ROUTES = frozenset({
+    "/auth/me", "/auth/change-password", "/auth/logout",
+})
 
 
 @dataclass(frozen=True)
@@ -47,6 +53,7 @@ class UserContext:
     role_grants: tuple[UnitGrant, ...] = ()
     resident_person_id: UUID | None = None
     resident_unit_ids: tuple[UUID, ...] = ()
+    must_change_password: bool = False
 
     def is_admin(self) -> bool:
         return "admin" in self.roles
@@ -194,6 +201,7 @@ def context_for_account(session: Session, account: Account,
         role_grants=role_grants,
         resident_person_id=account.person_id if resident_unit_ids else None,
         resident_unit_ids=resident_unit_ids,
+        must_change_password=account.must_change_password,
     )
 
 
@@ -209,14 +217,42 @@ def get_current_user_context(
     # sessions.  A URL token must never become a temporary bearer credential.
     if claims.get("purpose") != "session":
         raise AppError("ERR-UNAUTHORIZED", "Token không hợp lệ", 401)
+    session_id = claims.get("sid")
+    session_version = claims.get("sv")
+    issued_at = claims.get("iat")
+    if (not isinstance(session_id, str) or type(session_version) is not int or session_version < 1
+            or type(issued_at) is not int or issued_at > time.time() + 60):
+        raise AppError("ERR-UNAUTHORIZED", "Token không hợp lệ", 401)
+    try:
+        session_id = UUID(session_id)
+    except ValueError:
+        raise AppError("ERR-UNAUTHORIZED", "Token không hợp lệ", 401) from None
     # decode_token validates claim types; role and tenant claims are never trusted.
     with request.app.state.database.get_session() as session:
         account = session.scalar(select(Account).where(
             Account.id == UUID(claims["sub"]), Account.is_active.is_(True),
         ))
-        if account is None:
+        now = datetime.now(UTC)
+        auth_session = session.scalar(select(AuthSession).where(
+            AuthSession.id == session_id,
+            AuthSession.account_id == UUID(claims["sub"]),
+            AuthSession.session_version == session_version,
+            AuthSession.revoked_at.is_(None),
+            AuthSession.expires_at > now,
+        ))
+        if account is None or account.session_version != session_version or auth_session is None:
             raise AppError("ERR-UNAUTHORIZED", "Tài khoản không tồn tại hoặc đã bị khóa", 401)
         active_site_id = UUID(claims["active_site_id"]) if claims.get("active_site_id") else None
         context = context_for_account(session, account, active_site_id)
+        route_path = getattr(request.scope.get("route"), "path", request.url.path)
+        if route_path.startswith("/api/v1/"):
+            route_path = route_path[len("/api/v1"):]
+        if context.must_change_password and route_path not in PASSWORD_CHANGE_ALLOWED_ROUTES:
+            raise AppError(
+                "ERR-PASSWORD-CHANGE-REQUIRED",
+                "Hãy đổi mật khẩu trước khi tiếp tục sử dụng GreenCity.",
+                403,
+            )
+        request.state.auth_session_id = auth_session.id
     request.state.user_id = str(context.account_id)
     return context

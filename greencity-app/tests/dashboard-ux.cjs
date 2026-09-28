@@ -21,6 +21,8 @@ fs.mkdirSync(output, { recursive: true });
   let shouldFailDashboard = false;
   let shouldLoseDashboardConnection = false;
   const dashboardRequests = [];
+  const notificationRequests = [];
+  const outboxRequests = [];
   const cutoff = '2026-09-15T02:00:00Z';
   const incidentId = randomUUID();
   const bldgId = randomUUID();
@@ -46,8 +48,14 @@ fs.mkdirSync(output, { recursive: true });
       });
     }
     if (url.pathname.endsWith('/service-requests')) return respond({ items: [], page: 1, page_size: 20, total: 0 });
-    if (url.pathname.endsWith('/notifications')) return respond({ items: [] });
-    if (url.pathname.endsWith('/outbox/events')) return respond({ items: [] });
+    if (url.pathname.endsWith('/notifications')) {
+      notificationRequests.push(url);
+      return respond({ items: [], as_of: url.searchParams.get('as_of') });
+    }
+    if (url.pathname.endsWith('/outbox/events')) {
+      outboxRequests.push(url);
+      return respond({ items: [], as_of: url.searchParams.get('as_of') });
+    }
 
     // Dashboard endpoint
     if (url.pathname.endsWith('/dashboard')) {
@@ -167,6 +175,16 @@ fs.mkdirSync(output, { recursive: true });
     await page.waitForTimeout(250);
     check('Changing cutoff issues exactly one fresh dashboard request', dashboardRequests.length === dashboardCountBeforeCutoffChange + 1);
     const selectedCutoff = dashboardRequests.at(-1).searchParams.get('as_of');
+    await page.getByRole('navigation', { name: 'Điều hướng chính' }).getByRole('button', { name: 'Thông báo', exact: true }).click();
+    await page.getByRole('heading', { name: 'Thông báo', exact: true }).waitFor();
+    await page.getByText(/Danh sách giới hạn bản ghi tạo trước/).waitFor();
+    const snapshotNotifications = notificationRequests.filter(url => url.searchParams.get('as_of') === selectedCutoff);
+    const snapshotOutbox = outboxRequests.filter(url => url.searchParams.get('as_of') === selectedCutoff);
+    check('Inbox and Outbox use the same shared dashboard as_of cutoff', snapshotNotifications.length > 0
+      && snapshotNotifications.every(url => url.searchParams.get('as_of') === selectedCutoff)
+      && snapshotOutbox.length > 0 && snapshotOutbox.every(url => url.searchParams.get('as_of') === selectedCutoff));
+    await page.getByRole('navigation', { name: 'Điều hướng chính' }).getByRole('button', { name: 'Tổng quan', exact: true }).click();
+    await page.locator('.executive-dashboard').waitFor();
 
     await page.screenshot({ path: path.join(output, 'director-kpi-dashboard.png'), fullPage: true });
 

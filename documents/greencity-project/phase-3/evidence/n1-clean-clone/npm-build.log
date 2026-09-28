@@ -1,0 +1,19 @@
+
+> greencity-app@1.0.0 build
+> vite build --configLoader runner
+
+vite v6.4.3 building for production...
+transforming...
+✓ 1625 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                    0.77 kB │ gzip:   0.52 kB
+dist/assets/MaintenanceDesktopView-BVSGxUed.css    5.30 kB │ gzip:   1.41 kB
+dist/assets/ImportRunsView-CPjOr-W5.css            5.67 kB │ gzip:   1.58 kB
+dist/assets/WorkOrderWorkspace-CasjOMGx.css        5.93 kB │ gzip:   1.67 kB
+dist/assets/index-BDSQKZM-.css                   114.60 kB │ gzip:  21.56 kB
+dist/assets/ImportRunsView-6f63lyxZ.js            14.17 kB │ gzip:   4.82 kB
+dist/assets/MaintenanceDesktopView-DPG3UE3G.js    14.60 kB │ gzip:   4.63 kB
+dist/assets/WorkOrderWorkspace-Bmwa0k4U.js        15.74 kB │ gzip:   4.81 kB
+dist/assets/index-CcqR5_1b.js                    490.14 kB │ gzip: 125.05 kB
+✓ built in 32.08s

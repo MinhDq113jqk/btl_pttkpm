@@ -24,6 +24,20 @@
 Warnings backend là deprecation từ FastAPI/Starlette TestClient; không bị ghi
 nhận là skip hoặc pass của security gate.
 
+## Kết quả CI GitHub
+
+| Trường | Kết quả xác minh |
+| --- | --- |
+| Commit có Phase 1 | `b1e79f583f4ee64649d521612338d3cd3386409c`; latest `main` kiểm tra lại tại `02463704b3d068defa8702c3361919e00f6b3fb6` |
+| Workflow | [run 35731246282](https://github.com/MinhDq113jqk/btl_pttkpm/actions/runs/35731246282) và [run 35732574279](https://github.com/MinhDq113jqk/btl_pttkpm/actions/runs/35732574279) |
+| Trạng thái | Cả hai run đều `failure`; đây chưa phải bằng chứng CI green cần cho Exit Phase 1 |
+| Job PASS | Secret scan, Dependency audit, Frontend tests and build trong cả hai run |
+| Job FAIL | Backend migration and regression; bước `Run migration and isolated regression` fail trong cả hai run; run đầu kết thúc lỗi sau khoảng 32 giây |
+
+Regression cô lập cùng checkout chạy local đã PASS `262 passed, 2 warnings`.
+Log step chi tiết trên GitHub yêu cầu quyền repository admin; vì vậy nguyên nhân
+Linux cụ thể chưa được khẳng định và không được suy diễn từ kết quả Windows.
+
 ## Evidence được tạo trong repository
 
 | OR | Evidence |
@@ -38,8 +52,8 @@ nhận là skip hoặc pass của security gate.
 
 1. PO + Tech Lead ký DEC-P1-01..04.
 2. PO + Security phê duyệt policy draft để công bố root `SECURITY.md`.
-3. Workflow quality/security có một run GitHub green từ clean clone, gồm secret
-   scan và dependency audit.
+3. Sửa lỗi backend regression của run GitHub hiện tại, rồi có một run GitHub
+   green từ clean clone gồm secret scan và dependency audit.
 4. Release Owner dispatch thủ công workflow trong `release-candidate` đã được
    bảo vệ, dùng annotated candidate tag `vX.Y.Z` và link change record HTTPS;
    workflow phải tạo evidence artifact có digest/SBOM. Việc này không đồng nghĩa

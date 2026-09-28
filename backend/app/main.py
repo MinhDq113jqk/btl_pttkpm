@@ -76,5 +76,21 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
                        allow_credentials=False, allow_methods=["GET", "POST", "PATCH"],
                        allow_headers=["Authorization", "Content-Type", "Idempotency-Key",
                                       "X-Correlation-ID", "X-File-Name"],
-                       expose_headers=["X-Correlation-ID"])
+                       expose_headers=["X-Correlation-ID", "Retry-After"])
+
+    # Outer scoped middleware also sees the safe 500 response from the
+    # correlation layer when an auth or assistant handler fails unexpectedly.
+    @app.middleware("http")
+    async def private_api_response_headers(request, call_next):
+        response = await call_next(request)
+        path = request.url.path
+        if (path == "/api/v1/auth" or path.startswith("/api/v1/auth/")
+                or path == "/api/v1/assistant" or path.startswith("/api/v1/assistant/")):
+            response.headers["Cache-Control"] = "private, no-store"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+            response.headers["X-Content-Type-Options"] = "nosniff"
+            response.headers["Referrer-Policy"] = "no-referrer"
+        return response
+
     return app

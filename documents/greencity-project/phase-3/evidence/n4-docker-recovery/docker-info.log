@@ -1,0 +1,57 @@
+WARNING: Error loading config file: open C:\Users\LEGION\.docker\config.json: Access is denied.
+Client:
+WARNING: Plugin "C:\\Program Files\\Docker\\cli-plugins\\docker-ai.exe" is not valid: failed to fetch metadata: exit status 1
+failed to connect to the docker API at npipe:////./pipe/docker_engine; check if the path is correct and if the daemon is running: open //./pipe/docker_engine: The system cannot find the file specified.
+ Version:    29.1.3
+ Context:    default
+ Debug Mode: false
+ Plugins:
+  buildx: Docker Buildx (Docker Inc.)
+    Version:  v0.30.1-desktop.1
+    Path:     C:\Program Files\Docker\cli-plugins\docker-buildx.exe
+  compose: Docker Compose (Docker Inc.)
+    Version:  v2.40.3-desktop.1
+    Path:     C:\Program Files\Docker\cli-plugins\docker-compose.exe
+  debug: Get a shell into any image or container (Docker Inc.)
+    Version:  0.0.45
+    Path:     C:\Program Files\Docker\cli-plugins\docker-debug.exe
+  desktop: Docker Desktop commands (Docker Inc.)
+    Version:  v0.2.0
+    Path:     C:\Program Files\Docker\cli-plugins\docker-desktop.exe
+  extension: Manages Docker extensions (Docker Inc.)
+    Version:  v0.2.31
+    Path:     C:\Program Files\Docker\cli-plugins\docker-extension.exe
+  init: Creates Docker-related starter files for your project (Docker Inc.)
+    Version:  v1.4.0
+    Path:     C:\Program Files\Docker\cli-plugins\docker-init.exe
+  mcp: Docker MCP Plugin (Docker Inc.)
+    Version:  v0.34.0
+    Path:     C:\Program Files\Docker\cli-plugins\docker-mcp.exe
+  model: Docker Model Runner (Docker Inc.)
+    Version:  v1.0.2
+    Path:     C:\Program Files\Docker\cli-plugins\docker-model.exe
+  offload: Docker Offload (Docker Inc.)
+    Version:  v0.5.33
+    Path:     C:\Program Files\Docker\cli-plugins\docker-offload.exe
+  pass: Docker Pass Secrets Manager Plugin (beta) (Docker Inc.)
+    Version:  v0.0.21
+    Path:     C:\Program Files\Docker\cli-plugins\docker-pass.exe
+  sandbox: Docker Sandbox (Docker Inc.)
+    Version:  v0.6.0
+    Path:     C:\Program Files\Docker\cli-plugins\docker-sandbox.exe
+  sbom: View the packaged-based Software Bill Of Materials (SBOM) for an image (Anchore Inc.)
+    Version:  0.6.0
+    Path:     C:\Program Files\Docker\cli-plugins\docker-sbom.exe
+  scout: Docker Scout (Docker Inc.)
+    Version:  v1.18.3
+    Path:     C:\Program Files\Docker\cli-plugins\docker-scout.exe
+
+Server:
+WARNING: Error loading config file: open C:\Users\LEGION\.docker\config.json: Access is denied.
+Failed to fire hook: unable to create a log file for docker-desktop.exe in directory C:\Users\LEGION\AppData\Local\Docker\log\host: Access is denied.
+Failed to fire hook: unable to create a log file for docker-desktop.exe in directory C:\Users\LEGION\AppData\Local\Docker\log\host: Access is denied.
+WARNING: Error loading config file: open C:\Users\LEGION\.docker\config.json: Access is denied.
+Failed to fire hook: unable to create a log file for docker-desktop.exe in directory C:\Users\LEGION\AppData\Local\Docker\log\host: Access is denied.
+Failed to fire hook: unable to create a log file for docker-desktop.exe in directory C:\Users\LEGION\AppData\Local\Docker\log\host: Access is denied.
+Could not retrieve status. Is Docker Desktop running?
+You can start Docker Desktop by running 'docker desktop start'.

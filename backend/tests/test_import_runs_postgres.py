@@ -25,6 +25,7 @@ from app.models.platform import AuditEvent, DomainEvent, IdempotencyRecord
 from app.models.site import Site
 from app.models.tenant import Tenant
 from app.models.unit import Unit
+from auth_test_support import mint_session_token
 from app.services.import_runs import (
     APPLY_OPERATION,
     PREVIEW_OPERATION,
@@ -154,6 +155,8 @@ def import_run_case():
             })
             assert response.status_code == 200
             auth[label] = {"Authorization": "Bearer " + response.json()["access_token"]}
+            me = client.get("/api/v1/auth/me", headers=auth[label])
+            assert me.status_code == 200, me.text
         yield {
             "client": client,
             "database": database,
@@ -533,13 +536,9 @@ def test_concurrent_upload_replay_and_apply_are_serialized(import_run_case):
             session.commit()
             site_id, building_id, account_id = site.id, building.id, account.id
 
-        auth = {
-            "Authorization": "Bearer " + create_token({
-                "sub": str(account_id),
-                "active_site_id": str(site_id),
-                "purpose": "session",
-            }, settings.auth_secret()),
-        }
+        auth = {"Authorization": "Bearer " + mint_session_token(
+            coordinator, account_id, settings.auth_secret(), claims={"active_site_id": str(site_id)},
+        )}
         source = csv_bytes([
             ("C1-CONCURRENT-0001", "1", "50", "occupied"),
             ("C1-CONCURRENT-0002", "1", "51", "occupied"),

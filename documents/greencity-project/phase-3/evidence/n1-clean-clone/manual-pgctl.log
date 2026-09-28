@@ -1,0 +1,2 @@
+pg_ctl: could not create restricted token: error code 87
+pg_ctl: could not start server: error code 3

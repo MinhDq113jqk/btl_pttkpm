@@ -1,4 +1,4 @@
-import { navItems } from './mockData.js';
+import { navItems } from './navigation.js';
 
 const SERVICE_REQUEST_ROLES = new Set([
   'admin', 'director', 'accountant', 'cskh', 'technical_lead', 'technician',
@@ -17,6 +17,11 @@ const BILLING_ROLES = new Set(['admin', 'director', 'accountant']);
 const OUTBOX_ROLES = new Set(['admin', 'director']);
 const EXECUTIVE_ROLES = new Set(['admin', 'director']);
 const AUDIT_ROLES = new Set(['admin', 'director', 'accountant']);
+const IMPORT_ROLES = new Set(['admin', 'cskh']);
+const MAINTENANCE_ROLES = new Set(['technical_lead', 'technician']);
+const STAFF_WORKSPACE_TABS = new Set([
+  'overview', 'tasks', 'maintenance', 'cleaning', 'security', 'parcels', 'residents', 'finance', 'imports', 'notifications',
+]);
 
 const ROLE_POLICIES = {
   admin: { label: 'Admin', title: 'Tổng quan yêu cầu dịch vụ', summary: 'Theo dõi yêu cầu trong site đang hoạt động.' },
@@ -45,6 +50,10 @@ export const canAccessExecutiveDashboard = value => (value?.roles || []).some(ro
 export const canAccessAuditEvents = value => (value?.roles || []).some(role => AUDIT_ROLES.has(role));
 export const canCreateServiceRequests = value => (value?.roles || []).includes('cskh');
 export const getWorkspaceKey = account => `${account?.accountId || 'anonymous'}:${account?.activeSiteId || 'no-site'}`;
+export const getStaffTabFromHash = hash => {
+  const id = String(hash || '').replace(/^#\/?/, '');
+  return STAFF_WORKSPACE_TABS.has(id) ? id : 'overview';
+};
 
 export function createAuthenticatedAccount(user) {
   const roles = [...new Set((user?.roles || []).filter(role => typeof role === 'string'))];
@@ -61,23 +70,28 @@ export function createAuthenticatedAccount(user) {
   const canManageSecurityShifts = roles.some(role => SECURITY_MANAGER_ROLES.has(role));
   const canViewParcels = roles.some(role => PARCEL_ROLES.has(role));
   const canViewBilling = roles.some(role => BILLING_ROLES.has(role));
+  const canImportUnits = roles.some(role => IMPORT_ROLES.has(role));
+  const canViewMaintenance = roles.some(role => MAINTENANCE_ROLES.has(role));
   const canManageOutboxEvents = roles.some(role => OUTBOX_ROLES.has(role));
   const canViewExecutive = roles.some(role => EXECUTIVE_ROLES.has(role));
   const canViewAudit = roles.some(role => AUDIT_ROLES.has(role));
   const canCreateRequests = roles.includes('cskh');
   const menu = ['overview'];
   if (canListRequests) menu.push('tasks');
+  if (canViewMaintenance) menu.push('maintenance');
   if (canViewCleaning) menu.push('cleaning');
   if (canViewSecurity) menu.push('security');
   if (canViewParcels) menu.push('parcels');
   if (canViewBilling) menu.push('finance');
   if (canViewUnits) menu.push('residents');
+  if (canImportUnits) menu.push('imports');
   menu.push('notifications');
   const roleLabel = policies.length ? policies.map(policy => policy.label).join(' · ') : primary.label;
 
   const account = {
     accountId: user.account_id,
     activeSiteId: user.active_site_id,
+    mustChangePassword: user.must_change_password === true,
     allowedSites,
     id: roles[0] || 'staff',
     username: user.username,
@@ -101,6 +115,8 @@ export function createAuthenticatedAccount(user) {
     canManageSecurity: canManageSecurityShifts,
     canViewParcels,
     canViewBilling,
+    canImportUnits,
+    canViewMaintenance,
     canManageOutbox: canManageOutboxEvents,
     canViewExecutiveDashboard: canViewExecutive,
     canViewAuditEvents: canViewAudit,
@@ -123,8 +139,10 @@ export function createAuthenticatedAccount(user) {
   return { ...account, workspaceKey: getWorkspaceKey(account) };
 }
 
-export const getAllowedNav = account => navItems.filter(item => account?.menu?.includes(item.id));
-export const canViewTab = (account, tab) => Boolean(account?.menu?.includes(tab));
+export const getAllowedNav = account => navItems.filter(item => (
+  STAFF_WORKSPACE_TABS.has(item.id) && account?.menu?.includes(item.id)
+));
+export const canViewTab = (account, tab) => STAFF_WORKSPACE_TABS.has(tab) && Boolean(account?.menu?.includes(tab));
 
 export const getSessionNotifications = account => [{
   id: 'authenticated-session',

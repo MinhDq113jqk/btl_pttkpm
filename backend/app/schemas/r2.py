@@ -207,6 +207,29 @@ class WorkOrderView(ApiModel):
     evidence_count: int
 
 
+class WorkOrderAssigneeView(ApiModel):
+    id: UUID
+    full_name: str
+    role: Literal["cskh", "technical_lead", "technician"]
+
+
+class MaintenanceOccurrenceListItem(ApiModel):
+    id: UUID
+    asset_id: UUID
+    plan_id: UUID
+    due_at: datetime
+    status: str
+    defer_until: datetime | None
+    defer_reason: str | None
+    completed_at: datetime | None
+    work_order_id: UUID | None
+    version: int
+
+
+class MaintenanceOccurrenceListResponse(BaseModel):
+    items: list[MaintenanceOccurrenceListItem]
+
+
 class CostLineCreate(InputModel):
     description: str = Field(min_length=2, max_length=300)
     amount_vnd: int = Field(gt=0, le=2_000_000_000)

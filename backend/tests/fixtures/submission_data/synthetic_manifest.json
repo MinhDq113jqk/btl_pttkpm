@@ -1,0 +1,69 @@
+{
+  "classification": "SYNTHETIC_TEST_ONLY",
+  "pack_version": "synthetic-fcs17-v1",
+  "schema_version": "fcs05-r3",
+  "workbook_count": 12,
+  "total_rows": 101,
+  "workbooks": [
+    {
+      "file_name": "01_cong_viec.xlsx",
+      "sha256": "fd5adc0780ef2f95268e9f7cf00e0c7b1d82b6b21774422aad3976d268e1d1a2",
+      "row_count": 9
+    },
+    {
+      "file_name": "02_danh_sach_nhan_vien.xlsx",
+      "sha256": "27e5711af57dca2f1bf52bc6f1b2f423e752341bef8086af5eb0ac7b9d0fc0de",
+      "row_count": 18
+    },
+    {
+      "file_name": "03_toa_nha_can_ho.xlsx",
+      "sha256": "f7b6d20867d6f37f86e51c6c141caea8f6e9d75a8050933f2ae7e68fcabfd231",
+      "row_count": 12
+    },
+    {
+      "file_name": "04_cu_dan.xlsx",
+      "sha256": "54b0a7e230ceca9460c37f8e92c7cb45d70fd48c792bd45cabffe6afc82a30ec",
+      "row_count": 11
+    },
+    {
+      "file_name": "05_tai_san_bao_tri.xlsx",
+      "sha256": "936af4a3e88587ae47c06b286587031038e2fbd9cc017dc0a107934480e1283f",
+      "row_count": 6
+    },
+    {
+      "file_name": "06_ve_sinh.xlsx",
+      "sha256": "508c1deaf15b4e2308fe91f0e099842a1bfd38fcd23fdb8e9d601760f853f57a",
+      "row_count": 6
+    },
+    {
+      "file_name": "07_an_ninh_tuan_tra.xlsx",
+      "sha256": "2980843147ae1b423a27a37b5cbd1ad57605f06132b922a50e35e275002a2df8",
+      "row_count": 6
+    },
+    {
+      "file_name": "08_su_co_an_ninh.xlsx",
+      "sha256": "dee00da7ac4f77ca0d72691af4756bbeea64080fbea75a3fe9fe261f37148c69",
+      "row_count": 6
+    },
+    {
+      "file_name": "09_chinh_sach_phi.xlsx",
+      "sha256": "9680b87ec3fd75366efd1a5af7392c74639fcb6df614e992c892a1465de3b744",
+      "row_count": 5
+    },
+    {
+      "file_name": "10_hoa_don.xlsx",
+      "sha256": "abbbb2f4fbd09242ef60b08082a3e6598ef68d87295231168d773d7d2fdf79ef",
+      "row_count": 8
+    },
+    {
+      "file_name": "11_thanh_toan.xlsx",
+      "sha256": "f58a3f17ea333d599d051ede670e209932046e01e0f4225139ff2319f7ae064c",
+      "row_count": 8
+    },
+    {
+      "file_name": "12_buu_pham.xlsx",
+      "sha256": "1ceadb0eb18deab7a07b483048126e4ce59a0672ddd4e58848b97d55bf9beb2d",
+      "row_count": 6
+    }
+  ]
+}

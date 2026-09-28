@@ -82,7 +82,7 @@ const requestView = body => ({
   try {
     await page.goto(process.env.UX_BASE_URL || 'http://127.0.0.1:3000/');
     await page.getByLabel('Tên đăng nhập').fill('resident_west');
-    await page.getByLabel('Mật khẩu').fill('Password@123');
+    await page.getByLabel('Mật khẩu').fill('test-only-password');
     await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
     await page.locator('.resident-shell').waitFor();
     check('Resident shell is selected from server role', await page.getByText('Cổng cư dân', { exact: true }).isVisible());
@@ -92,6 +92,12 @@ const requestView = body => ({
 
     await page.getByRole('button', { name: 'Tạo yêu cầu', exact: true }).first().click();
     const form = page.getByRole('region', { name: 'Tạo yêu cầu dịch vụ' });
+    await form.getByRole('button', { name: 'Gửi yêu cầu', exact: true }).click();
+    const validationSummary = form.getByRole('alert').filter({ hasText: 'Kiểm tra lại thông tin yêu cầu' });
+    await validationSummary.waitFor();
+    check('invalid resident form focuses a linked error summary and marks fields', await page.evaluate(() => document.activeElement?.classList.contains('resident-validation-summary'))
+      && await validationSummary.getByRole('link').count() === 4
+      && await form.getByLabel('Căn hộ').getAttribute('aria-invalid') === 'true');
     await form.getByLabel('Căn hộ').selectOption(unitId);
     await form.getByLabel('Loại yêu cầu').selectOption(categoryId);
     await form.getByLabel('Tiêu đề').fill('Rò rỉ nước tại bếp');
@@ -100,7 +106,7 @@ const requestView = body => ({
     await page.getByRole('alert').waitFor();
     check('Network failure is visible and does not claim success', await page.getByText('Không thể kết nối máy chủ', { exact: false }).isVisible());
     await form.getByRole('button', { name: 'Gửi yêu cầu', exact: true }).click();
-    await page.getByText('SR-R6-001', { exact: false }).waitFor();
+    await page.locator('.resident-request-row').filter({ hasText: 'SR-R6-001' }).waitFor();
     const createCommands = requests.filter(item => item.path.endsWith('/resident/service-requests') && item.method === 'POST');
     check('Resident create retries with the same idempotency key', createCommands.length === 2 && createCommands[0].idempotencyKey === createCommands[1].idempotencyKey);
     check('Resident create body contains no forged scope fields', !/tenant_id|site_id|role|building_id/.test(JSON.stringify(createCommands[0].body)));

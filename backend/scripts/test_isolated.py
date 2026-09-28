@@ -5,6 +5,7 @@ Only the cluster created under this invocation's temporary directory is stopped
 and removed. Requires local PostgreSQL binaries and openssl; no downloads.
 """
 import argparse
+import json
 import os
 from pathlib import Path
 import secrets
@@ -16,13 +17,19 @@ import tempfile
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
+DEMO_ACCOUNT_USERNAMES = (
+    "admin_demo", "director_west", "cskh_west", "cskh_east", "accountant_west",
+    "techlead_west", "technician_west", "cleaning_west", "security_west", "resident_west",
+)
 
 
 def run(command, env, label, *, show_output=False):
     print(f"{label}: running", flush=True)
     # Background postgres can inherit pipe handles on Windows. Infrastructure
     # commands use DEVNULL so communicate() cannot wait on the server's pipes.
-    timeout = 180 if command[:3] == [sys.executable, "-m", "pytest"] else 120
+    # The full database suite now includes the submission replay; allow it to
+    # finish on slower Windows hosts while retaining a finite hang guard.
+    timeout = 420 if command[:3] == [sys.executable, "-m", "pytest"] else 120
     result = subprocess.run(command, cwd=ROOT, env=env,
                             stdout=subprocess.PIPE if show_output else subprocess.DEVNULL,
                             stderr=subprocess.STDOUT if show_output else subprocess.DEVNULL,
@@ -30,7 +37,8 @@ def run(command, env, label, *, show_output=False):
     # Infrastructure errors can contain connection details: never echo them.
     if show_output:
         output = result.stdout
-        for variable in ("DATABASE_URL", "SECRET_KEY"):
+        for variable in ("DATABASE_URL", "SECRET_KEY", "DEMO_SEED_CREDENTIALS_JSON",
+                         "ROTATED_DEMO_CREDENTIALS_JSON"):
             if env.get(variable):
                 output = output.replace(env[variable], "[REDACTED]")
         print(output, end="")
@@ -97,7 +105,17 @@ def main():
     # Never inherit connection/service configuration or an external test target.
     env = {key: value for key, value in os.environ.items()
            if not key.upper().startswith(("PG", "DATABASE_", "RUN_DB_", "GREENCITY_ISOLATED_"))}
-    env.update(APP_ENV="test", SECRET_KEY=secrets.token_urlsafe(48), PYTHONIOENCODING="utf-8")
+    demo_credentials = {
+        username: secrets.token_urlsafe(32) for username in DEMO_ACCOUNT_USERNAMES
+    }
+    env.update(
+        APP_ENV="test",
+        SECRET_KEY=secrets.token_urlsafe(48),
+        PYTHONIOENCODING="utf-8",
+        GREENCITY_DISABLE_DOTENV="1",
+        DEMO_SEED_ENABLED="true",
+        DEMO_SEED_CREDENTIALS_JSON=json.dumps(demo_credentials),
+    )
     runtime_root = ROOT / ".test-runtime"
     runtime_root.mkdir(exist_ok=True)
     workspace = Path(tempfile.mkdtemp(prefix="security-", dir=runtime_root)).resolve()
@@ -158,8 +176,17 @@ def main():
             "V1 parcel foundation migration paths", show_output=True)
         run([sys.executable, "-m", "scripts.test_migration_0015"], env,
             "V1 parcel case/evidence migration paths", show_output=True)
+        run([sys.executable, "-m", "scripts.test_migration_0016"], env,
+            "Auth-session and forced-password migration paths", show_output=True)
+        run([sys.executable, "-m", "scripts.test_migration_0017"], env,
+            "Login-throttle migration paths", show_output=True)
+        run([sys.executable, "-m", "scripts.test_migration_0018"], env,
+            "Submission import migration paths", show_output=True)
         run([sys.executable, "-m", "scripts.migrate", "upgrade", "head"], env, "Empty DB migration")
         run([sys.executable, "-m", "scripts.migrate", "upgrade", "head"], env, "Migration repeat")
+        env["GREENCITY_ISOLATED_SECURITY_TESTS"] = "1"
+        run([sys.executable, "-m", "scripts.test_submission_pack_isolated"], env,
+            "Synthetic submission pack on clean database", show_output=True)
         # Fixtures for legacy regression tests are created only in this new cluster.
         run([sys.executable, "-m", "scripts.seed"], env, "Demo seed")
         run([sys.executable, "-m", "scripts.seed"], env, "Seed repeat")
@@ -167,8 +194,16 @@ def main():
             "Alembic schema drift", show_output=True)
         env["RUN_DB_INTEGRATION"] = "1"
         env["GREENCITY_ISOLATED_SECURITY_TESTS"] = "1"
+        rotated_credentials = {
+            username: secrets.token_urlsafe(32) for username in DEMO_ACCOUNT_USERNAMES
+        }
+        env["ROTATED_DEMO_CREDENTIALS_JSON"] = json.dumps(rotated_credentials)
+        run([sys.executable, "-m", "scripts.prepare_test_accounts"], env,
+            "Forced demo-password change flow", show_output=True)
+        env["DEMO_SEED_CREDENTIALS_JSON"] = env.pop("ROTATED_DEMO_CREDENTIALS_JSON")
         run([sys.executable, "-m", "pytest", "-q", "--tb=short", "-o",
-             f"cache_dir={workspace / 'pytest-cache'}"], env,
+             f"cache_dir={workspace / 'pytest-cache'}", "--basetemp",
+             str(workspace / "pytest-temp")], env,
             "Isolated PostgreSQL regression", show_output=True)
         success = True
     except Exception as exc:

@@ -1,0 +1,108 @@
+Fresh cluster init: running
+Fresh cluster init: PASS
+Test TLS certificate: running
+Test TLS certificate: PASS
+Test PostgreSQL startup: running
+Test PostgreSQL startup: PASS
+AC-03 migration paths: running
+AC-03 migration paths: PASS
+AC-03 migration paths: PASS
+R3 migration paths: running
+R3 0007 migration paths: PASS
+R3 migration paths: PASS
+R4 migration paths: running
+R4 0008 migration paths: PASS
+R4 migration paths: PASS
+R4 Task 2 migration paths: running
+R4 0009 migration paths: PASS
+R4 Task 2 migration paths: PASS
+R4 Task 3 migration paths: running
+R4 0010 migration paths: PASS
+R4 Task 3 migration paths: PASS
+R5 outbox migration paths: running
+R5 0011 migration paths: PASS
+R5 outbox migration paths: PASS
+R6 resident identity migration paths: running
+R6 0012 resident identity migration paths: PASS
+R6 resident identity migration paths: PASS
+R6 resident request evidence migration paths: running
+R6 0013 resident request evidence migration paths: PASS
+R6 resident request evidence migration paths: PASS
+V1 parcel foundation migration paths: running
+V1 0014 parcel foundation migration paths: PASS
+V1 parcel foundation migration paths: PASS
+V1 parcel case/evidence migration paths: running
+V1 0015 parcel case/evidence migration paths: PASS
+V1 parcel case/evidence migration paths: PASS
+Auth-session and forced-password migration paths: running
+Auth-session and forced-password migration paths: PASS
+Auth-session and forced-password migration paths: PASS
+Login-throttle migration paths: running
+Login-throttle migration paths: PASS
+Login-throttle migration paths: PASS
+Empty DB migration: running
+Empty DB migration: PASS
+Migration repeat: running
+Migration repeat: PASS
+Demo seed: running
+Demo seed: PASS
+Seed repeat: running
+Seed repeat: PASS
+Alembic schema drift: running
+No new upgrade operations detected.
+Alembic schema drift: PASS
+Forced demo-password change flow: running
+C:\Users\LEGION\btl\_pttkpm\backend\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+  from starlette.testclient import TestClient as TestClient  # noqa
+Forced password rotation 1/10: login
+Forced password rotation 1/10: change
+Forced password rotation 1/10: PASS
+Forced password rotation 2/10: login
+Forced password rotation 2/10: change
+Forced password rotation 2/10: PASS
+Forced password rotation 3/10: login
+Forced password rotation 3/10: change
+Forced password rotation 3/10: PASS
+Forced password rotation 4/10: login
+Forced password rotation 4/10: change
+Forced password rotation 4/10: PASS
+Forced password rotation 5/10: login
+Forced password rotation 5/10: change
+Forced password rotation 5/10: PASS
+Forced password rotation 6/10: login
+Forced password rotation 6/10: change
+Forced password rotation 6/10: PASS
+Forced password rotation 7/10: login
+Forced password rotation 7/10: change
+Forced password rotation 7/10: PASS
+Forced password rotation 8/10: login
+Forced password rotation 8/10: change
+Forced password rotation 8/10: PASS
+Forced password rotation 9/10: login
+Forced password rotation 9/10: change
+Forced password rotation 9/10: PASS
+Forced password rotation 10/10: login
+Forced password rotation 10/10: change
+Forced password rotation 10/10: PASS
+Disposable demo-account password rotation: PASS
+Forced demo-password change flow: PASS
+Isolated PostgreSQL regression: running
+........................................................................ [ 24%]
+......s................................................................. [ 48%]
+........................................................................ [ 72%]
+........................................................................ [ 97%]
+........                                                                 [100%]
+============================== warnings summary ===============================
+.venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\Users\LEGION\btl\_pttkpm\backend\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+.venv\Lib\site-packages\starlette\testclient.py:53
+  C:\Users\LEGION\btl\_pttkpm\backend\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+295 passed, 1 skipped, 2 warnings in 143.60s (0:02:23)
+Isolated PostgreSQL regression: PASS
+Test PostgreSQL shutdown: running
+Test PostgreSQL shutdown: PASS

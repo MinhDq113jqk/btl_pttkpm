@@ -174,11 +174,20 @@ export function ParcelDeskView({ account, client, onToast }) {
       const result = await action();
       await load();
       setContextNonce(value => value + 1);
-      setSelectedId(result?.id || selectedId);
+      // Only parcel commands return a parcel id. Case, incident and evidence
+      // commands return their own resource id; keep the selected parcel open
+      // so its linked workspace and audit context remain visible.
+      setSelectedId(result?.parcel_code ? result.id : selectedId);
       onToast?.(success?.(result) || 'Đã cập nhật bưu phẩm.');
       return result;
     } catch (error) {
-      if (error?.name !== 'AbortError') setFormError(`${errorCopy(error)}${error?.correlationId ? ` Mã đối chiếu: ${error.correlationId}` : ''}`);
+      if (error?.name !== 'AbortError') {
+        // Failed commands can still advance a server version (for example a
+        // wrong PIN is audited). Reconcile the selected parcel before the
+        // operator submits the next command.
+        await load();
+        setFormError(`${errorCopy(error)}${error?.correlationId ? ` Mã đối chiếu: ${error.correlationId}` : ''}`);
+      }
       return null;
     } finally {
       setBusy('');

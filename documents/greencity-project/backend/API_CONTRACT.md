@@ -264,7 +264,8 @@ Phần bên dưới giữ snapshot contract foundation trước khi có các API
 
 Trạng thái: chỉ contract foundation trong lượt 10/09/2026. **Không phải Gate B
 PASS**, không có auth/policy/Unit 360° và không đóng băng contract domain chưa build.
-Nguồn: `../plan2.md`, roadmap `ARC-03/07/09/13/19`, baseline tại repo root.
+Nguồn hiện hành thay thế snapshot này: `../roadmap_v2.md`,
+`../roadmap_v3.md` và `../FINAL_CODE_SUBMISSION_PLAN.md`.
 
 ## Contract thực thi trong nhóm này
 

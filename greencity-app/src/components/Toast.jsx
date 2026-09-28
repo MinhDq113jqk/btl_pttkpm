@@ -21,7 +21,7 @@ export const Toast = ({ message, type = 'success', onClose }) => {
       <div className={`flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl border text-xs font-medium ${bgStyles[type]}`}>
         {icons[type]}
         <span>{message}</span>
-        <button 
+        <button
           aria-label="Đóng thông báo"
           onClick={onClose}
           className="ml-2 p-1 rounded-lg hover:bg-white/20 transition-colors text-white/80 hover:text-white"

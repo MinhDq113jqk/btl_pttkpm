@@ -241,8 +241,11 @@ def list_audit_events(
 def list_notifications(
     request: Request,
     include_read: bool = False,
+    as_of: datetime | None = Query(default=None),
     current_user: UserContext = Depends(get_current_user_context),
 ):
+    if as_of is not None:
+        as_of = _as_of_utc(as_of)
     with request.app.state.database.get_session() as session:
         statement = select(NotificationReadModel).where(
             NotificationReadModel.tenant_id == current_user.tenant_id,
@@ -251,10 +254,12 @@ def list_notifications(
         )
         if not include_read:
             statement = statement.where(NotificationReadModel.read_at.is_(None))
+        if as_of is not None:
+            statement = statement.where(NotificationReadModel.created_at <= as_of)
         records = session.scalars(statement.order_by(
             NotificationReadModel.created_at.desc(), NotificationReadModel.id.desc(),
         )).all()
-        return NotificationListResponse(items=[NotificationView.model_validate(record) for record in records])
+        return NotificationListResponse(items=[NotificationView.model_validate(record) for record in records], as_of=as_of)
 
 
 @router.post("/notifications/{notification_id}/read", response_model=NotificationView)
@@ -293,11 +298,14 @@ def mark_notification_read(
 def list_outbox_events(
     request: Request,
     delivery_status: DeliveryStatus | None = None,
+    as_of: datetime | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     current_user: UserContext = Depends(get_current_user_context),
 ):
     _assert_site_wide_outbox_operator(current_user)
+    if as_of is not None:
+        as_of = _as_of_utc(as_of)
     with request.app.state.database.get_session() as session:
         statement = select(DomainEvent).where(
             DomainEvent.tenant_id == current_user.tenant_id,
@@ -305,10 +313,12 @@ def list_outbox_events(
         )
         if delivery_status is not None:
             statement = statement.where(DomainEvent.delivery_status == delivery_status)
+        if as_of is not None:
+            statement = statement.where(DomainEvent.created_at <= as_of)
         records = session.scalars(statement.order_by(
             DomainEvent.created_at.desc(), DomainEvent.id.desc(),
         ).offset(offset).limit(limit)).all()
-        return OutboxEventListResponse(items=[OutboxEventView.model_validate(record) for record in records])
+        return OutboxEventListResponse(items=[OutboxEventView.model_validate(record) for record in records], as_of=as_of)
 
 
 @router.post("/outbox/events/{event_id}/retry", response_model=OutboxEventView)

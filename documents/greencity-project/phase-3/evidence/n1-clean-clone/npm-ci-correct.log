@@ -1,0 +1,20 @@
+npm error code EPERM
+npm error syscall stat
+npm error path C:\Users\LEGION\AppData\Local\npm-cache\_cacache\content-v2\sha512\6b\85\0641a58f1f9f663975189c01b67b09dc412e22e05e374efdc9a0033eb365430264bd36c2bc1a90cc2eb0873e4b054fb8772ba4cea14367da96fb4685f1e2
+npm error errno -4048
+npm error Error: EPERM: operation not permitted, stat 'C:\Users\LEGION\AppData\Local\npm-cache\_cacache\content-v2\sha512\6b\85\0641a58f1f9f663975189c01b67b09dc412e22e05e374efdc9a0033eb365430264bd36c2bc1a90cc2eb0873e4b054fb8772ba4cea14367da96fb4685f1e2'
+npm error     at async Object.stat (node:internal/fs/promises:1038:18)
+npm error     at async C:\Program Files\nodejs\node_modules\npm\node_modules\cacache\lib\content\read.js:61:38
+npm error     at async C:\Program Files\nodejs\node_modules\npm\node_modules\cacache\lib\content\read.js:59:34 {
+npm error   errno: -4048,
+npm error   code: 'EPERM',
+npm error   syscall: 'stat',
+npm error   path: 'C:\\Users\\LEGION\\AppData\\Local\\npm-cache\\_cacache\\content-v2\\sha512\\6b\\85\\0641a58f1f9f663975189c01b67b09dc412e22e05e374efdc9a0033eb365430264bd36c2bc1a90cc2eb0873e4b054fb8772ba4cea14367da96fb4685f1e2'
+npm error }
+npm error
+npm error The operation was rejected by your operating system.
+npm error It's possible that the file was already in use (by a text editor or antivirus), or that you lack permissions to access it.
+npm error
+npm error If you believe this might be a permissions issue, please double-check the permissions of the file and its containing directories, or try running the command again as root/Administrator.
+npm error Log files were not written due to an error writing to the directory: C:\Users\LEGION\AppData\Local\npm-cache\_logs
+npm error You can rerun the command with `--loglevel=verbose` to see the logs in your terminal

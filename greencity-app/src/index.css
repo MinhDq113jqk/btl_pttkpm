@@ -256,6 +256,14 @@ meter::-webkit-meter-optimum-value { background: #059669; border-radius: 3px; }
 .cleaning-task-meta dd { color: #334155; font-size: 12px; margin-top: 4px; overflow-wrap: anywhere; }
 .cleaning-manager-actions { display: flex; align-items: end; flex-wrap: wrap; gap: 10px; margin: 3px 0 15px; padding: 12px; border: 1px solid #dbeafe; border-radius: 8px; background: #f8fbff; }
 .cleaning-manager-actions label { min-width: 240px; flex: 1; }
+.cleaning-manager-actions input { min-height: 38px; border: 1px solid #cbd5e1; border-radius: 7px; background: white; color: var(--ink); padding: 8px 9px; font: inherit; }
+.cleaning-terminal-actions { border-color: #eadfca; background: #fffcf5; }
+.cleaning-rework-note { display: grid; gap: 7px; margin-top: 10px; padding: 11px 12px; border: 1px solid #fed7aa; border-radius: 8px; background: #fffaf2; color: #854d0e; font-size: 12px; }
+.cleaning-rework-note p { margin: 0; }
+.cleaning-rework-note dl { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 0; }
+.cleaning-rework-note dl div { display: grid; gap: 3px; }
+.cleaning-rework-note dt { color: #9a6a2f; font-size: 10px; }
+.cleaning-rework-note dd { margin: 0; color: #6b4719; overflow-wrap: anywhere; }
 .cleaning-checklist { margin-top: 4px; border-top: 1px solid #e2e8f0; padding-top: 15px; }
 .cleaning-checklist h3 { font-size: 13px; font-weight: 700; }
 .cleaning-checklist > p { color: var(--muted); font-size: 12px; line-height: 1.5; margin-top: 4px; }
@@ -1200,6 +1208,10 @@ input[type=radio], input[type=checkbox] { accent-color: var(--primary); width: 1
 .resident-error > div { min-width: 0; flex: 1; }
 .resident-error strong, .resident-error p { display: block; }
 .resident-error p { margin-top: 3px; overflow-wrap: anywhere; }
+.resident-validation-summary:focus { outline: 3px solid #e11d48; outline-offset: 2px; }
+.resident-validation-summary ul { margin: 6px 0 0; padding-left: 18px; }
+.resident-validation-summary a { color: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+.resident-form-grid [aria-invalid="true"] { border-color: #be123c; }
 .resident-empty { display: flex; flex-direction: column; align-items: center; gap: 9px; padding: 54px 20px; color: #6a8373; text-align: center; }
 .resident-empty h3 { color: #315440; font-size: 15px; }
 .resident-empty p { max-width: 360px; font-size: 12px; }

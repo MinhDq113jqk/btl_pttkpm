@@ -1,0 +1,29 @@
+version: 1
+scope: private-evidence
+backend: durable-mounted-volume
+path_layout: tenant/{tenant_id}/site/{site_id}/resource/{resource_id}/opaque-file
+acl:
+  - application writes through authenticated, server-scoped endpoints only
+  - runtime container runs as non-root and has no host-path exposure
+  - frontend and reverse proxy never mount the evidence volume
+  - backup worker reads the evidence volume through group 10001 and a read-only mount
+  - database attachment rows remain the authorization and tenant-isolation source
+encryption:
+  at_rest: required on the host or managed volume before pilot approval
+  in_transit: TLS for database and HTTPS at the proxy
+integrity:
+  algorithm: sha256
+  verify_on_upload: true
+  verify_before_read: true
+lifecycle:
+  retention: owner-approved BACKUP_RETENTION_DAYS required before scheduled backup
+  deletion: database-referenced object deletion only through an audited job
+  quarantine: retained until security review or approved expiry
+backup:
+  include: evidence volume plus attachment metadata and database dump
+  interval: owner-approved BACKUP_INTERVAL_SECONDS required
+  retention_days: owner-approved BACKUP_RETENTION_DAYS required
+  worker: deploy/backup_loop.py
+  destination: dedicated persistent volume with host or provider encryption
+  restore: clean target, checksum manifest, tenant-isolation test
+  rehearsal_script: backend/scripts/phase3_backup_restore.py

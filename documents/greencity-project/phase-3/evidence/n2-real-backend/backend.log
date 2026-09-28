@@ -1,0 +1,96 @@
+INFO:     Started server process [23072]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:51192 (Press CTRL+C to quit)
+INFO method=GET path=/health status_code=200 processing_time_ms=49.91 correlation_id=23aeba7a-0bfa-4df4-a63d-0009010bccce user_id=None
+INFO:     127.0.0.1:51211 - "GET /api/v1/health HTTP/1.1" 200 OK
+INFO method=GET path=/health status_code=200 processing_time_ms=3.54 correlation_id=2ed28393-17d3-44c6-ac74-724502e205a0 user_id=None
+INFO:     127.0.0.1:56804 - "GET /api/v1/health HTTP/1.1" 200 OK
+INFO method=POST path=/auth/login status_code=200 processing_time_ms=329.44 correlation_id=c4c51a7c-9bb8-4d49-b5df-18bc6d90c4dd user_id=None
+INFO:     127.0.0.1:56805 - "POST /api/v1/auth/login HTTP/1.1" 200 OK
+INFO method=GET path=/auth/me status_code=200 processing_time_ms=38.57 correlation_id=9a142685-4672-4c5a-94e1-cc3a35fd90eb user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO:     127.0.0.1:56810 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO method=POST path=/auth/change-password status_code=204 processing_time_ms=235.03 correlation_id=98329cdc-9d73-4c72-b109-629188c983f4 user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO:     127.0.0.1:56811 - "POST /api/v1/auth/change-password HTTP/1.1" 204 No Content
+INFO method=POST path=/auth/login status_code=200 processing_time_ms=104.50 correlation_id=2abda1f6-1b15-42c7-95d3-cb5daaa22fb3 user_id=None
+INFO:     127.0.0.1:56814 - "POST /api/v1/auth/login HTTP/1.1" 200 OK
+INFO method=GET path=/auth/me status_code=200 processing_time_ms=29.56 correlation_id=c186e6e4-3c0a-4d70-9bda-3ecb38566384 user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO:     127.0.0.1:56816 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO method=GET path=/resident/service-request-options status_code=200 processing_time_ms=130.13 correlation_id=71a22ae8-bd05-41b2-a50b-b2d0e8716cae user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO:     127.0.0.1:54188 - "GET /api/v1/resident/service-request-options HTTP/1.1" 200 OK
+INFO method=GET path=/resident/billing/summary status_code=200 processing_time_ms=237.85 correlation_id=0f43fed8-996b-4069-9c94-bf7d1b84297e user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO:     127.0.0.1:61053 - "GET /api/v1/resident/billing/summary?as_of=2026-09-25T12%3A43%3A55.513Z HTTP/1.1" 200 OK
+INFO method=GET path=/resident/service-request-options status_code=200 processing_time_ms=877.21 correlation_id=61e55d1e-9cf4-4ff6-a7dd-15a201b99b72 user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO:     127.0.0.1:56282 - "GET /api/v1/resident/service-request-options HTTP/1.1" 200 OK
+INFO method=GET path=/resident/service-requests status_code=200 processing_time_ms=283.06 correlation_id=24282694-7253-4c5f-b58a-9da1f6b8898f user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO method=GET path=/resident/billing/payments status_code=200 processing_time_ms=231.42 correlation_id=363e32c1-33a3-49a7-bc43-7e322fa6ab44 user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO:     127.0.0.1:54204 - "GET /api/v1/resident/service-requests?page=1&page_size=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51458 - "GET /api/v1/resident/billing/payments?as_of=2026-09-25T12%3A43%3A55.513Z HTTP/1.1" 200 OK
+INFO method=GET path=/resident/billing/invoices status_code=200 processing_time_ms=255.47 correlation_id=cb9a12e5-345b-4bd9-9255-6439bfd91fce user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO:     127.0.0.1:61054 - "GET /api/v1/resident/billing/invoices?as_of=2026-09-25T12%3A43%3A55.513Z HTTP/1.1" 200 OK
+INFO method=GET path=/resident/notifications status_code=200 processing_time_ms=258.26 correlation_id=486ba69c-8bbc-41ee-955a-45957d05595a user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO method=GET path=/resident/service-requests status_code=200 processing_time_ms=213.36 correlation_id=d07319fe-c271-4774-8b85-5e437c8dc549 user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO:     127.0.0.1:56617 - "GET /api/v1/resident/notifications?include_read=false&page=1&page_size=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54189 - "GET /api/v1/resident/service-requests?page=1&page_size=50 HTTP/1.1" 200 OK
+INFO method=GET path=/resident/billing/summary status_code=200 processing_time_ms=218.67 correlation_id=b7424d1c-59db-4c9b-a58b-e6cc365c7669 user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO method=GET path=/resident/billing/invoices status_code=200 processing_time_ms=212.04 correlation_id=cd7a604f-7f2e-44bf-9041-1abc851f83bd user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO method=GET path=/resident/billing/payments status_code=200 processing_time_ms=203.23 correlation_id=152864da-73dc-4bd6-bcd9-2971b2a24518 user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO:     127.0.0.1:54190 - "GET /api/v1/resident/billing/summary?as_of=2026-09-25T12%3A43%3A55.513Z HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54191 - "GET /api/v1/resident/billing/invoices?as_of=2026-09-25T12%3A43%3A55.513Z HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54192 - "GET /api/v1/resident/billing/payments?as_of=2026-09-25T12%3A43%3A55.513Z HTTP/1.1" 200 OK
+INFO method=GET path=/resident/notifications status_code=200 processing_time_ms=198.62 correlation_id=64e02527-d119-4dad-b6e6-69b4b9123b24 user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO:     127.0.0.1:54193 - "GET /api/v1/resident/notifications?include_read=false&page=1&page_size=50 HTTP/1.1" 200 OK
+INFO method=POST path=/resident/service-requests status_code=201 processing_time_ms=96.67 correlation_id=544570ba-a000-4693-bbbf-e4a7301f65d8 user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO:     127.0.0.1:56294 - "POST /api/v1/resident/service-requests HTTP/1.1" 201 Created
+INFO method=GET path=/resident/service-requests status_code=200 processing_time_ms=82.47 correlation_id=21385f44-b2f1-4f19-b7cd-5f9d6a726f07 user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO:     127.0.0.1:53228 - "GET /api/v1/resident/service-requests?page=1&page_size=50 HTTP/1.1" 200 OK
+INFO method=GET path=/resident/service-request-options status_code=200 processing_time_ms=99.73 correlation_id=09953130-97b8-42f3-b7b6-bda8603b75d1 user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO:     127.0.0.1:53227 - "GET /api/v1/resident/service-request-options HTTP/1.1" 200 OK
+INFO method=GET path=/resident/billing/payments status_code=200 processing_time_ms=82.29 correlation_id=6af9052f-f8fb-4e98-96d9-6db87348fd34 user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO:     127.0.0.1:64076 - "GET /api/v1/resident/billing/payments?as_of=2026-09-25T12%3A43%3A55.513Z HTTP/1.1" 200 OK
+INFO method=GET path=/resident/billing/invoices status_code=200 processing_time_ms=88.16 correlation_id=f5670a7c-5d59-4a8f-83dc-a40ff58c5acb user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO:     127.0.0.1:49501 - "GET /api/v1/resident/billing/invoices?as_of=2026-09-25T12%3A43%3A55.513Z HTTP/1.1" 200 OK
+INFO method=GET path=/resident/notifications status_code=200 processing_time_ms=96.68 correlation_id=f21fc9d6-948f-4b26-a305-70750f271788 user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO:     127.0.0.1:64077 - "GET /api/v1/resident/notifications?include_read=false&page=1&page_size=50 HTTP/1.1" 200 OK
+INFO method=GET path=/resident/billing/summary status_code=200 processing_time_ms=147.03 correlation_id=55bafe13-a071-49e8-bfa6-8876df2169df user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO method=GET path=/resident/service-requests/{request_id} status_code=200 processing_time_ms=68.45 correlation_id=f3d888e1-3ce0-439e-952b-8c0dd2c6b694 user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO:     127.0.0.1:49500 - "GET /api/v1/resident/billing/summary?as_of=2026-09-25T12%3A43%3A55.513Z HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61258 - "GET /api/v1/resident/service-requests/e4282940-ab03-41e4-b093-428f920e8ef1 HTTP/1.1" 200 OK
+INFO method=GET path=/resident/service-requests/{request_id}/timeline status_code=200 processing_time_ms=78.15 correlation_id=744a14c2-848b-421d-9b62-a38413939180 user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO:     127.0.0.1:55104 - "GET /api/v1/resident/service-requests/e4282940-ab03-41e4-b093-428f920e8ef1/timeline HTTP/1.1" 200 OK
+INFO method=GET path=/resident/service-requests/{request_id}/evidence status_code=200 processing_time_ms=57.38 correlation_id=2a4a7e58-b552-4988-a9d6-07e3d461d34d user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO:     127.0.0.1:55195 - "GET /api/v1/resident/service-requests/e4282940-ab03-41e4-b093-428f920e8ef1/evidence HTTP/1.1" 200 OK
+INFO method=POST path=/auth/login status_code=200 processing_time_ms=106.26 correlation_id=efa04a49-821a-4be9-a14f-fd41cf657843 user_id=None
+INFO:     127.0.0.1:64982 - "POST /api/v1/auth/login HTTP/1.1" 200 OK
+INFO method=GET path=/auth/me status_code=200 processing_time_ms=20.52 correlation_id=24395d40-b0d5-4ea4-925e-2f6f85d239cf user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO:     127.0.0.1:64983 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO method=GET path=/resident/service-request-options status_code=200 processing_time_ms=130.05 correlation_id=3928fc55-e0b1-4b09-9119-24242b1507df user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO:     127.0.0.1:64984 - "GET /api/v1/resident/service-request-options HTTP/1.1" 200 OK
+INFO method=GET path=/resident/billing/invoices status_code=200 processing_time_ms=103.22 correlation_id=a9c69713-36f1-428c-ae1c-16cdcb9b542c user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO:     127.0.0.1:50267 - "GET /api/v1/resident/billing/invoices?as_of=2026-09-25T12%3A43%3A58.198Z HTTP/1.1" 200 OK
+INFO method=GET path=/resident/billing/payments status_code=200 processing_time_ms=117.08 correlation_id=12025adb-f9eb-4e37-9a10-1191211628cc user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO:     127.0.0.1:56795 - "GET /api/v1/resident/billing/payments?as_of=2026-09-25T12%3A43%3A58.198Z HTTP/1.1" 200 OK
+INFO method=GET path=/resident/billing/summary status_code=200 processing_time_ms=167.17 correlation_id=6d8ff2c3-577f-4f61-8f15-f0fb6c10f826 user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO:     127.0.0.1:54674 - "GET /api/v1/resident/billing/summary?as_of=2026-09-25T12%3A43%3A58.198Z HTTP/1.1" 200 OK
+INFO method=GET path=/resident/service-request-options status_code=200 processing_time_ms=133.37 correlation_id=04a00eb2-9595-499f-8678-251fd36930a1 user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO:     127.0.0.1:49277 - "GET /api/v1/resident/service-request-options HTTP/1.1" 200 OK
+INFO method=GET path=/resident/notifications status_code=200 processing_time_ms=102.27 correlation_id=b68f75f6-9bc1-4559-9ca0-1bad8aac7258 user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO method=GET path=/resident/service-requests status_code=200 processing_time_ms=186.83 correlation_id=c8d53ea4-40c5-4abc-aea7-78b8f7e66e1a user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO:     127.0.0.1:49282 - "GET /api/v1/resident/notifications?include_read=false&page=1&page_size=50 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58162 - "GET /api/v1/resident/service-requests?page=1&page_size=50 HTTP/1.1" 200 OK
+INFO method=GET path=/resident/billing/invoices status_code=200 processing_time_ms=132.85 correlation_id=54b16e07-e2cc-4943-9d1f-e1ba09b37c55 user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO:     127.0.0.1:49280 - "GET /api/v1/resident/billing/invoices?as_of=2026-09-25T12%3A43%3A58.198Z HTTP/1.1" 200 OK
+INFO method=GET path=/resident/billing/payments status_code=200 processing_time_ms=134.04 correlation_id=596aa357-a593-4966-a655-626a5e8fea14 user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO:     127.0.0.1:49281 - "GET /api/v1/resident/billing/payments?as_of=2026-09-25T12%3A43%3A58.198Z HTTP/1.1" 200 OK
+INFO method=GET path=/resident/billing/summary status_code=200 processing_time_ms=153.41 correlation_id=0f903f80-91e8-4064-afc5-b44f63335ed7 user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO method=GET path=/resident/service-requests status_code=200 processing_time_ms=164.97 correlation_id=37ae3989-537d-4ab4-aa2d-40464995d054 user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO:     127.0.0.1:49279 - "GET /api/v1/resident/billing/summary?as_of=2026-09-25T12%3A43%3A58.198Z HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49278 - "GET /api/v1/resident/service-requests?page=1&page_size=50 HTTP/1.1" 200 OK
+INFO method=GET path=/resident/notifications status_code=200 processing_time_ms=258.34 correlation_id=3ca238de-e480-43f0-be00-dba118bdb5a4 user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO:     127.0.0.1:50266 - "GET /api/v1/resident/notifications?include_read=false&page=1&page_size=50 HTTP/1.1" 200 OK
+INFO method=POST path=/resident/service-requests status_code=201 processing_time_ms=34.71 correlation_id=d6daf8ce-c137-4ae1-a552-4c3977f4f266 user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO:     127.0.0.1:49294 - "POST /api/v1/resident/service-requests HTTP/1.1" 201 Created
+INFO method=GET path=/resident/service-requests/{request_id}/timeline status_code=200 processing_time_ms=31.21 correlation_id=21546cd7-e335-4146-815d-a655791ccf82 user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO:     127.0.0.1:49295 - "GET /api/v1/resident/service-requests/e4282940-ab03-41e4-b093-428f920e8ef1/timeline HTTP/1.1" 200 OK
+INFO method=GET path=/auth/me status_code=200 processing_time_ms=18.17 correlation_id=e3918625-c7b7-4a9d-b06b-3ad3ddfb2663 user_id=461e0237-f0f3-442a-8bd7-e724270851b1
+INFO:     127.0.0.1:49294 - "GET /api/v1/auth/me HTTP/1.1" 200 OK

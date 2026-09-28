@@ -1,12 +1,13 @@
 from datetime import date
 from decimal import Decimal
+import json
 import sys
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
 from app.core.database import Database
-from app.core.security import hash_password
+from app.core.security import hash_password, verify_password
 from app.models.account import Account, AccountRole
 from app.models.billing import AccountingPeriod, BillingAccount, FeePolicy, FeePolicyVersion
 from app.models.building import Building
@@ -19,7 +20,44 @@ from app.models.tenant import Tenant
 from app.models.unit import Unit
 
 
-def seed_database(session: Session) -> None:
+DEMO_ACCOUNT_USERNAMES = (
+    "admin_demo",
+    "director_west",
+    "cskh_west",
+    "cskh_east",
+    "accountant_west",
+    "techlead_west",
+    "technician_west",
+    "cleaning_west",
+    "security_west",
+    "resident_west",
+)
+
+
+def load_demo_seed_credentials(settings: Settings) -> dict[str, str]:
+    """Load one distinct, source-external credential per demo account."""
+    if settings.app_env not in {"development", "test"}:
+        raise RuntimeError("Demo seed is permitted only in development or test environments")
+    if not settings.demo_seed_enabled:
+        raise RuntimeError("Demo seed is disabled; set DEMO_SEED_ENABLED=true explicitly")
+    if settings.demo_seed_credentials_json is None:
+        raise RuntimeError("Demo seed credentials are required and must stay outside source control")
+    try:
+        raw_credentials = json.loads(settings.demo_seed_credentials_json.get_secret_value())
+    except (TypeError, json.JSONDecodeError):
+        raise ValueError("Demo seed credentials must be valid JSON") from None
+    if not isinstance(raw_credentials, dict) or set(raw_credentials) != set(DEMO_ACCOUNT_USERNAMES):
+        raise ValueError("Demo seed credentials must contain exactly the configured demo usernames")
+    credentials = {username: raw_credentials[username] for username in DEMO_ACCOUNT_USERNAMES}
+    if any(not isinstance(password, str) or len(password.encode("utf-8")) < 16
+           for password in credentials.values()):
+        raise ValueError("Each demo seed credential must be a distinct string of at least 16 bytes")
+    if len(set(credentials.values())) != len(credentials):
+        raise ValueError("Each demo account requires a distinct credential")
+    return credentials
+
+
+def seed_database(session: Session, demo_credentials: dict[str, str]) -> None:
     # 1. Tenant
     tenant = session.execute(
         select(Tenant).where(Tenant.name == "GreenCity Corporation")
@@ -296,9 +334,8 @@ def seed_database(session: Session) -> None:
         )
         session.add(rel_e101)
 
-    # 6. Accounts and Roles (8 Roles)
-    default_hashed_pwd = hash_password("Password@123")
-
+    # 6. Accounts and Roles. Credentials are injected by the explicit seed
+    # guard above; do not add a source-derived fallback here.
     accounts_data = [
         ("admin_demo", "Quản Trị Viên Demo", [RoleEnum.ADMIN], None),
         ("director_west", "Giám Đốc BQL West", [RoleEnum.DIRECTOR], site_west.id),
@@ -319,12 +356,20 @@ def seed_database(session: Session) -> None:
             account = Account(
                 tenant_id=tenant.id,
                 username=username,
-                hashed_password=default_hashed_pwd,
+                hashed_password=hash_password(demo_credentials[username]),
                 full_name=full_name,
                 is_active=True,
+                must_change_password=True,
             )
             session.add(account)
             session.flush()
+        elif not verify_password(demo_credentials[username], account.hashed_password):
+            # Do not silently rotate an existing credential: it hides an
+            # operationally important change and would make repeat seed unsafe.
+            raise RuntimeError(
+                f"Existing demo account {username!r} has a different credential; "
+                "use an explicit rotation or rebuild the disposable database"
+            )
 
         # Provision only these named demo accounts; never infer scope for arbitrary
         # existing users. Legacy site-only grants for building roles remain inert.
@@ -356,13 +401,19 @@ def seed_database(session: Session) -> None:
         resident_account = Account(
             tenant_id=tenant.id,
             username="resident_west",
-            hashed_password=default_hashed_pwd,
+            hashed_password=hash_password(demo_credentials["resident_west"]),
             full_name=person_an.full_name,
             is_active=True,
+            must_change_password=True,
             person_id=person_an.id,
         )
         session.add(resident_account)
         session.flush()
+    elif not verify_password(demo_credentials["resident_west"], resident_account.hashed_password):
+        raise RuntimeError(
+            "Existing demo account 'resident_west' has a different credential; "
+            "use an explicit rotation or rebuild the disposable database"
+        )
     elif resident_account.person_id not in (None, person_an.id):
         raise ValueError("resident_west is already linked to a different Person")
     elif resident_account.person_id is None:
@@ -454,9 +505,11 @@ def seed_database(session: Session) -> None:
 
 
 if __name__ == "__main__":
-    db = Database(Settings())
+    settings = Settings()
+    credentials = load_demo_seed_credentials(settings)
+    db = Database(settings)
     try:
         with db.get_session() as s:
-            seed_database(s)
+            seed_database(s, credentials)
     finally:
         db.close()

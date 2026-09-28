@@ -33,7 +33,12 @@ ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
         405: "Phương thức không được hỗ trợ.",
         409: "Xung đột dữ liệu.",
         422: "Dữ liệu yêu cầu không hợp lệ.",
+        429: "Quá nhiều lần đăng nhập không thành công.",
         500: "Lỗi hệ thống.",
         503: "Dịch vụ tạm thời không khả dụng.",
     }.items()
+}
+ERROR_RESPONSES[429]["headers"]["Retry-After"] = {
+    "description": "Số giây phải đợi trước khi thử đăng nhập lại.",
+    "schema": {"type": "integer", "minimum": 1},
 }

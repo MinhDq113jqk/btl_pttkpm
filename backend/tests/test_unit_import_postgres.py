@@ -1,6 +1,8 @@
 """PostgreSQL acceptance evidence for the bounded R1 Unit import slice."""
 
 from copy import deepcopy
+import csv
+from io import StringIO
 import os
 import secrets
 from uuid import UUID, uuid4
@@ -12,7 +14,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.core.config import Settings
 from app.core.database import Database
-from app.core.security import create_token, hash_password
+from app.core.security import hash_password
 from app.main import create_app
 from app.models.account import Account, AccountRole
 from app.models.building import Building
@@ -21,6 +23,7 @@ from app.models.site import Site
 from app.models.tenant import Tenant
 from app.models.unit import Unit
 from app.services.unit_import import IMPORT_OPERATION, IMPORT_RESOURCE_TYPE
+from auth_test_support import mint_session_token
 
 
 pytestmark = [
@@ -359,13 +362,11 @@ def test_import_scope_and_payload_cannot_be_spoofed(unit_import_case):
     assert count_units(case, "B1") == b1_before + 1
 
     forged_headers = {
-        "Authorization": "Bearer " + create_token({
-            "sub": str(case["accounts"]["cskh"].id),
-            "tenant_id": str(uuid4()),
-            "roles": ["admin"],
-            "active_site_id": str(case["sites"]["west"].id),
-            "purpose": "session",
-        }, case["settings"].auth_secret()),
+        "Authorization": "Bearer " + mint_session_token(
+            case["database"], case["accounts"]["cskh"].id, case["settings"].auth_secret(),
+            claims={"tenant_id": str(uuid4()), "roles": ["admin"],
+                    "active_site_id": str(case["sites"]["west"].id)},
+        ),
         "Idempotency-Key": "unit-import-forged-b2",
     }
     forged = case["client"].post(
@@ -412,3 +413,47 @@ def test_admin_must_switch_active_site_before_importing_another_site(unit_import
     assert allowed.status_code == 200, allowed.text
     assert allowed.json()["applied_rows"] == 1
     assert count_units(case, "E1") == east_before + 1
+
+
+def test_csv_export_is_schema_limited_scoped_and_formula_safe(unit_import_case):
+    case = unit_import_case
+    formula_unit = Unit(
+        building_id=case["buildings"]["B1"].id,
+        unit_number="=HYPERLINK(\"https://example.invalid\")",
+        floor=1,
+        area_m2=50.5,
+        status="occupied",
+    )
+    with case["database"].get_session() as session:
+        session.add(formula_unit)
+        session.commit()
+
+    response = case["client"].get(
+        "/api/v1/units/export?building_code=B1",
+        headers=case["auth"]["cskh"],
+    )
+    assert response.status_code == 200, response.text
+    assert "text/csv" in response.headers["content-type"]
+    rows = list(csv.reader(StringIO(response.text)))
+    assert rows[0] == ["unit_number", "floor", "area_m2", "status"]
+    assert rows[1][0] == "'=HYPERLINK(\"https://example.invalid\")"
+    assert len(rows) == count_units(case, "B1") + 1
+    assert not any("tenant_id" in header or "person" in header for header in rows[0])
+    with case["database"].get_session() as session:
+        export_event = session.scalar(select(AuditEvent).where(
+            AuditEvent.event_type == "UnitCsvExported",
+            AuditEvent.resource_id == case["buildings"]["B1"].id,
+        ).order_by(AuditEvent.created_at.desc()))
+        assert export_event is not None
+        assert export_event.after_data["row_count"] == len(rows) - 1
+
+    outside_building = case["client"].get(
+        "/api/v1/units/export?building_code=B2",
+        headers=case["auth"]["cskh"],
+    )
+    assert outside_building.status_code == 404
+    denied_role = case["client"].get(
+        "/api/v1/units/export?building_code=B1",
+        headers=case["auth"]["technician"],
+    )
+    assert denied_role.status_code == 403

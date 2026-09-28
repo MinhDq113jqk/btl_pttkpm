@@ -1,0 +1,31 @@
+Phase 3 fresh cluster: running
+Phase 3 fresh cluster: PASS
+Phase 3 test TLS: running
+Phase 3 test TLS: PASS
+Phase 3 PostgreSQL startup: running
+Phase 3 PostgreSQL startup: PASS
+Phase 3 owner/migrator/runtime provisioning: running
+Phase 3 owner/migrator/runtime provisioning: PASS
+Phase 3 initial migration under owner role: running
+Phase 3 initial migration under owner role: PASS
+Phase 3 migrated version table: present
+Phase 3 migration rollback/drift rehearsal: running
+Phase 3 migration step: repeat upgrade
+Phase 3 migration step: drift check before rollback
+Phase 3 migration step: rollback to base
+Phase 3 migration step: re-upgrade
+Phase 3 migration step: drift check after re-upgrade
+Phase 3 migration rehearsal: PASS (empty upgrade, drift check, base rollback, re-upgrade)
+Phase 3 migration rollback/drift rehearsal: PASS
+Phase 3 production runtime-role test: running
+Runtime role DML: PASS; runtime DDL denial: PASS.
+Phase 3 production runtime-role test: PASS
+Phase 3 PostgreSQL backup/restore: running
+{"database": {"backup_ms": 239.3, "dump_restore": "PASS", "latest_committed_marker": "restored", "restore_ms": 1104.6, "row_integrity": "PASS", "rows_verified": 2, "rpo_observed_seconds": 0.0, "rto_observed_seconds": 1.105, "schema_integrity": "PASS", "tables_verified": 61}, "status": "PASS"}
+Phase 3 PostgreSQL backup/restore: PASS
+Phase 3 evidence backup/restore: running
+{"backup_archive": "C:\\Users\\LEGION\\AppData\\Local\\Temp\\greencity-phase3-storage-c0ovai1w\\backup\\private-evidence-15dc92d095.zip", "backup_ms": 26.0, "checksum": "PASS", "filesystem_encryption": "delegated to encrypted deployment volume/provider policy", "objects": 2, "restore_ms": 20.8, "rpo_observed_seconds": 0.052, "rto_observed_seconds": 0.021, "status": "PASS", "tenant_path_isolation": "PASS"}
+Phase 3 evidence backup/restore: PASS
+{"status": "PASS", "scope": "disposable local PostgreSQL/TLS cluster"}
+Phase 3 PostgreSQL shutdown: running
+Phase 3 PostgreSQL shutdown: PASS

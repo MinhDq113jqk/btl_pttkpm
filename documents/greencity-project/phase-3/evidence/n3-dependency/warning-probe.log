@@ -1,0 +1,4 @@
+Invalid -W option ignored: invalid module name: 'starlette.exceptions'
+TESTCLIENT_IMPORT=PASS
+HTTPX_RUNTIME=0.28.1
+HTTPX2_RUNTIME=2.13.1

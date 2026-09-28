@@ -1,0 +1,24 @@
+{
+  "flow": "GF-05",
+  "checks": [
+    "GF05 manager creates a scoped security shift and patrol window",
+    "GF05 manager starts the assigned security shift",
+    "GF05 handoff records the receiving security account",
+    "GF05 visitor log is saved on the real backend",
+    "GF05 patrol check-in is recorded",
+    "GF05 patrol window completes after check-in",
+    "GF05 high severity incident creates security and director escalations",
+    "GF05 director acknowledges the director escalation",
+    "GF05 incident evidence is stored with the incident",
+    "GF05 incident transitions to TRIAGED",
+    "GF05 incident transitions to IN_PROGRESS",
+    "GF05 incident transitions to RESOLVED",
+    "GF05 high incident closure is blocked until security acknowledgement",
+    "GF05 security account acknowledges the security escalation",
+    "GF05 incident closes after both acknowledgements, evidence and conclusion",
+    "GF05 browser has no page errors",
+    "GF05 API calls have no unexpected failed responses"
+  ],
+  "errors": [],
+  "apiFailures": []
+}

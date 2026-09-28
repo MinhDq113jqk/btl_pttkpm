@@ -1,7 +1,11 @@
 from datetime import date
+import csv
+from io import StringIO
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query, Request
+from fastapi.responses import Response
+from sqlalchemy import select
 from sqlalchemy.orm import selectinload, with_loader_criteria
 
 from app.core.database import Database
@@ -15,9 +19,59 @@ from app.schemas.unit import (
     UnitImportRequest,
     UnitImportResponse,
 )
+from app.services.r2 import audit
+from app.services.import_runs import resolve_import_building
 from app.services.unit_import import import_units
 
 router = APIRouter(prefix="/units", tags=["units"])
+
+
+def _spreadsheet_safe(value: str) -> str:
+    text = str(value)
+    if text.lstrip().startswith(("=", "+", "-", "@", "\t", "\r")):
+        return f"'{text}"
+    return text
+
+
+@router.get("/export")
+def export_units_csv(
+    request: Request,
+    building_code: str = Query(..., min_length=1, max_length=50),
+    current_user: UserContext = Depends(get_current_user_context),
+):
+    """Export only the fixed Unit import schema inside a granted building."""
+    with request.app.state.database.get_session() as session:
+        building = resolve_import_building(session, current_user, building_code)
+        units = session.scalars(select(Unit).where(
+            Unit.building_id == building.id,
+        ).order_by(Unit.unit_number, Unit.id)).all()
+        stream = StringIO(newline="")
+        writer = csv.writer(stream)
+        writer.writerow(("unit_number", "floor", "area_m2", "status"))
+        for unit in units:
+            writer.writerow((
+                _spreadsheet_safe(unit.unit_number),
+                unit.floor,
+                unit.area_m2,
+                _spreadsheet_safe(unit.status),
+            ))
+        audit(
+            session,
+            current_user,
+            request,
+            event_type="UnitCsvExported",
+            action="export",
+            resource_type="UnitCollection",
+            resource_id=building.id,
+            building_id=building.id,
+            after={"row_count": len(units), "columns": ["unit_number", "floor", "area_m2", "status"]},
+        )
+        session.commit()
+        return Response(
+            stream.getvalue(),
+            media_type="text/csv; charset=utf-8",
+            headers={"Content-Disposition": 'attachment; filename="unit-export.csv"', "Cache-Control": "private, no-store"},
+        )
 
 
 @router.post("/import", response_model=UnitImportResponse)

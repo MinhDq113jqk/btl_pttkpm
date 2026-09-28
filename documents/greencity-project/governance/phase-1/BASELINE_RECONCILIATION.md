@@ -4,14 +4,14 @@
 
 | Nguồn | Vai trò |
 | --- | --- |
-| `C:\Users\LEGION\btl\documents\greencity-project\5phase.md` | Kế hoạch thực thi Phase 1; SHA-256 `38C784A2AE86DA90FC5E4B9E1B517F12E761DD9E775D670BB5FA01909F326CE7` |
 | `documents/greencity-project/roadmap_v2.md` | Baseline sản phẩm/SRS và Decision Register |
+| `documents/greencity-project/FINAL_CODE_SUBMISSION_PLAN.md` | Kế hoạch triển khai hiện hành để hoàn tất code nộp giáo viên |
 | `main` tại `de67c48` | Implementation được kiểm tra trong lần đối chiếu này |
-| `backend/alembic/versions/0015_v1_parcel_case_evidence.py` | Migration hiện ở head `0015` |
+| `backend/alembic/versions/0017_login_throttle.py` | Migration hiện ở head `0017` |
 
-Các bằng chứng cũ trong `BACKEND_BASELINE.md` và `checklist.md` được giữ nguyên
-để truy vết lịch sử. Chúng không được dùng thay cho kết quả chạy hiện tại hoặc
-phê duyệt governance này.
+`BACKEND_BASELINE.md` và `checklist.md` đã được loại khỏi bundle active ngày
+26/09/2026 vì bị evidence pack hiện hành thay thế. Lịch sử của chúng vẫn có thể
+khôi phục từ Git; không dùng các số liệu cũ thay cho kết quả chạy hiện tại.
 
 ## Chênh lệch cần quyết định
 
@@ -29,7 +29,7 @@ phê duyệt governance này.
 | Migration | Có `0001` đến `0015`; runner cô lập migration DB trống, migrate lặp, seed lặp và drift check đều PASS. | Chứng minh được regression cục bộ cho schema hiện tại, không phải phê duyệt release. |
 | Backend | `scripts/test_isolated.py` PASS `262 passed, 2 warnings` trên PostgreSQL/TLS disposable. | Đây là local evidence tái lập bằng command ghi ở evidence pack. |
 | Frontend | `npm.cmd test` PASS `67/67`. | Đây là local evidence; vẫn cần CI clean clone và build. |
-| Legacy documentation | `BACKEND_BASELINE.md` còn ghi Pre-R1/Gate B NOT PASS; `checklist.md` ghi 253 backend và 68 frontend test. | Không xóa history; evidence pack Phase 1 thay thế các con số này cho baseline hiện tại. |
+| Legacy documentation | `BACKEND_BASELINE.md` và `checklist.md` đã bị loại khỏi bundle active. | Git giữ lịch sử; evidence pack Phase 1 thay thế các con số cũ cho baseline hiện tại. |
 
 ## Bản ghi phê duyệt
 

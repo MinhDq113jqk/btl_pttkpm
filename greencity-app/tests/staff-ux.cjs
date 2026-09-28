@@ -76,10 +76,12 @@ const createdServiceRequest = {
   const errors = [];
   const checks = [];
   const requests = [];
-  let listMode = 'slow-success';
-  let unitMode = 'slow-success';
-  let switchMode = 'success';
-  let createRequestCount = 0;
+let listMode = 'slow-success';
+let unitMode = 'slow-success';
+let switchMode = 'success';
+let forcePasswordChange = false;
+let expectedLoginPassword = 'browser-only-password';
+let createRequestCount = 0;
   const check = (name, value = true) => { assert.ok(value, name); checks.push(name); console.log(`PASS ${name}`); };
   page.on('pageerror', error => errors.push(error.message));
 
@@ -88,12 +90,23 @@ const createdServiceRequest = {
     const url = new URL(request.url());
     requests.push({ path: url.pathname, search: url.search, method: request.method(), body: request.postDataJSON?.(), authorization: request.headers().authorization, idempotencyKey: request.headers()['idempotency-key'] });
     const headers = { 'Content-Type': 'application/json', 'X-Correlation-ID': correlationId };
-    if (url.pathname.endsWith('/auth/login')) return route.fulfill({ status: 200, headers, body: JSON.stringify({ access_token: issuedToken, token_type: 'Bearer', user: { ...user, roles: ['admin'] } }) });
-    if (url.pathname.endsWith('/auth/me')) return route.fulfill({ status: 200, headers, body: JSON.stringify(request.headers().authorization === `Bearer ${switchedToken}` ? switchedUser : user) });
+    if (url.pathname.endsWith('/auth/login')) {
+      if (request.postDataJSON()?.password !== expectedLoginPassword) return route.fulfill({ status: 401, headers, body: JSON.stringify({ error: { code: 'ERR-UNAUTHORIZED', message: 'Tên đăng nhập hoặc mật khẩu không chính xác', correlation_id: correlationId } }) });
+      return route.fulfill({ status: 200, headers, body: JSON.stringify({ access_token: issuedToken, token_type: 'Bearer', user: { ...user, roles: ['admin'] } }) });
+    }
+    if (url.pathname.endsWith('/auth/me')) return route.fulfill({ status: 200, headers, body: JSON.stringify({ ...(request.headers().authorization === `Bearer ${switchedToken}` ? switchedUser : user), must_change_password: forcePasswordChange }) });
     if (url.pathname.endsWith('/auth/switch-site')) {
       if (switchMode === 'scope') return route.fulfill({ status: 404, headers, body: JSON.stringify({ error: { code: 'ERR-SCOPE-NOTFOUND', message: 'Không tìm thấy dữ liệu.', correlation_id: correlationId } }) });
       return route.fulfill({ status: 200, headers, body: JSON.stringify({ access_token: switchedToken, token_type: 'Bearer', user: { ...switchedUser, roles: ['admin'] } }) });
     }
+    if (url.pathname.endsWith('/auth/change-password')) {
+      const body = request.postDataJSON();
+      if (body?.current_password !== expectedLoginPassword) return route.fulfill({ status: 401, headers, body: JSON.stringify({ error: { code: 'ERR-UNAUTHORIZED', message: 'Mật khẩu hiện tại không chính xác', correlation_id: correlationId } }) });
+      expectedLoginPassword = body.new_password;
+      forcePasswordChange = false;
+      return route.fulfill({ status: 204, headers });
+    }
+    if (url.pathname.endsWith('/auth/logout')) return route.fulfill({ status: 204, headers });
     if (url.pathname.endsWith('/service-request-form-options')) {
       const requestedBuildingId = url.searchParams.get('building_id');
       const body = requestedBuildingId
@@ -130,7 +143,7 @@ const createdServiceRequest = {
     const url = process.env.UX_BASE_URL || 'http://127.0.0.1:3000/';
     await page.goto(url);
     await page.waitForLoadState('networkidle');
-    check('real credential form is the initial surface', await page.getByRole('heading', { name: 'Đăng nhập không gian làm việc' }).isVisible());
+    check('real credential form is the initial surface', await page.getByRole('heading', { name: 'Đăng nhập GreenCity' }).isVisible());
     check('no account or role picker is rendered', await page.locator('select,#staff-account').count() === 0);
     check('password input accepts credentials', await page.locator('#staff-password').isEnabled());
 
@@ -138,6 +151,20 @@ const createdServiceRequest = {
     await page.locator('#staff-password').fill('browser-only-password');
     await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
     await page.getByRole('heading', { name: 'Tiếp nhận & chăm sóc cư dân' }).waitFor();
+    const staffNavigation = page.getByRole('navigation', { name: 'Điều hướng chính' });
+    const staffMenu = (await staffNavigation.getByRole('button').allTextContents()).map(label => label.trim());
+    check('CSKH sees only implemented pages permitted for the server role', JSON.stringify(staffMenu) === JSON.stringify([
+      'Tổng quan', 'Công việc & Yêu cầu', 'Bưu phẩm & Bàn giao', 'Khách hàng & Cư dân', 'Nhập dữ liệu căn hộ', 'Thông báo',
+    ]));
+    check('unsupported prototype pages are absent from the role menu', await staffNavigation.getByRole('button', { name: 'Kỹ thuật & Bảo trì' }).count() === 0
+      && await staffNavigation.getByRole('button', { name: 'Báo cáo điều hành' }).count() === 0
+      && await staffNavigation.getByRole('button', { name: 'Phiếu hoàn tiền & Hoá đơn' }).count() === 0);
+    await page.evaluate(() => {
+      window.location.hash = '#/technical';
+    });
+    await page.waitForFunction(() => window.location.hash === '#/overview');
+    check('direct link to unsupported Maintenance tab returns to Overview', await staffNavigation.getByRole('button', { name: 'Tổng quan' }).getAttribute('aria-current') === 'page'
+      && await page.getByRole('heading', { name: 'Không có quyền xem phân hệ này' }).count() === 0);
     await page.getByRole('navigation', { name: 'Điều hướng chính' }).getByRole('button', { name: 'Công việc & Yêu cầu', exact: true }).click();
     check('loading state is visible while the scoped request is pending', await page.getByText('Đang tải yêu cầu đúng phạm vi…', { exact: true }).isVisible());
     await page.getByText('SR-BROWSER-001', { exact: true }).waitFor();
@@ -160,6 +187,31 @@ const createdServiceRequest = {
     await page.getByText('Trang 1 / 2', { exact: true }).waitFor();
     await page.getByText('Đang tải yêu cầu đúng phạm vi…', { exact: true }).waitFor({ state: 'hidden' });
     await page.screenshot({ path: path.join(output, '01-service-list.png'), fullPage: true });
+
+    listMode = 'network';
+    const failedOverviewList = page.waitForRequest(request => request.url().includes('/service-requests?status=IN_PROGRESS'));
+    await page.getByRole('button', { name: 'Đang xử lý', exact: true }).click();
+    await failedOverviewList;
+    await page.getByRole('alert').filter({ hasText: 'Mất kết nối tới máy chủ' }).waitFor();
+    await page.getByRole('navigation', { name: 'Điều hướng chính' }).getByRole('button', { name: 'Tổng quan', exact: true }).click();
+    await page.getByRole('alert').filter({ hasText: 'Không tải được yêu cầu' }).waitFor();
+    check('overview distinguishes request failure from a genuinely empty queue', await page.getByText('Chưa có yêu cầu trong phạm vi', { exact: false }).count() === 0
+      && await page.getByText('Không thể kết nối máy chủ', { exact: false }).isVisible());
+    listMode = 'slow-success';
+    const overviewRetry = page.waitForRequest(request => request.url().includes('/service-requests?status=IN_PROGRESS'));
+    await page.getByRole('button', { name: 'Thử lại', exact: true }).click();
+    await overviewRetry;
+    await page.getByRole('alert').filter({ hasText: 'Không tải được yêu cầu' }).waitFor({ state: 'hidden' });
+    await page.waitForFunction(() => document.querySelector('.staff-metrics')?.getAttribute('aria-busy') === 'false');
+    const retryRequest = requests.filter(item => item.path.endsWith('/service-requests')).at(-1);
+    const retryParams = new URLSearchParams(retryRequest?.search || '');
+    check('overview retry reloads data without losing the active status filter',
+      await page.getByText('Không tải được yêu cầu', { exact: false }).count() === 0
+      && await page.getByText('SR-BROWSER-001', { exact: true }).isVisible()
+      && retryParams.get('status') === 'IN_PROGRESS');
+
+    await page.getByRole('navigation', { name: 'Điều hướng chính' }).getByRole('button', { name: 'Công việc & Yêu cầu', exact: true }).click();
+    await page.getByRole('button', { name: 'Tạo yêu cầu', exact: true }).waitFor();
 
     const initialFormOptionsRequest = page.waitForRequest(request => request.url().endsWith('/service-request-form-options'));
     await page.getByRole('button', { name: 'Tạo yêu cầu', exact: true }).click();
@@ -269,8 +321,31 @@ const createdServiceRequest = {
     unitMode = 'unauthorized';
     await page.locator('#unit-lookup-id').fill(randomUUID());
     await page.getByRole('button', { name: 'Tra cứu', exact: true }).click();
-    await page.getByRole('heading', { name: 'Đăng nhập không gian làm việc' }).waitFor();
+    await page.getByRole('heading', { name: 'Đăng nhập GreenCity' }).waitFor();
     check('Unit 401 clears the UI session and returns to login', await page.getByText(/Phiên đã hết hạn/).isVisible());
+
+    forcePasswordChange = true;
+    await page.locator('#staff-username').fill('cskh.browser');
+    await page.locator('#staff-password').fill(expectedLoginPassword);
+    await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
+    await page.getByRole('heading', { name: 'Đổi mật khẩu' }).waitFor();
+    await page.screenshot({ path: path.join(output, '02-forced-password-change.png'), fullPage: true });
+    check('seeded user reaches a restricted password-change screen', await page.getByRole('heading', { name: 'Đổi mật khẩu' }).isVisible() && await page.getByRole('button', { name: 'Đăng xuất', exact: true }).isVisible());
+    await page.locator('#current-password').fill(expectedLoginPassword);
+    await page.locator('#new-password').fill('browser-only-new-password');
+    await page.locator('#confirm-password').fill('browser-only-new-password');
+    const passwordChangeRequest = page.waitForRequest(request => request.url().endsWith('/auth/change-password'));
+    await page.getByRole('button', { name: 'Đổi mật khẩu', exact: true }).click();
+    const changeRequest = await passwordChangeRequest;
+    check('password update sends only old/new passwords over the authenticated client', JSON.stringify(Object.keys(changeRequest.postDataJSON()).sort()) === JSON.stringify(['current_password', 'new_password']) && changeRequest.headers().authorization === `Bearer ${issuedToken}`);
+    await page.getByRole('heading', { name: 'Đăng nhập GreenCity' }).waitFor();
+    check('password change ends the old session and requires re-login', await page.getByText('Mật khẩu đã được đổi. Hãy đăng nhập lại bằng mật khẩu mới.', { exact: true }).isVisible());
+    await page.locator('#staff-username').fill('cskh.browser');
+    await page.locator('#staff-password').fill(expectedLoginPassword);
+    await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
+    try { await page.getByRole('heading', { name: 'Tiếp nhận & chăm sóc cư dân' }).waitFor({ timeout: 5000 }); }
+    catch { console.error('Password-change re-login state:', await page.locator('main').innerText()); throw new Error('Changed password did not restore the workspace'); }
+    check('re-login with the changed password returns to the workspace');
     check('no runtime JavaScript errors', errors.length === 0);
 
     fs.writeFileSync(path.join(output, 'test-results.json'), JSON.stringify({ passed: checks.length, checks, errors }, null, 2));

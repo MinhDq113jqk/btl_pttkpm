@@ -1,0 +1,17 @@
+{
+  "flow": "GF-03",
+  "checks": [
+    "GF03 technical lead creates an Asset through the real backend",
+    "GF03 Maintenance Plan is persisted by the real backend",
+    "GF03 scheduler creates an occurrence and Work Order",
+    "GF03 technical lead assigns the Work Order",
+    "GF03 evidence upload reaches the real backend",
+    "GF03 technician completes checklist and uploads evidence",
+    "GF03 technical acceptance completes the occurrence",
+    "GF03 maintenance state remains visible after browser reload",
+    "GF03 browser has no page errors",
+    "GF03 API calls have no failed responses"
+  ],
+  "errors": [],
+  "apiFailures": []
+}

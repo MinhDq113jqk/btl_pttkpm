@@ -39,6 +39,7 @@ function assertUserInfo(user, correlationId = '') {
     || (typeof user?.active_site_id === 'string' && user.allowed_sites?.some(site => site.id === user.active_site_id));
   if (!user || typeof user !== 'object' || typeof user.account_id !== 'string'
     || typeof user.full_name !== 'string' || !Array.isArray(user.roles)
+    || (user.must_change_password !== undefined && typeof user.must_change_password !== 'boolean')
     || !validSites || !validActiveSite) {
     throw new ApiError('Phản hồi hồ sơ đăng nhập không đúng định dạng.', {
       code: 'ERR-INVALID-RESPONSE', correlationId,
@@ -53,6 +54,158 @@ function assertServiceRequestList(payload, correlationId = '') {
     throw new ApiError('Phản hồi danh sách yêu cầu không đúng định dạng.', {
       code: 'ERR-INVALID-RESPONSE', correlationId,
     });
+  }
+  return payload;
+}
+
+function assertImportRun(payload, correlationId = '') {
+  const statuses = new Set(['UPLOADED', 'VALIDATING', 'PREVIEWED', 'APPLYING', 'APPLIED', 'FAILED']);
+  const modes = new Set(['PARTIAL', 'ALL_OR_NOTHING']);
+  const numeric = ['source_size_bytes', 'total_rows', 'valid_rows', 'warning_rows', 'error_rows', 'skipped_rows', 'applied_rows', 'version'];
+  const nullableDates = ['previewed_at', 'applied_at', 'failed_at'];
+  if (!payload || typeof payload.id !== 'string' || !modes.has(payload.mode) || !statuses.has(payload.status)
+    || typeof payload.source_filename !== 'string' || typeof payload.source_mime_type !== 'string'
+    || typeof payload.source_sha256 !== 'string' || typeof payload.source_is_quarantined !== 'boolean'
+    || typeof payload.error_file_available !== 'boolean'
+    || numeric.some(field => !Number.isInteger(payload[field]))
+    || (payload.failure_code !== null && typeof payload.failure_code !== 'string')
+    || nullableDates.some(field => payload[field] !== null && typeof payload[field] !== 'string')) {
+    throw new ApiError('Phản hồi phiên nhập dữ liệu không đúng định dạng.', {
+      code: 'ERR-INVALID-RESPONSE', correlationId,
+    });
+  }
+  return payload;
+}
+
+function assertImportRows(payload, correlationId = '') {
+  const statuses = new Set(['VALIDATED', 'WARNING', 'ERROR', 'IMPORTED', 'SKIPPED']);
+  const validRow = row => row && Number.isInteger(row.row_number) && statuses.has(row.status)
+    && Array.isArray(row.issues) && row.issues.every(issue => issue && typeof issue.code === 'string'
+      && (issue.column === null || typeof issue.column === 'string') && typeof issue.message === 'string');
+  if (!payload || !Array.isArray(payload.items) || !payload.items.every(validRow)
+    || !Number.isInteger(payload.page) || !Number.isInteger(payload.page_size) || !Number.isInteger(payload.total)) {
+    throw new ApiError('Phản hồi chi tiết dòng nhập dữ liệu không đúng định dạng.', {
+      code: 'ERR-INVALID-RESPONSE', correlationId,
+    });
+  }
+  return payload;
+}
+
+function assertServiceRequest(payload, correlationId = '') {
+  const required = ['id', 'code', 'tenant_id', 'site_id', 'building_id', 'category_id', 'title', 'description',
+    'priority', 'status', 'sla_started_at', 'sla_deadline', 'owner_account_id'];
+  if (!payload || required.some(field => typeof payload[field] !== 'string') || !Number.isInteger(payload.version)
+    || (payload.unit_id !== null && typeof payload.unit_id !== 'string')
+    || (payload.linked_request_id !== null && typeof payload.linked_request_id !== 'string')) {
+    throw new ApiError('Phản hồi yêu cầu dịch vụ không đúng định dạng.', { code: 'ERR-INVALID-RESPONSE', correlationId });
+  }
+  return payload;
+}
+
+function assertWorkOrder(payload, correlationId = '') {
+  const required = ['id', 'code', 'tenant_id', 'site_id', 'building_id', 'title', 'description', 'status'];
+  const nullable = ['service_request_id', 'maintenance_occurrence_id', 'assigned_to_id', 'acceptance_mode',
+    'acceptance_reason', 'result_summary', 'completed_at', 'closed_at'];
+  const validChecklist = item => item && typeof item.id === 'string' && typeof item.label === 'string'
+    && Number.isInteger(item.position) && typeof item.is_required === 'boolean'
+    && typeof item.is_completed === 'boolean' && Number.isInteger(item.version)
+    && (item.result === null || typeof item.result === 'string');
+  if (!payload || required.some(field => typeof payload[field] !== 'string') || !Number.isInteger(payload.version)
+    || !Number.isInteger(payload.evidence_count) || !Array.isArray(payload.checklist)
+    || !payload.checklist.every(validChecklist)
+    || nullable.some(field => payload[field] !== null && typeof payload[field] !== 'string')) {
+    throw new ApiError('Phản hồi Work Order không đúng định dạng.', { code: 'ERR-INVALID-RESPONSE', correlationId });
+  }
+  return payload;
+}
+
+function assertWorkOrderAssignees(payload, correlationId = '') {
+  const roles = new Set(['cskh', 'technical_lead', 'technician']);
+  if (!Array.isArray(payload) || !payload.every(item => item && typeof item.id === 'string'
+    && typeof item.full_name === 'string' && roles.has(item.role))) {
+    throw new ApiError('Phản hồi danh sách người nhận việc không đúng định dạng.', { code: 'ERR-INVALID-RESPONSE', correlationId });
+  }
+  return payload;
+}
+
+function assertWorkOrderEvidence(payload, correlationId = '') {
+  const valid = item => item && typeof item.id === 'string' && typeof item.work_order_id === 'string'
+    && typeof item.original_name === 'string' && typeof item.mime_type === 'string'
+    && Number.isInteger(item.size_bytes) && typeof item.sha256 === 'string';
+  if (!Array.isArray(payload) || !payload.every(valid)) {
+    throw new ApiError('Phản hồi danh sách bằng chứng Work Order không đúng định dạng.', { code: 'ERR-INVALID-RESPONSE', correlationId });
+  }
+  return payload;
+}
+
+function assertWorkOrderCostLines(payload, correlationId = '') {
+  const valid = item => item && typeof item.id === 'string' && typeof item.work_order_id === 'string'
+    && typeof item.description === 'string' && Number.isInteger(item.amount_vnd)
+    && typeof item.cost_bearer === 'string' && typeof item.status === 'string'
+    && Number.isInteger(item.version)
+    && (item.evidence_attachment_id === null || typeof item.evidence_attachment_id === 'string');
+  if (!Array.isArray(payload) || !payload.every(valid)) {
+    throw new ApiError('Phản hồi danh sách chi phí Work Order không đúng định dạng.', { code: 'ERR-INVALID-RESPONSE', correlationId });
+  }
+  return payload;
+}
+
+function assertMaintenanceBuildings(payload, correlationId = '') {
+  if (!Array.isArray(payload) || !payload.every(item => item && typeof item.id === 'string'
+    && typeof item.code === 'string' && typeof item.name === 'string')) {
+    throw new ApiError('Phản hồi danh sách tòa nhà kỹ thuật không đúng định dạng.', { code: 'ERR-INVALID-RESPONSE', correlationId });
+  }
+  return payload;
+}
+
+function assertMaintenanceAsset(payload, correlationId = '') {
+  const required = ['id', 'tenant_id', 'site_id', 'building_id', 'code', 'name', 'description', 'status'];
+  if (!payload || required.some(field => typeof payload[field] !== 'string') || !Number.isInteger(payload.version)
+    || (payload.unit_id !== null && typeof payload.unit_id !== 'string')) {
+    throw new ApiError('Phản hồi Asset không đúng định dạng.', { code: 'ERR-INVALID-RESPONSE', correlationId });
+  }
+  return payload;
+}
+
+function assertMaintenancePlan(payload, correlationId = '') {
+  const required = ['id', 'tenant_id', 'site_id', 'building_id', 'asset_id', 'code', 'title', 'next_due_at'];
+  if (!payload || required.some(field => typeof payload[field] !== 'string')
+    || !Number.isInteger(payload.interval_days) || !Number.isInteger(payload.version)
+    || typeof payload.is_active !== 'boolean' || typeof payload.evidence_required !== 'boolean'
+    || !Array.isArray(payload.checklist_template)) {
+    throw new ApiError('Phản hồi Maintenance Plan không đúng định dạng.', { code: 'ERR-INVALID-RESPONSE', correlationId });
+  }
+  return payload;
+}
+
+function assertMaintenanceOccurrences(payload, correlationId = '') {
+  const valid = item => item && typeof item.id === 'string' && typeof item.asset_id === 'string'
+    && typeof item.plan_id === 'string' && typeof item.due_at === 'string' && typeof item.status === 'string'
+    && Number.isInteger(item.version)
+    && (item.defer_until === null || typeof item.defer_until === 'string')
+    && (item.defer_reason === null || typeof item.defer_reason === 'string')
+    && (item.completed_at === null || typeof item.completed_at === 'string')
+    && (item.work_order_id === null || typeof item.work_order_id === 'string');
+  if (!payload || !Array.isArray(payload.items) || !payload.items.every(valid)) {
+    throw new ApiError('Phản hồi occurrence bảo trì không đúng định dạng.', { code: 'ERR-INVALID-RESPONSE', correlationId });
+  }
+  return payload;
+}
+
+function assertSchedulerOccurrence(payload, correlationId = '') {
+  if (!payload || typeof payload.occurrence_id !== 'string' || typeof payload.plan_id !== 'string'
+    || typeof payload.due_at !== 'string' || typeof payload.replayed !== 'boolean'
+    || (payload.work_order_id !== null && typeof payload.work_order_id !== 'string')) {
+    throw new ApiError('Phản hồi occurrence scheduler không đúng định dạng.', { code: 'ERR-INVALID-RESPONSE', correlationId });
+  }
+  return payload;
+}
+
+function assertMaintenanceHistory(payload, correlationId = '') {
+  const valid = item => item && ['id', 'asset_id', 'occurrence_id', 'work_order_id', 'performed_by_id',
+    'accepted_by_id', 'result_summary', 'completed_at'].every(field => typeof item[field] === 'string');
+  if (!payload || !Array.isArray(payload.items) || !payload.items.every(valid)) {
+    throw new ApiError('Phản hồi lịch sử bảo trì không đúng định dạng.', { code: 'ERR-INVALID-RESPONSE', correlationId });
   }
   return payload;
 }
@@ -746,6 +899,59 @@ export function createApiClient({
     return result.payload;
   }
 
+  async function downloadFile(target, { signal, fallbackFilename = 'download.csv' } = {}) {
+    const requestCorrelationId = correlationIdFactory?.() || '';
+    const requestRevision = sessionRevision;
+    const requestToken = accessToken;
+    const headers = { Accept: 'text/csv, application/octet-stream' };
+    if (requestCorrelationId) headers['X-Correlation-ID'] = requestCorrelationId;
+    if (requestToken) headers.Authorization = `Bearer ${requestToken}`;
+    const url = /^https?:\/\//i.test(target)
+      ? target
+      : target.startsWith('/api/v1/')
+        ? (/^https?:\/\//i.test(apiBaseUrl) ? new URL(target, new URL(apiBaseUrl).origin).toString() : target)
+        : `${apiBaseUrl}${target}`;
+    let response;
+    try {
+      response = await fetchImpl(url, { method: 'GET', headers, signal });
+    } catch (cause) {
+      if (requestRevision !== sessionRevision) throw staleSessionError();
+      if (cause?.name === 'AbortError') throw cause;
+      throw new ApiError('Không thể tải tệp. Kiểm tra kết nối rồi thử lại.', {
+        code: 'ERR-NETWORK', correlationId: requestCorrelationId, cause,
+      });
+    }
+    if (requestRevision !== sessionRevision) throw staleSessionError();
+    const responseCorrelationId = response.headers?.get?.('X-Correlation-ID') || requestCorrelationId;
+    if (!response.ok) {
+      const payload = await readPayload(response);
+      const error = errorFromResponse(response, payload, responseCorrelationId);
+      if (response.status === 401 && requestRevision === sessionRevision && requestToken === accessToken && requestToken) {
+        clearSession();
+        onUnauthorized(error);
+      }
+      throw error;
+    }
+    if (typeof response.blob !== 'function') {
+      throw new ApiError('Máy chủ trả về nội dung tải xuống không hợp lệ.', {
+        code: 'ERR-INVALID-RESPONSE', correlationId: responseCorrelationId,
+      });
+    }
+    const blob = await response.blob();
+    if (requestRevision !== sessionRevision) throw staleSessionError();
+    const disposition = response.headers?.get?.('content-disposition') || '';
+    const encodedName = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+    const plainName = disposition.match(/filename="?([^";]+)"?/i)?.[1];
+    let filename = fallbackFilename;
+    try { if (encodedName) filename = decodeURIComponent(encodedName); else if (plainName) filename = plainName; } catch { /* keep the safe fallback */ }
+    return {
+      blob,
+      filename,
+      contentType: response.headers?.get?.('content-type') || blob.type || 'application/octet-stream',
+      correlationId: responseCorrelationId,
+    };
+  }
+
   return {
     async chatAssistant(message, { signal } = {}) {
       if (typeof message !== 'string' || !message.trim()) throw new TypeError('message must be a non-empty string');
@@ -776,6 +982,35 @@ export function createApiClient({
         clearSession();
         throw error;
       }
+    },
+
+    async logoutCurrentSession({ signal } = {}) {
+      if (!accessToken) {
+        clearSession();
+        return false;
+      }
+      let revoked = false;
+      try {
+        await request('/auth/logout', { method: 'POST', signal });
+        revoked = true;
+      } catch (error) {
+        if (error?.status === 401) revoked = true;
+      } finally {
+        clearSession();
+      }
+      return revoked;
+    },
+
+    async changePassword(currentPassword, newPassword, { signal } = {}) {
+      if (typeof currentPassword !== 'string' || typeof newPassword !== 'string') {
+        throw new TypeError('currentPassword and newPassword must be strings');
+      }
+      await request('/auth/change-password', {
+        method: 'POST',
+        body: { current_password: currentPassword, new_password: newPassword },
+        signal,
+      });
+      clearSession();
     },
 
     async switchSite(siteId, { signal } = {}) {
@@ -996,6 +1231,343 @@ export function createApiClient({
       query.set('page_size', String(page_size));
       const result = await request(`/service-requests?${query}`, { signal });
       return assertServiceRequestList(result.payload, result.correlationId);
+    },
+
+    async downloadUnitImportTemplate({ signal } = {}) {
+      return downloadFile('/import-runs/template', { signal, fallbackFilename: 'unit-import-template.csv' });
+    },
+
+    async exportUnitsCsv(buildingCode, { signal } = {}) {
+      if (typeof buildingCode !== 'string' || !buildingCode.trim()) throw new TypeError('buildingCode is required');
+      return downloadFile(`/units/export?building_code=${encodeURIComponent(buildingCode.trim())}`, {
+        signal, fallbackFilename: 'unit-export.csv',
+      });
+    },
+
+    async uploadUnitCsvImport(file, { buildingCode, mode = 'PARTIAL', idempotencyKey, signal } = {}) {
+      if (!file || typeof file.arrayBuffer !== 'function') throw new TypeError('A CSV File is required');
+      if (typeof buildingCode !== 'string' || !buildingCode.trim()) throw new TypeError('buildingCode is required');
+      if (!['PARTIAL', 'ALL_OR_NOTHING'].includes(mode)) throw new TypeError('mode is invalid');
+      if (typeof idempotencyKey !== 'string' || !idempotencyKey.trim()) throw new TypeError('idempotencyKey is required');
+      const query = new URLSearchParams({ building_code: buildingCode.trim(), mode });
+      const result = await request(`/import-runs?${query}`, {
+        method: 'POST', signal, idempotencyKey: idempotencyKey.trim(),
+        rawBody: await file.arrayBuffer(), contentType: file.type || 'text/csv; charset=utf-8',
+        extraHeaders: { 'X-File-Name': file.name || 'units.csv' },
+      });
+      return assertImportRun(result.payload, result.correlationId);
+    },
+
+    async previewUnitCsvImport(runId, expectedVersion, mapping, { idempotencyKey, signal } = {}) {
+      if (!runId || !Number.isInteger(expectedVersion)) throw new TypeError('runId and expectedVersion are required');
+      if (typeof idempotencyKey !== 'string' || !idempotencyKey.trim()) throw new TypeError('idempotencyKey is required');
+      const result = await request(`/import-runs/${encodeURIComponent(runId)}/preview`, {
+        method: 'POST', signal, idempotencyKey: idempotencyKey.trim(),
+        body: { expected_version: expectedVersion, mapping },
+      });
+      return assertImportRun(result.payload, result.correlationId);
+    },
+
+    async applyUnitCsvImport(runId, expectedVersion, { idempotencyKey, signal } = {}) {
+      if (!runId || !Number.isInteger(expectedVersion)) throw new TypeError('runId and expectedVersion are required');
+      if (typeof idempotencyKey !== 'string' || !idempotencyKey.trim()) throw new TypeError('idempotencyKey is required');
+      const result = await request(`/import-runs/${encodeURIComponent(runId)}/apply`, {
+        method: 'POST', signal, idempotencyKey: idempotencyKey.trim(), body: { expected_version: expectedVersion },
+      });
+      return assertImportRun(result.payload, result.correlationId);
+    },
+
+    async getUnitCsvImport(runId, { signal } = {}) {
+      if (!runId) throw new TypeError('runId is required');
+      const result = await request(`/import-runs/${encodeURIComponent(runId)}`, { signal });
+      return assertImportRun(result.payload, result.correlationId);
+    },
+
+    async listUnitCsvImportRows(runId, { page = 1, page_size = 100, signal } = {}) {
+      if (!runId) throw new TypeError('runId is required');
+      const query = new URLSearchParams({ page: String(page), page_size: String(page_size) });
+      const result = await request(`/import-runs/${encodeURIComponent(runId)}/rows?${query}`, { signal });
+      return assertImportRows(result.payload, result.correlationId);
+    },
+
+    async downloadUnitCsvImportErrors(runId, { signal } = {}) {
+      if (!runId) throw new TypeError('runId is required');
+      const result = await request(`/import-runs/${encodeURIComponent(runId)}/error-file/signed-link`, { signal });
+      const signed = assertResidentSignedLink(result.payload, result.correlationId);
+      return downloadFile(signed.url, { signal, fallbackFilename: 'import-errors.csv' });
+    },
+
+    async getServiceRequest(requestId, { signal } = {}) {
+      if (!requestId) throw new TypeError('requestId is required');
+      const result = await request(`/service-requests/${encodeURIComponent(requestId)}`, { signal });
+      return assertServiceRequest(result.payload, result.correlationId);
+    },
+
+    async listServiceRequestWorkOrders(requestId, { signal } = {}) {
+      if (!requestId) throw new TypeError('requestId is required');
+      const result = await request(`/service-requests/${encodeURIComponent(requestId)}/work-orders`, { signal });
+      if (!Array.isArray(result.payload)) {
+        throw new ApiError('Phản hồi danh sách Work Order không đúng định dạng.', { code: 'ERR-INVALID-RESPONSE', correlationId: result.correlationId });
+      }
+      return result.payload.map(item => assertWorkOrder(item, result.correlationId));
+    },
+
+    async getWorkOrder(workOrderId, { signal } = {}) {
+      if (!workOrderId) throw new TypeError('workOrderId is required');
+      const result = await request(`/work-orders/${encodeURIComponent(workOrderId)}`, { signal });
+      return assertWorkOrder(result.payload, result.correlationId);
+    },
+
+    async listWorkOrderAssignees(workOrderId, { signal } = {}) {
+      if (!workOrderId) throw new TypeError('workOrderId is required');
+      const result = await request(`/work-orders/${encodeURIComponent(workOrderId)}/assignees`, { signal });
+      return assertWorkOrderAssignees(result.payload, result.correlationId);
+    },
+
+    async listServiceRequestAssignees(requestId, purpose, { signal } = {}) {
+      if (!requestId || !['triage', 'work_order'].includes(purpose)) throw new TypeError('requestId and a valid purpose are required');
+      const result = await request(`/service-requests/${encodeURIComponent(requestId)}/assignees?purpose=${encodeURIComponent(purpose)}`, { signal });
+      return assertWorkOrderAssignees(result.payload, result.correlationId);
+    },
+
+    async triageServiceRequest(requestId, values, { signal } = {}) {
+      if (!requestId || !values?.owner_account_id || !Number.isInteger(values?.expected_version)) throw new TypeError('requestId, owner_account_id and expected_version are required');
+      const result = await request(`/service-requests/${encodeURIComponent(requestId)}/triage`, {
+        method: 'POST', signal, body: {
+          owner_account_id: values.owner_account_id,
+          priority: values.priority,
+          expected_version: values.expected_version,
+        },
+      });
+      return assertServiceRequest(result.payload, result.correlationId);
+    },
+
+    async createWorkOrder(requestId, values, { idempotencyKey, signal } = {}) {
+      if (!requestId || typeof idempotencyKey !== 'string' || !idempotencyKey.trim()) throw new TypeError('requestId and idempotencyKey are required');
+      const result = await request(`/service-requests/${encodeURIComponent(requestId)}/work-orders`, {
+        method: 'POST', signal, idempotencyKey: idempotencyKey.trim(), body: {
+          title: values?.title,
+          description: values?.description,
+          checklist: values?.checklist,
+        },
+      });
+      return assertWorkOrder(result.payload, result.correlationId);
+    },
+
+    async assignWorkOrder(workOrderId, values, { signal } = {}) {
+      if (!workOrderId || !values?.assignee_id || !Number.isInteger(values?.expected_version)) throw new TypeError('workOrderId, assignee_id and expected_version are required');
+      const result = await request(`/work-orders/${encodeURIComponent(workOrderId)}/assign`, {
+        method: 'POST', signal, body: { assignee_id: values.assignee_id, expected_version: values.expected_version },
+      });
+      return assertWorkOrder(result.payload, result.correlationId);
+    },
+
+    async startWorkOrder(workOrderId, expectedVersion, { signal } = {}) {
+      if (!workOrderId || !Number.isInteger(expectedVersion)) throw new TypeError('workOrderId and expectedVersion are required');
+      const result = await request(`/work-orders/${encodeURIComponent(workOrderId)}/start`, {
+        method: 'POST', signal, body: { expected_version: expectedVersion },
+      });
+      return assertWorkOrder(result.payload, result.correlationId);
+    },
+
+    async updateWorkOrderChecklist(workOrderId, itemId, values, { signal } = {}) {
+      if (!workOrderId || !itemId || !Number.isInteger(values?.expected_version)) throw new TypeError('workOrderId, itemId and expected_version are required');
+      const result = await request(`/work-orders/${encodeURIComponent(workOrderId)}/checklist/${encodeURIComponent(itemId)}`, {
+        method: 'PATCH', signal, body: {
+          expected_version: values.expected_version,
+          is_completed: values.is_completed,
+          result: values.result,
+        },
+      });
+      const item = result.payload;
+      if (!item || typeof item.id !== 'string' || typeof item.label !== 'string' || !Number.isInteger(item.version)) {
+        throw new ApiError('Phản hồi checklist Work Order không đúng định dạng.', { code: 'ERR-INVALID-RESPONSE', correlationId: result.correlationId });
+      }
+      return item;
+    },
+
+    async uploadWorkOrderEvidence(workOrderId, file, { idempotencyKey, signal } = {}) {
+      if (!workOrderId || !file || typeof file.arrayBuffer !== 'function'
+        || typeof idempotencyKey !== 'string' || !idempotencyKey.trim()) {
+        throw new TypeError('workOrderId, File and idempotencyKey are required');
+      }
+      const result = await request(`/work-orders/${encodeURIComponent(workOrderId)}/evidence`, {
+        method: 'POST', signal, idempotencyKey: idempotencyKey.trim(),
+        rawBody: await file.arrayBuffer(), contentType: file.type || 'application/octet-stream',
+        extraHeaders: { 'X-File-Name': file.name || 'evidence' },
+      });
+      const item = result.payload;
+      if (!item || typeof item.id !== 'string' || typeof item.work_order_id !== 'string'
+        || typeof item.original_name !== 'string' || typeof item.mime_type !== 'string'
+        || !Number.isInteger(item.size_bytes) || typeof item.sha256 !== 'string') {
+        throw new ApiError('Phản hồi bằng chứng Work Order không đúng định dạng.', { code: 'ERR-INVALID-RESPONSE', correlationId: result.correlationId });
+      }
+      return item;
+    },
+
+    async listWorkOrderEvidence(workOrderId, { signal } = {}) {
+      if (!workOrderId) throw new TypeError('workOrderId is required');
+      const result = await request(`/work-orders/${encodeURIComponent(workOrderId)}/evidence`, { signal });
+      return assertWorkOrderEvidence(result.payload, result.correlationId);
+    },
+
+    async createWorkOrderCostLine(workOrderId, values, { idempotencyKey, signal } = {}) {
+      if (!workOrderId || typeof idempotencyKey !== 'string' || !idempotencyKey.trim()) throw new TypeError('workOrderId and idempotencyKey are required');
+      const body = {
+        description: values?.description,
+        amount_vnd: values?.amount_vnd,
+        cost_bearer: values?.cost_bearer,
+      };
+      if (values?.evidence_attachment_id) body.evidence_attachment_id = values.evidence_attachment_id;
+      const result = await request(`/work-orders/${encodeURIComponent(workOrderId)}/cost-lines`, {
+        method: 'POST', signal, idempotencyKey: idempotencyKey.trim(), body,
+      });
+      const lines = assertWorkOrderCostLines([result.payload], result.correlationId);
+      return lines[0];
+    },
+
+    async listWorkOrderCostLines(workOrderId, { signal } = {}) {
+      if (!workOrderId) throw new TypeError('workOrderId is required');
+      const result = await request(`/work-orders/${encodeURIComponent(workOrderId)}/cost-lines`, { signal });
+      return assertWorkOrderCostLines(result.payload, result.correlationId);
+    },
+
+    async submitWorkOrder(workOrderId, values, { signal } = {}) {
+      if (!workOrderId || !Number.isInteger(values?.expected_version)) throw new TypeError('workOrderId and expected_version are required');
+      const result = await request(`/work-orders/${encodeURIComponent(workOrderId)}/submit`, {
+        method: 'POST', signal, body: { expected_version: values.expected_version, result_summary: values.result_summary },
+      });
+      return assertWorkOrder(result.payload, result.correlationId);
+    },
+
+    async acceptWorkOrder(workOrderId, values, { signal } = {}) {
+      if (!workOrderId || !Number.isInteger(values?.expected_version)) throw new TypeError('workOrderId and expected_version are required');
+      const body = { expected_version: values.expected_version, mode: values.mode };
+      if (values.reason) body.reason = values.reason;
+      if (values.evidence_id) body.evidence_id = values.evidence_id;
+      const result = await request(`/work-orders/${encodeURIComponent(workOrderId)}/accept`, { method: 'POST', signal, body });
+      return assertWorkOrder(result.payload, result.correlationId);
+    },
+
+    async closeWorkOrder(workOrderId, expectedVersion, { signal } = {}) {
+      if (!workOrderId || !Number.isInteger(expectedVersion)) throw new TypeError('workOrderId and expectedVersion are required');
+      const result = await request(`/work-orders/${encodeURIComponent(workOrderId)}/close`, {
+        method: 'POST', signal, body: { expected_version: expectedVersion },
+      });
+      return assertWorkOrder(result.payload, result.correlationId);
+    },
+
+    async reopenWorkOrder(workOrderId, values, { signal } = {}) {
+      if (!workOrderId || !Number.isInteger(values?.expected_version)) throw new TypeError('workOrderId and expected_version are required');
+      const result = await request(`/work-orders/${encodeURIComponent(workOrderId)}/reopen`, {
+        method: 'POST', signal, body: { expected_version: values.expected_version, reason: values.reason },
+      });
+      return assertWorkOrder(result.payload, result.correlationId);
+    },
+
+    async cancelWorkOrder(workOrderId, values, { signal } = {}) {
+      if (!workOrderId || !Number.isInteger(values?.expected_version)) throw new TypeError('workOrderId and expected_version are required');
+      const result = await request(`/work-orders/${encodeURIComponent(workOrderId)}/cancel`, {
+        method: 'POST', signal, body: { expected_version: values.expected_version, reason: values.reason },
+      });
+      return assertWorkOrder(result.payload, result.correlationId);
+    },
+
+    async closeServiceRequest(requestId, values, { signal } = {}) {
+      if (!requestId || !Number.isInteger(values?.expected_version)) throw new TypeError('requestId and expected_version are required');
+      const body = { expected_version: values.expected_version };
+      if (values.csat_score !== undefined && values.csat_score !== null) body.csat_score = values.csat_score;
+      const result = await request(`/service-requests/${encodeURIComponent(requestId)}/close`, { method: 'POST', signal, body });
+      return assertServiceRequest(result.payload, result.correlationId);
+    },
+
+    async listMaintenanceBuildings({ signal } = {}) {
+      const result = await request('/maintenance/buildings', { signal });
+      return assertMaintenanceBuildings(result.payload, result.correlationId);
+    },
+
+    async listMaintenanceAssets(buildingId, { signal } = {}) {
+      if (!buildingId) throw new TypeError('buildingId is required');
+      const result = await request(`/maintenance/assets?building_id=${encodeURIComponent(buildingId)}`, { signal });
+      if (!Array.isArray(result.payload)) throw new ApiError('Phản hồi danh sách Asset không đúng định dạng.', { code: 'ERR-INVALID-RESPONSE', correlationId: result.correlationId });
+      return result.payload.map(item => assertMaintenanceAsset(item, result.correlationId));
+    },
+
+    async createMaintenanceAsset(values, { idempotencyKey, signal } = {}) {
+      if (typeof idempotencyKey !== 'string' || !idempotencyKey.trim()) throw new TypeError('idempotencyKey is required');
+      const body = { building_id: values?.building_id, code: values?.code, name: values?.name, description: values?.description || '' };
+      if (values?.unit_id) body.unit_id = values.unit_id;
+      const result = await request('/assets', { method: 'POST', signal, idempotencyKey: idempotencyKey.trim(), body });
+      return assertMaintenanceAsset(result.payload, result.correlationId);
+    },
+
+    async listMaintenancePlans(assetId, { signal } = {}) {
+      if (!assetId) throw new TypeError('assetId is required');
+      const result = await request(`/maintenance/assets/${encodeURIComponent(assetId)}/plans`, { signal });
+      if (!Array.isArray(result.payload)) throw new ApiError('Phản hồi danh sách Maintenance Plan không đúng định dạng.', { code: 'ERR-INVALID-RESPONSE', correlationId: result.correlationId });
+      return result.payload.map(item => assertMaintenancePlan(item, result.correlationId));
+    },
+
+    async createMaintenancePlan(values, { idempotencyKey, signal } = {}) {
+      if (typeof idempotencyKey !== 'string' || !idempotencyKey.trim()) throw new TypeError('idempotencyKey is required');
+      const result = await request('/maintenance-plans', {
+        method: 'POST', signal, idempotencyKey: idempotencyKey.trim(), body: {
+          asset_id: values?.asset_id,
+          code: values?.code,
+          title: values?.title,
+          interval_days: values?.interval_days,
+          next_due_at: values?.next_due_at,
+          checklist: values?.checklist,
+          evidence_required: values?.evidence_required !== false,
+        },
+      });
+      return assertMaintenancePlan(result.payload, result.correlationId);
+    },
+
+    async listMaintenanceOccurrences(buildingId, { signal } = {}) {
+      if (!buildingId) throw new TypeError('buildingId is required');
+      const result = await request(`/maintenance/occurrences?building_id=${encodeURIComponent(buildingId)}`, { signal });
+      return assertMaintenanceOccurrences(result.payload, result.correlationId);
+    },
+
+    async runMaintenanceScheduler(asOf, { idempotencyKey, signal } = {}) {
+      if (typeof asOf !== 'string' || !asOf) throw new TypeError('asOf is required');
+      if (typeof idempotencyKey !== 'string' || !idempotencyKey.trim()) throw new TypeError('idempotencyKey is required');
+      const result = await request('/maintenance/scheduler/run', {
+        method: 'POST', signal, idempotencyKey: idempotencyKey.trim(), body: { as_of: asOf },
+      });
+      const valid = item => item && typeof item.occurrence_id === 'string'
+        && typeof item.plan_id === 'string' && typeof item.due_at === 'string'
+        && typeof item.replayed === 'boolean'
+        && (item.work_order_id === null || typeof item.work_order_id === 'string');
+      if (!result.payload || !Array.isArray(result.payload.items) || !result.payload.items.every(valid)) {
+        throw new ApiError('Phản hồi scheduler bảo trì không đúng định dạng.', { code: 'ERR-INVALID-RESPONSE', correlationId: result.correlationId });
+      }
+      return result.payload;
+    },
+
+    async deferMaintenanceOccurrence(occurrenceId, values, { signal } = {}) {
+      if (!occurrenceId || !Number.isInteger(values?.expected_version)) throw new TypeError('occurrenceId and expected_version are required');
+      const result = await request(`/maintenance-occurrences/${encodeURIComponent(occurrenceId)}/defer`, {
+        method: 'POST', signal, body: {
+          expected_version: values.expected_version,
+          defer_until: values.defer_until,
+          reason: values.reason,
+        },
+      });
+      return assertSchedulerOccurrence(result.payload, result.correlationId);
+    },
+
+    async listAssignedMaintenanceWorkOrders({ signal } = {}) {
+      const result = await request('/maintenance/assigned-work-orders', { signal });
+      if (!Array.isArray(result.payload)) throw new ApiError('Phản hồi công việc bảo trì được giao không đúng định dạng.', { code: 'ERR-INVALID-RESPONSE', correlationId: result.correlationId });
+      return result.payload.map(item => assertWorkOrder(item, result.correlationId));
+    },
+
+    async getMaintenanceHistory(assetId, { signal } = {}) {
+      if (!assetId) throw new TypeError('assetId is required');
+      const result = await request(`/assets/${encodeURIComponent(assetId)}/maintenance-history`, { signal });
+      return assertMaintenanceHistory(result.payload, result.correlationId);
     },
 
     async getResidentServiceRequestOptions({ signal } = {}) {
@@ -1326,6 +1898,26 @@ export function createApiClient({
       return assertCleaningTask(result.payload, result.correlationId);
     },
 
+    async markCleaningTaskMissed(taskId, values, { signal } = {}) {
+      if (!taskId || !Number.isInteger(values?.expected_version) || typeof values?.reason !== 'string') {
+        throw new TypeError('taskId, expected_version and reason are required');
+      }
+      const result = await request(`/cleaning/tasks/${encodeURIComponent(taskId)}/missed`, {
+        method: 'POST', signal, body: { expected_version: values.expected_version, reason: values.reason },
+      });
+      return assertCleaningTask(result.payload, result.correlationId);
+    },
+
+    async cancelCleaningTask(taskId, values, { signal } = {}) {
+      if (!taskId || !Number.isInteger(values?.expected_version) || typeof values?.reason !== 'string') {
+        throw new TypeError('taskId, expected_version and reason are required');
+      }
+      const result = await request(`/cleaning/tasks/${encodeURIComponent(taskId)}/cancel`, {
+        method: 'POST', signal, body: { expected_version: values.expected_version, reason: values.reason },
+      });
+      return assertCleaningTask(result.payload, result.correlationId);
+    },
+
     async listSecurityDashboard({ signal } = {}) {
       const result = await request('/security/dashboard', { signal });
       return assertSecurityDashboard(result.payload, result.correlationId);
@@ -1458,8 +2050,11 @@ export function createApiClient({
       return assertSecurityIncident(result.payload, result.correlationId);
     },
 
-    async listNotifications({ includeRead = false, signal } = {}) {
-      const query = includeRead ? '?include_read=true' : '';
+    async listNotifications({ includeRead = false, asOf, signal } = {}) {
+      const params = new URLSearchParams();
+      if (includeRead) params.set('include_read', 'true');
+      if (asOf) params.set('as_of', asOf);
+      const query = params.toString() ? `?${params.toString()}` : '';
       const result = await request(`/notifications${query}`, { signal });
       return assertNotificationList(result.payload, result.correlationId);
     },
@@ -1472,9 +2067,10 @@ export function createApiClient({
       return assertNotification(result.payload, result.correlationId);
     },
 
-    async listOutboxEvents({ deliveryStatus, limit = 50, offset = 0, signal } = {}) {
+    async listOutboxEvents({ deliveryStatus, asOf, limit = 50, offset = 0, signal } = {}) {
       const params = new URLSearchParams();
       if (deliveryStatus) params.set('delivery_status', deliveryStatus);
+      if (asOf) params.set('as_of', asOf);
       if (limit) params.set('limit', String(limit));
       if (offset) params.set('offset', String(offset));
       const query = params.toString() ? `?${params.toString()}` : '';

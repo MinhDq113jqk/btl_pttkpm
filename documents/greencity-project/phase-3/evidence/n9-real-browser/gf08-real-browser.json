@@ -1,0 +1,41 @@
+{
+  "flow": "GF-08",
+  "checks": [
+    "GF08 director sees the real executive dashboard",
+    "GF08 dashboard response preserves one timezone-aware as_of",
+    "GF08 dashboard UI exposes the exact request as_of",
+    "GF08 dashboard renders all five KPI groups",
+    "GF08 sla_overdue drill-down uses the shared as_of",
+    "GF08 maintenance_due drill-down uses the shared as_of",
+    "GF08 audit timeline opens from a drill-down source record",
+    "GF08 drill-down audit request preserves resource scope and as_of",
+    "GF08 audit timeline renders backend events without a mock fallback",
+    "GF08 cleaning_rework drill-down uses the shared as_of",
+    "GF08 open_incidents drill-down uses the shared as_of",
+    "GF08 ar_debt drill-down uses the shared as_of",
+    "GF08 global Audit Explorer opens from the dashboard",
+    "GF08 global audit query shares the dashboard as_of",
+    "GF08 global audit view is backed by the real API",
+    "GF08 notification inbox loads from the real backend",
+    "GF08 notification requests keep the dashboard as_of",
+    "GF08 notification outbox requests keep the dashboard as_of",
+    "GF08 dashboard and control APIs have no unexpected failed responses",
+    "GF08 browser has no page errors"
+  ],
+  "errors": [],
+  "apiFailures": [],
+  "requestedAsOf": "2026-09-25T17:32:03.636Z",
+  "dashboardResponseAsOf": "2026-09-25T17:32:03.636000Z",
+  "drillDownRequests": [
+    "/api/v1/dashboard/drill-down/sla_overdue",
+    "/api/v1/dashboard/drill-down/maintenance_due",
+    "/api/v1/dashboard/drill-down/cleaning_rework",
+    "/api/v1/dashboard/drill-down/open_incidents",
+    "/api/v1/dashboard/drill-down/ar_debt"
+  ],
+  "notificationAsOf": [
+    "2026-09-25T17:32:03.636Z",
+    "2026-09-25T17:32:03.636Z"
+  ],
+  "auditCount": 2
+}

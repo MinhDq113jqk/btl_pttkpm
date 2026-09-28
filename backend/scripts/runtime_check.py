@@ -6,7 +6,7 @@ import sys
 from app.core.config import Settings
 
 
-EXPECTED_SCHEMA_REVISION = "0015"
+EXPECTED_SCHEMA_REVISION = "0018"
 
 
 def validate_runtime(settings: Settings | None = None) -> dict[str, object]:

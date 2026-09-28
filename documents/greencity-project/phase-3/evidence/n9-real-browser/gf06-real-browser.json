@@ -1,0 +1,20 @@
+{
+  "flow": "GF-06",
+  "checks": [
+    "GF06 intake persists parcel GF06-OK-1790356535135 in the real backend",
+    "GF06 parcel moves from received to ready-for-pickup",
+    "GF06 correct PIN completes one-time parcel handover",
+    "GF06 plaintext PIN is absent from the rendered UI",
+    "GF06 handed-over parcel can open a shared Case",
+    "GF06 private evidence upload returns a server-scoped attachment",
+    "GF06 private evidence is retrieved through the signed-link preview",
+    "GF06 intake persists parcel GF06-EX-1790356536360 in the real backend",
+    "GF06 wrong PIN is rejected without handing over the parcel",
+    "GF06 parcel exception records a terminal LOST state with reason",
+    "GF06 parcel desk has no horizontal mobile overflow",
+    "GF06 browser has no page errors",
+    "GF06 API calls have no unexpected failed responses"
+  ],
+  "errors": [],
+  "apiFailures": []
+}

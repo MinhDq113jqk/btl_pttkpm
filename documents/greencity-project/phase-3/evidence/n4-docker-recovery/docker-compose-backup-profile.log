@@ -1,0 +1,244 @@
+WARNING: Error loading config file: open C:\Users\LEGION\.docker\config.json: Access is denied.
+WARNING: Error loading config file: open C:\Users\LEGION\.docker\config.json: Access is denied.
+name: greencity-phase3
+services:
+  backend:
+    build:
+      context: C:\Users\LEGION\btl\_pttkpm
+      dockerfile: deploy/backend.Dockerfile
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+        required: true
+    environment:
+      APP_ENV: development
+      ASSISTANT_ENABLED: "false"
+      CORS_ORIGINS: '["https://localhost"]'
+      DATABASE_URL_SECRET_FILE: /run/secrets/runtime_database_url
+      GREENCITY_DISABLE_DOTENV: "1"
+      PRIVATE_STORAGE_PATH: /srv/private-evidence
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=2)"
+      timeout: 5s
+      interval: 5s
+      retries: 12
+    networks:
+      default: null
+    restart: unless-stopped
+    secrets:
+      - source: runtime_database_url
+        target: /run/secrets/runtime_database_url
+      - source: secret_key
+        target: /run/secrets/secret_key
+    volumes:
+      - type: volume
+        source: evidence-data
+        target: /srv/private-evidence
+        volume: {}
+  backup:
+    profiles:
+      - scheduled-backup
+    build:
+      context: C:\Users\LEGION\btl\_pttkpm
+      dockerfile: deploy/postgres.Dockerfile
+    command:
+      - python3
+      - /opt/greencity/backup_loop.py
+    depends_on:
+      backend:
+        condition: service_healthy
+        required: true
+      migrate:
+        condition: service_completed_successfully
+        required: true
+    environment:
+      BACKUP_INTERVAL_SECONDS: ""
+      BACKUP_PATH: /var/lib/greencity-backups
+      BACKUP_RETENTION_DAYS: ""
+      DATABASE_URL_SECRET_FILE: /run/secrets/runtime_database_url
+      PRIVATE_STORAGE_PATH: /srv/private-evidence
+    group_add:
+      - "10001"
+    networks:
+      default: null
+    restart: unless-stopped
+    secrets:
+      - source: runtime_database_url
+        target: /run/secrets/runtime_database_url
+    user: 70:70
+    volumes:
+      - type: volume
+        source: evidence-data
+        target: /srv/private-evidence
+        read_only: true
+        volume: {}
+      - type: volume
+        source: backup-data
+        target: /var/lib/greencity-backups
+        volume: {}
+  db:
+    build:
+      context: C:\Users\LEGION\btl\_pttkpm
+      dockerfile: deploy/postgres.Dockerfile
+    environment:
+      POSTGRES_DB: greencity
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      POSTGRES_USER: greencity_admin
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U greencity_admin -d greencity
+      timeout: 5s
+      interval: 5s
+      retries: 12
+    networks:
+      default: null
+    restart: unless-stopped
+    secrets:
+      - source: postgres_password
+        target: /run/secrets/postgres_password
+    volumes:
+      - type: volume
+        source: db-data
+        target: /var/lib/postgresql/data
+        volume: {}
+  frontend:
+    build:
+      context: C:\Users\LEGION\btl\_pttkpm
+      dockerfile: deploy/frontend.Dockerfile
+    depends_on:
+      backend:
+        condition: service_healthy
+        required: true
+      migrate:
+        condition: service_completed_successfully
+        required: true
+    networks:
+      default: null
+    restart: unless-stopped
+  migrate:
+    build:
+      context: C:\Users\LEGION\btl\_pttkpm
+      dockerfile: deploy/backend.Dockerfile
+    command:
+      - python
+      - -m
+      - scripts.migrate
+      - upgrade
+      - head
+    depends_on:
+      role-setup:
+        condition: service_completed_successfully
+        required: true
+    environment:
+      APP_ENV: development
+      DATABASE_URL_SECRET_FILE: /run/secrets/migration_database_url
+      GREENCITY_DISABLE_DOTENV: "1"
+      MIGRATION_ROLE: greencity_owner
+    networks:
+      default: null
+    restart: "no"
+    secrets:
+      - source: migration_database_url
+        target: /run/secrets/migration_database_url
+      - source: secret_key
+        target: /run/secrets/secret_key
+  proxy:
+    depends_on:
+      frontend:
+        condition: service_started
+        required: true
+    environment:
+      PUBLIC_HOST: localhost
+    image: caddy:2.11.4-alpine
+    networks:
+      default: null
+    ports:
+      - mode: ingress
+        target: 80
+        published: "80"
+        protocol: tcp
+      - mode: ingress
+        target: 443
+        published: "443"
+        protocol: tcp
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: C:\Users\LEGION\btl\_pttkpm\deploy\caddy\Caddyfile
+        target: /etc/caddy/Caddyfile
+        read_only: true
+        bind:
+          create_host_path: true
+      - type: volume
+        source: caddy-data
+        target: /data
+        volume: {}
+      - type: volume
+        source: caddy-config
+        target: /config
+        volume: {}
+  role-setup:
+    build:
+      context: C:\Users\LEGION\btl\_pttkpm
+      dockerfile: deploy/backend.Dockerfile
+    command:
+      - python
+      - -m
+      - scripts.phase3_provision_roles
+    depends_on:
+      db:
+        condition: service_healthy
+        required: true
+    environment:
+      PHASE3_ADMIN_DATABASE: greencity
+      PHASE3_ADMIN_HOST: db
+      PHASE3_ADMIN_PASSWORD_FILE: /run/secrets/postgres_password
+      PHASE3_ADMIN_ROLE: greencity_admin
+      PHASE3_MIGRATOR_PASSWORD_FILE: /run/secrets/migrator_password
+      PHASE3_RUNTIME_PASSWORD_FILE: /run/secrets/runtime_password
+    networks:
+      default: null
+    restart: "no"
+    secrets:
+      - source: postgres_password
+        target: /run/secrets/postgres_password
+      - source: migrator_password
+        target: /run/secrets/migrator_password
+      - source: runtime_password
+        target: /run/secrets/runtime_password
+networks:
+  default:
+    name: greencity-phase3_default
+volumes:
+  backup-data:
+    name: greencity-phase3_backup-data
+  caddy-config:
+    name: greencity-phase3_caddy-config
+  caddy-data:
+    name: greencity-phase3_caddy-data
+  db-data:
+    name: greencity-phase3_db-data
+  evidence-data:
+    name: greencity-phase3_evidence-data
+secrets:
+  migration_database_url:
+    name: greencity-phase3_migration_database_url
+    file: C:\Users\LEGION\btl\_pttkpm\deploy\secrets\migration_database_url
+  migrator_password:
+    name: greencity-phase3_migrator_password
+    file: C:\Users\LEGION\btl\_pttkpm\deploy\secrets\migrator_password
+  postgres_password:
+    name: greencity-phase3_postgres_password
+    file: C:\Users\LEGION\btl\_pttkpm\deploy\secrets\postgres_password
+  runtime_database_url:
+    name: greencity-phase3_runtime_database_url
+    file: C:\Users\LEGION\btl\_pttkpm\deploy\secrets\runtime_database_url
+  runtime_password:
+    name: greencity-phase3_runtime_password
+    file: C:\Users\LEGION\btl\_pttkpm\deploy\secrets\runtime_password
+  secret_key:
+    name: greencity-phase3_secret_key
+    file: C:\Users\LEGION\btl\_pttkpm\deploy\secrets\secret_key

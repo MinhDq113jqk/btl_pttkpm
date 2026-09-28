@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react';
-import { ArrowDown, ArrowLeft, ArrowUp, Check, ChevronDown, Copy, History, Info, LoaderCircle, MessageCircle, Plus, RotateCcw, ShieldCheck, AlertCircle } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, Check, ChevronDown, Copy, History, Info, LoaderCircle, MessageCircle, Plus, RotateCcw, ShieldCheck, AlertCircle, Trash2 } from 'lucide-react';
 import { GreenPet } from './GreenPet';
-import { ASSISTANT_STORAGE_KEY, MAX_QUESTION_LENGTH, assistantReducer, createAssistantState, createConversation, loadAssistantHistory, persistAssistantHistory, shouldSendOnEnter } from '../../data/assistantStore';
+import { ASSISTANT_ACCOUNT_CLEARED_EVENT, ASSISTANT_STORAGE_KEY, MAX_QUESTION_LENGTH, assistantAccountClearSignalKey, assistantReducer, clearAssistantHistory, createAssistantState, createConversation, loadAssistantHistory, persistAssistantHistory, shouldSendOnEnter } from '../../data/assistantStore';
 import { requestAssistantReply } from '../../services/greenAssistant';
 import './green-assistant.css';
 
@@ -32,7 +32,7 @@ function initializeHistory(historyKey) {
   }
 }
 
-export function GreenAssistant({ contextKey, requestReply = requestAssistantReply, historyKey = ASSISTANT_STORAGE_KEY, suggestions = ['Xem công việc quá hạn', 'Hướng dẫn kiểm tra phiếu hoàn tiền'] }) {
+export function GreenAssistant({ accountId, contextKey, requestReply = requestAssistantReply, historyKey = ASSISTANT_STORAGE_KEY, suggestions = ['Xem công việc quá hạn', 'Hướng dẫn kiểm tra phiếu hoàn tiền'] }) {
   const [initial] = useState(() => initializeHistory(historyKey));
   const [state, dispatch] = useReducer(assistantReducer, initial.state);
   const [open, setOpen] = useState(false);
@@ -50,6 +50,8 @@ export function GreenAssistant({ contextKey, requestReply = requestAssistantRepl
   const messagesRef = useRef(null);
   const requests = useRef(new Map());
   const canPersist = useRef(initial.canPersist);
+  const skipPersistState = useRef(null);
+  const resumePersistenceAfterClear = useRef(false);
   const mounted = useRef(true);
   const openRef = useRef(open);
   const stickToBottom = useRef(true);
@@ -63,12 +65,36 @@ export function GreenAssistant({ contextKey, requestReply = requestAssistantRepl
   const pending = conversation.messages.some(message => message.status === 'pending');
   const readyToSend = conversation.draft.trim().length > 0 && !pending;
 
+  const resetHistoryState = () => {
+    canPersist.current = false;
+    resumePersistenceAfterClear.current = true;
+    for (const request of requests.current.values()) request.controller.abort();
+    requests.current.clear();
+    const emptyState = createAssistantState();
+    skipPersistState.current = emptyState;
+    dispatch({ type: 'clear', state: emptyState });
+    setShowHistory(false);
+    setStorageError('');
+    setInputError('');
+    setCopyState(null);
+    setUnseen(false);
+    setClosedReply(false);
+  };
+
   const saveHistory = () => {
     if (!canPersist.current) return;
     try { persistAssistantHistory(window.localStorage, state, historyKey); setStorageError(''); }
     catch { setStorageError('Không lưu được lịch sử trên máy. Nội dung vẫn còn trong phiên này; đừng tải lại trước khi lưu thành công.'); }
   };
   useEffect(() => {
+    if (skipPersistState.current === state) {
+      skipPersistState.current = null;
+      if (resumePersistenceAfterClear.current) {
+        resumePersistenceAfterClear.current = false;
+        canPersist.current = true;
+      }
+      return;
+    }
     if (!canPersist.current) return;
     try { persistAssistantHistory(window.localStorage, state, historyKey); setStorageError(''); }
     catch { setStorageError('Không lưu được lịch sử trên máy. Nội dung vẫn còn trong phiên này; đừng tải lại trước khi lưu thành công.'); }
@@ -76,24 +102,41 @@ export function GreenAssistant({ contextKey, requestReply = requestAssistantRepl
 
   useEffect(() => {
     mounted.current = true;
+    const clearSignalKey = assistantAccountClearSignalKey(accountId);
     const otherWindowChanged = event => {
+      if ((event.key === historyKey || (clearSignalKey && event.key === clearSignalKey)) && event.newValue === null) {
+        resetHistoryState();
+        try { clearAssistantHistory(window.localStorage, historyKey); }
+        catch {
+          resumePersistenceAfterClear.current = false;
+          setStorageError('Không thể xóa bản sao lịch sử trên thiết bị; dữ liệu cũ vẫn có thể còn trong trình duyệt.');
+        }
+        return;
+      }
       if (event.key !== historyKey && event.key !== null) return;
       canPersist.current = false;
       setStorageError('Lịch sử đã thay đổi ở cửa sổ khác. Phiên này tạm ngừng lưu để tránh ghi đè; hãy giữ cửa sổ mở nếu còn nội dung cần lưu.');
     };
+    const sameWindowAccountCleared = event => {
+      if (event.detail?.accountId === accountId) resetHistoryState();
+    };
     window.addEventListener('storage', otherWindowChanged);
+    window.addEventListener(ASSISTANT_ACCOUNT_CLEARED_EVENT, sameWindowAccountCleared);
     return () => {
       mounted.current = false;
       for (const request of requests.current.values()) request.controller.abort();
       clearTimeout(copyTimer.current);
       window.removeEventListener('storage', otherWindowChanged);
+      window.removeEventListener(ASSISTANT_ACCOUNT_CLEARED_EVENT, sameWindowAccountCleared);
     };
-  }, [historyKey]);
+  }, [accountId, historyKey]);
 
   // The pet must not sit on existing submit controls as forms scroll into view.
   useEffect(() => {
     const main = document.querySelector('main');
+    if (!main) return undefined;
     const measure = () => {
+      if (!main.isConnected) return;
       const bounds = main.getBoundingClientRect();
       const controls = [...main.querySelectorAll(open ? '.form-action-bar' : '.form-action-bar, form button[type="submit"]')];
       const offsets = controls.map(control => control.getBoundingClientRect())
@@ -119,10 +162,11 @@ export function GreenAssistant({ contextKey, requestReply = requestAssistantRepl
   useEffect(() => {
     if (!open) return;
     const revealFocusedControl = event => {
-      if (rootRef.current?.contains(event.target) || document.querySelector('dialog[open]')) return;
+      const root = rootRef.current;
+      if (!root || root.contains(event.target) || document.querySelector('dialog[open]')) return;
       if (!event.target.matches('button, input, select, textarea, a[href], [tabindex="0"]')) return;
       const target = event.target.getBoundingClientRect();
-      const panel = rootRef.current.getBoundingClientRect();
+      const panel = root.getBoundingClientRect();
       if (target.right > panel.left && target.left < panel.right && target.bottom > panel.top && target.top < panel.bottom) setOpen(false);
     };
     document.addEventListener('focusin', revealFocusedControl);
@@ -227,6 +271,15 @@ export function GreenAssistant({ contextKey, requestReply = requestAssistantRepl
     setShowHistory(false);
     inputRef.current?.focus();
   };
+  const clearHistory = () => {
+    if (!window.confirm('Xóa lịch sử trò chuyện của site hiện tại? Thao tác này không thể hoàn tác.')) return;
+    try { clearAssistantHistory(window.localStorage, historyKey); }
+    catch {
+      setStorageError('Không xóa được lịch sử trên thiết bị; dữ liệu cũ vẫn có thể còn trong trình duyệt.');
+      return;
+    }
+    resetHistoryState();
+  };
 
   return <div ref={rootRef} className={`green-assistant ${open ? 'is-open' : ''}`} style={{ '--assistant-bottom': `${bottomOffset}px` }}>
     <button ref={launcherRef} hidden={open} className="assistant-launcher" onClick={() => setOpen(true)} aria-label={`Mở Green Assistant${closedReply ? ', có phản hồi mới' : ''}`} aria-expanded={open} aria-controls="green-assistant-panel">
@@ -251,8 +304,8 @@ export function GreenAssistant({ contextKey, requestReply = requestAssistantRepl
       {storageError && <div className="assistant-storage-error" role="alert"><AlertCircle size={16} aria-hidden="true" /><div>{storageError}{canPersist.current && <button onClick={saveHistory}>Thử lưu lại lịch sử</button>}</div></div>}
 
       {showHistory ? <div className="assistant-history" id="assistant-history">
-        <div className="assistant-history-heading"><button className="icon-button" aria-label="Quay lại trò chuyện" onClick={() => setShowHistory(false)}><ArrowLeft size={18} aria-hidden="true" /></button><h3 ref={historyTitleRef} tabIndex={-1}>Lịch sử trò chuyện</h3></div>
-        <p className="assistant-history-note">Các cuộc trò chuyện được giữ riêng. Tạo mới không xóa lịch sử.</p>
+        <div className="assistant-history-heading"><button className="icon-button" aria-label="Quay lại trò chuyện" onClick={() => setShowHistory(false)}><ArrowLeft size={18} aria-hidden="true" /></button><h3 ref={historyTitleRef} tabIndex={-1}>Lịch sử trò chuyện</h3><button type="button" className="assistant-history-clear" aria-label="Xóa lịch sử trò chuyện" title="Xóa lịch sử trò chuyện" onClick={clearHistory}><Trash2 size={15} aria-hidden="true" /><span>Xóa</span></button></div>
+        <p className="assistant-history-note">Lịch sử được lưu riêng theo site trên thiết bị này. Bạn có thể xóa lịch sử site hiện tại tại đây.</p>
         <div className="assistant-history-list">{[...state.conversations].sort((a, b) => b.updatedAt - a.updatedAt).map(item => <button key={item.id} className={`assistant-history-item ${state.activeId === item.id ? 'is-active' : ''}`} aria-current={state.activeId === item.id ? 'true' : undefined} onClick={() => { dispatch({ type: 'select', id: item.id }); setShowHistory(false); }}>
           <MessageCircle size={18} aria-hidden="true" /><span><strong>{item.messages.length ? item.title : item.draft || 'Cuộc trò chuyện mới'}</strong><small>{formatDate(item.updatedAt)} · {item.messages.filter(message => message.role === 'user').length} câu hỏi{item.draft ? ' · Có nháp' : ''}</small></span>{item.messages.some(message => message.status === 'pending') && <LoaderCircle size={16} className="assistant-spinner" aria-label="Đang xử lý" />}
         </button>)}</div>
@@ -288,7 +341,7 @@ export function GreenAssistant({ contextKey, requestReply = requestAssistantRepl
           <div className="assistant-input-hint"><span id="assistant-keyboard-hint">Enter để gửi · Shift + Enter xuống dòng</span>{conversation.draft.length > 1600 && <span>{conversation.draft.length}/{MAX_QUESTION_LENGTH}</span>}</div>
         </form>
       </>}
-      <details className="assistant-privacy"><summary><ShieldCheck size={13} aria-hidden="true" />{storageError ? 'Lịch sử chưa được lưu' : 'Lịch sử lưu trên máy này'}<Info size={13} aria-hidden="true" /></summary><p>Câu hỏi được gửi qua backend đã đăng nhập; API key không nằm trong trình duyệt. Lịch sử chỉ lưu trên máy này và chưa đồng bộ tài khoản. Không nhập mật khẩu, OTP hay dữ liệu cư dân thật. Xóa dữ liệu trình duyệt sẽ mất lịch sử.</p></details>
+      <details className="assistant-privacy"><summary><ShieldCheck size={13} aria-hidden="true" />{storageError ? 'Lịch sử chưa được lưu' : 'Lịch sử lưu trên máy này'}<Info size={13} aria-hidden="true" /></summary><p>Câu hỏi được gửi qua backend đã đăng nhập; API key không nằm trong trình duyệt. Lịch sử chỉ lưu trên máy này, riêng theo site; nút Xóa trong Lịch sử xóa site hiện tại và đăng xuất sẽ thử xóa lịch sử của tài khoản. Không nhập mật khẩu, OTP hay dữ liệu cư dân thật.</p></details>
     </section>}
   </div>;
 }

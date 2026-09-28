@@ -1,9 +1,10 @@
 """Transactional R4 billing calculation; monetary arithmetic lives only here."""
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal, ROUND_HALF_UP
+from typing import Callable
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -20,6 +21,7 @@ from app.models.billing import (
     OverpaymentCredit,
     Payment,
     PaymentAllocation,
+    UnmatchedPayment,
 )
 from app.models.service import CostLine, InvoiceItem, PendingCharge, ServiceRequest, WorkOrder
 from app.models.unit import Unit
@@ -81,8 +83,17 @@ def _invoice_number(period: AccountingPeriod, account: BillingAccount) -> str:
     return f"INV-{period.period_key}-{account.id.hex[:12].upper()}"
 
 
-def _calculate_run(session: Session, run: BillingRun, period: AccountingPeriod,
-                   policy_version: FeePolicyVersion, actor_id: UUID) -> None:
+def _calculate_run(
+    session: Session,
+    run: BillingRun,
+    period: AccountingPeriod,
+    policy_version: FeePolicyVersion,
+    actor_id: UUID,
+    *,
+    invoice_number_resolver: Callable[[BillingAccount], str] | None = None,
+    issued_on_resolver: Callable[[BillingAccount], date | None] | None = None,
+    due_on_resolver: Callable[[BillingAccount], date | None] | None = None,
+) -> None:
     accounts = session.execute(
         select(BillingAccount, Unit).join(Unit, BillingAccount.unit_id == Unit.id).where(
             BillingAccount.building_id == run.building_id,
@@ -122,9 +133,21 @@ def _calculate_run(session: Session, run: BillingRun, period: AccountingPeriod,
             billing_account_id=account.id,
             billing_run_id=run.id,
             accounting_period_id=period.id,
-            invoice_number=_invoice_number(period, account),
-            issued_on=period.period_end,
-            due_on=period.period_end,
+            invoice_number=(
+                invoice_number_resolver(account)
+                if invoice_number_resolver is not None
+                else _invoice_number(period, account)
+            ),
+            issued_on=(
+                issued_on_resolver(account)
+                if issued_on_resolver is not None
+                else period.period_end
+            ),
+            due_on=(
+                due_on_resolver(account)
+                if due_on_resolver is not None
+                else period.period_end
+            ),
             status="ISSUED",
             total_vnd=total_vnd,
             outstanding_vnd=total_vnd,
@@ -172,8 +195,17 @@ def _calculate_run(session: Session, run: BillingRun, period: AccountingPeriod,
             charge.version += 1
 
 
-def execute_run(session: Session, run: BillingRun, period: AccountingPeriod,
-                policy_version: FeePolicyVersion, actor_id: UUID) -> BillingRun:
+def execute_run(
+    session: Session,
+    run: BillingRun,
+    period: AccountingPeriod,
+    policy_version: FeePolicyVersion,
+    actor_id: UUID,
+    *,
+    invoice_number_resolver: Callable[[BillingAccount], str] | None = None,
+    issued_on_resolver: Callable[[BillingAccount], date | None] | None = None,
+    due_on_resolver: Callable[[BillingAccount], date | None] | None = None,
+) -> BillingRun:
     """Generate an all-or-nothing invoice set; failures survive for safe retry."""
     run.status = "CALCULATING"
     run.failure_code = None
@@ -181,7 +213,16 @@ def execute_run(session: Session, run: BillingRun, period: AccountingPeriod,
     run.failed_at = None
     try:
         with session.begin_nested():
-            _calculate_run(session, run, period, policy_version, actor_id)
+            _calculate_run(
+                session,
+                run,
+                period,
+                policy_version,
+                actor_id,
+                invoice_number_resolver=invoice_number_resolver,
+                issued_on_resolver=issued_on_resolver,
+                due_on_resolver=due_on_resolver,
+            )
             session.flush()
     except AppError as error:
         run.status = "FAILED"
@@ -255,6 +296,116 @@ def record_payment_received(session: Session, payment: Payment, actor_id: UUID) 
     )
     session.add(entry)
     return entry
+
+
+def receive_payment_command(
+    session: Session,
+    *,
+    tenant_id: UUID,
+    site_id: UUID,
+    building_id: UUID,
+    period: AccountingPeriod,
+    account: BillingAccount | None,
+    payment_source: str,
+    source_reference: str,
+    receipt_number: str,
+    amount_vnd: int,
+    received_at: datetime,
+    actor_id: UUID | None,
+    unmatched_reason: str = "Thiếu mã Billing Account khi nhận thanh toán.",
+) -> Payment:
+    """Create a receipt through one reusable domain command.
+
+    The HTTP route and the submission-data replay share this mutation boundary;
+    callers still own their transaction, audit event and outbox correlation.
+    """
+    if period.building_id != building_id or period.site_id != site_id or period.tenant_id != tenant_id:
+        raise AppError("ERR-SCOPE-NOTFOUND", "Kỳ kế toán không thuộc phạm vi.", 404)
+    if period.status not in {"OPEN", "CLOSING"}:
+        raise AppError("ERR-ACCOUNTING-PERIOD-CLOSED", "Kỳ kế toán không nhận giao dịch mới.", 409)
+    if account is not None:
+        if (
+            account.tenant_id != tenant_id
+            or account.site_id != site_id
+            or account.building_id != building_id
+            or account.status != "ACTIVE"
+        ):
+            raise AppError("ERR-BILLING-ACCOUNT-INACTIVE", "Tài khoản thu phí không còn hoạt động.", 409)
+    if amount_vnd <= 0:
+        raise AppError("ERR-PAYMENT-AMOUNT", "Số tiền thanh toán phải lớn hơn 0.", 422)
+    duplicate = session.scalar(select(Payment.id).where(
+        Payment.tenant_id == tenant_id,
+        Payment.site_id == site_id,
+        or_(
+            and_(Payment.payment_source == payment_source, Payment.source_reference == source_reference),
+            Payment.receipt_number == receipt_number,
+        ),
+    ).limit(1))
+    if duplicate is not None:
+        raise AppError("ERR-DUPLICATE-PAYMENT", "Nguồn thanh toán hoặc biên lai đã tồn tại.", 409)
+
+    payment = Payment(
+        tenant_id=tenant_id,
+        site_id=site_id,
+        building_id=building_id,
+        billing_account_id=account.id if account is not None else None,
+        accounting_period_id=period.id,
+        payment_source=payment_source,
+        source_reference=source_reference,
+        receipt_number=receipt_number,
+        amount_vnd=amount_vnd,
+        received_at=received_at,
+        received_by_id=actor_id,
+        status="RECEIVED" if account is not None else "UNMATCHED",
+    )
+    session.add(payment)
+    session.flush()
+    if account is not None:
+        record_payment_received(session, payment, actor_id) if actor_id is not None else None
+    else:
+        session.add(UnmatchedPayment(
+            tenant_id=tenant_id,
+            site_id=site_id,
+            building_id=building_id,
+            payment_id=payment.id,
+            amount_vnd=amount_vnd,
+            reason=unmatched_reason,
+        ))
+    session.flush()
+    return payment
+
+
+def match_unmatched_payment_command(
+    session: Session,
+    *,
+    unmatched: UnmatchedPayment,
+    account: BillingAccount,
+    actor_id: UUID,
+) -> Payment:
+    """Resolve an unmatched receipt before it can affect AR or invoices."""
+    payment = session.scalar(select(Payment).where(Payment.id == unmatched.payment_id).with_for_update())
+    if payment is None:
+        raise AppError("ERR-PAYMENT-INTEGRITY", "Payment unmatched không tồn tại.", 409)
+    if unmatched.status != "OPEN":
+        raise AppError("ERR-STATE-TRANSITION", "Payment unmatched này không còn chờ match.", 409)
+    if payment.status != "UNMATCHED" or payment.billing_account_id is not None:
+        raise AppError("ERR-PAYMENT-INTEGRITY", "Payment unmatched không nhất quán.", 409)
+    if account.status != "ACTIVE" or account.building_id != payment.building_id:
+        raise AppError("ERR-SCOPE-NOTFOUND", "Tài khoản thu phí không thuộc phạm vi.", 404)
+    period = session.scalar(select(AccountingPeriod).where(
+        AccountingPeriod.id == payment.accounting_period_id,
+        AccountingPeriod.building_id == payment.building_id,
+    ).with_for_update())
+    if period is None or period.status not in {"OPEN", "CLOSING"}:
+        raise AppError("ERR-ACCOUNTING-PERIOD-CLOSED", "Kỳ kế toán không nhận giao dịch mới.", 409)
+    payment.billing_account_id = account.id
+    payment.status = "RECEIVED"
+    payment.version += 1
+    unmatched.status = "RESOLVED"
+    unmatched.version += 1
+    record_payment_received(session, payment, actor_id)
+    session.flush()
+    return payment
 
 
 def allocate_payment(session: Session, payment: Payment, actor_id: UUID) -> tuple[list[PaymentAllocation], OverpaymentCredit | None]:

@@ -1,12 +1,13 @@
 import React from 'react';
-import { LayoutDashboard, Receipt, CheckSquare, Building2, Wrench, Sparkles, ShieldCheck, Package, Users, BadgePercent, BarChart3, Bell, Settings, Globe, Store, PanelLeftClose, PanelLeftOpen, Building, LogOut } from 'lucide-react';
+import { LayoutDashboard, CheckSquare, Wrench, Sparkles, ShieldCheck, Package, Users, BadgePercent, Upload, Bell, PanelLeftClose, PanelLeftOpen, Building, LogOut } from 'lucide-react';
 import { GreenCityLogo } from './GreenCityLogo';
 
-const icons = { LayoutDashboard, Receipt, CheckSquare, Building2, Wrench, Sparkles, ShieldCheck, Package, Users, BadgePercent, BarChart3, Bell, Settings, Globe, Store };
+const icons = { LayoutDashboard, CheckSquare, Wrench, Sparkles, ShieldCheck, Package, Users, BadgePercent, Upload, Bell };
 const groups = [
-  { label: 'Không gian làm việc', ids: ['overview', 'tasks', 'notifications', 'refund-form'] },
-  { label: 'Vận hành khu đô thị', ids: ['technical', 'cleaning', 'security', 'parcels', 'projects', 'amenities', 'residents', 'finance', 'media'] },
-  { label: 'Quản trị', ids: ['reports', 'settings'] },
+  { label: 'Không gian làm việc', ids: ['overview', 'tasks'] },
+  { label: 'Vận hành khu đô thị', ids: ['maintenance', 'cleaning', 'security', 'parcels', 'residents', 'finance'] },
+  { label: 'Dữ liệu căn hộ', ids: ['imports'] },
+  { label: 'Thông báo', ids: ['notifications'] },
 ];
 export const Sidebar = ({ currentTab, setCurrentTab, navItems, collapsed, setCollapsed, activeSite, activeSiteId,
   allowedSites = [], onSwitchSite, isSwitchingSite = false, siteSwitchError, taskCount, unreadCount, account, onLogout }) => (
@@ -33,12 +34,10 @@ export const Sidebar = ({ currentTab, setCurrentTab, navItems, collapsed, setCol
           if (!item) return null;
           const Icon = icons[item.icon];
           const count = id === 'tasks' ? taskCount : id === 'notifications' ? unreadCount : null;
-          const ready = ['overview', 'tasks', 'notifications', 'residents', 'refund-form', 'amenities', 'media', 'settings', 'reports', 'technical', 'cleaning', 'security', 'parcels'].includes(id);
           return <button key={id} type="button" onClick={() => setCurrentTab(id)} aria-current={currentTab === id ? 'page' : undefined}
-            aria-label={item.label} title={`${item.label}${ready ? '' : ' · Chưa triển khai'}`} className={`nav-item ${currentTab === id ? 'is-active' : ''}`}>
+            aria-label={item.label} title={item.label} className={`nav-item ${currentTab === id ? 'is-active' : ''}`}>
             <Icon size={19} aria-hidden="true" /><span className="sidebar-copy nav-label">{item.label}</span>
             {count > 0 && <span className="nav-count sidebar-copy">{count}</span>}
-            {!ready && <span className="nav-planned sidebar-copy" aria-label="Chưa triển khai">—</span>}
           </button>;
         })}
       </div>)}

@@ -1,5 +1,6 @@
 from datetime import date
 from decimal import Decimal
+import json
 import os
 from threading import Event, Thread
 from uuid import UUID
@@ -28,6 +29,10 @@ pytestmark = [
 ]
 
 
+def seeded_password(username: str) -> str:
+    return json.loads(os.environ["DEMO_SEED_CREDENTIALS_JSON"])[username]
+
+
 @pytest.fixture(scope="module")
 def app_client():
     settings = Settings()
@@ -42,7 +47,7 @@ def test_login_success(app_client):
     client, _ = app_client
     response = client.post(
         "/api/v1/auth/login",
-        json={"username": "cskh_west", "password": "Password@123"},
+        json={"username": "cskh_west", "password": seeded_password("cskh_west")},
     )
     assert response.status_code == 200
     data = response.json()
@@ -70,7 +75,7 @@ def test_get_me_with_valid_token(app_client):
     client, _ = app_client
     login_resp = client.post(
         "/api/v1/auth/login",
-        json={"username": "cskh_west", "password": "Password@123"},
+        json={"username": "cskh_west", "password": seeded_password("cskh_west")},
     )
     token = login_resp.json()["access_token"]
 
@@ -91,7 +96,7 @@ def test_unit_360_same_site_success(app_client):
     # 1. Login as CSKH West
     login_resp = client.post(
         "/api/v1/auth/login",
-        json={"username": "cskh_west", "password": "Password@123"},
+        json={"username": "cskh_west", "password": seeded_password("cskh_west")},
     )
     token = login_resp.json()["access_token"]
 
@@ -125,7 +130,7 @@ def test_ac03_person_owns_two_units_and_rents_a_third_bidirectionally(app_client
     client, db = app_client
     token = client.post(
         "/api/v1/auth/login",
-        json={"username": "cskh_west", "password": "Password@123"},
+        json={"username": "cskh_west", "password": seeded_password("cskh_west")},
     ).json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
 
@@ -186,7 +191,7 @@ def test_ac03_person_lookup_enforces_role_and_site_scope(app_client):
     ):
         token = client.post(
             "/api/v1/auth/login",
-            json={"username": username, "password": "Password@123"},
+            json={"username": username, "password": seeded_password(username)},
         ).json()["access_token"]
         response = client.get(
             f"/api/v1/persons/{person_id}/units?as_of=2025-06-01",
@@ -439,7 +444,7 @@ def test_ac03_temporal_scope_hides_expired_and_other_building_relationships(app_
     client, db = app_client
     token = client.post(
         "/api/v1/auth/login",
-        json={"username": "cskh_west", "password": "Password@123"},
+        json={"username": "cskh_west", "password": seeded_password("cskh_west")},
     ).json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
     created_relation_ids = []
@@ -517,7 +522,7 @@ def test_unit_360_cross_site_isolation_strictly_returns_404(app_client):
     # 1. Login as CSKH East (assigned ONLY to Site East)
     login_resp = client.post(
         "/api/v1/auth/login",
-        json={"username": "cskh_east", "password": "Password@123"},
+        json={"username": "cskh_east", "password": seeded_password("cskh_east")},
     )
     token = login_resp.json()["access_token"]
 
@@ -542,7 +547,7 @@ def test_admin_can_access_both_sites(app_client):
     client, db = app_client
     login_resp = client.post(
         "/api/v1/auth/login",
-        json={"username": "admin_demo", "password": "Password@123"},
+        json={"username": "admin_demo", "password": seeded_password("admin_demo")},
     )
     token = login_resp.json()["access_token"]
 
@@ -586,7 +591,7 @@ def test_switch_site_scope_enforcement(app_client):
         site_east = session.execute(select(Site).where(Site.code == "GC-EAST")).scalar_one()
 
     # 1. Admin can switch to Site East
-    admin_login = client.post("/api/v1/auth/login", json={"username": "admin_demo", "password": "Password@123"})
+    admin_login = client.post("/api/v1/auth/login", json={"username": "admin_demo", "password": seeded_password("admin_demo")})
     admin_token = admin_login.json()["access_token"]
     switch_resp = client.post(
         "/api/v1/auth/switch-site",
@@ -597,7 +602,7 @@ def test_switch_site_scope_enforcement(app_client):
     assert switch_resp.json()["user"]["active_site_id"] == str(site_east.id)
 
     # 2. CSKH West CANNOT switch to Site East (must return 404 ERR-SCOPE-NOTFOUND)
-    cskh_login = client.post("/api/v1/auth/login", json={"username": "cskh_west", "password": "Password@123"})
+    cskh_login = client.post("/api/v1/auth/login", json={"username": "cskh_west", "password": seeded_password("cskh_west")})
     cskh_token = cskh_login.json()["access_token"]
     forbidden_switch = client.post(
         "/api/v1/auth/switch-site",

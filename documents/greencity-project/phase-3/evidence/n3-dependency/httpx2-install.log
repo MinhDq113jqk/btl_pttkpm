@@ -1,0 +1,15 @@
+Collecting httpx2==2.13.1
+  Downloading httpx2-2.13.1-py3-none-any.whl.metadata (9.8 kB)
+Requirement already satisfied: anyio>=4.10 in c:\users\legion\btl\_phase3_n1_rehearsal_20260925\backend\.venv\lib\site-packages (from httpx2==2.13.1) (4.15.1)
+Collecting httpcore2==2.13.1 (from httpx2==2.13.1)
+  Downloading httpcore2-2.13.1-py3-none-any.whl.metadata (26 kB)
+Requirement already satisfied: idna>=3.18 in c:\users\legion\btl\_phase3_n1_rehearsal_20260925\backend\.venv\lib\site-packages (from httpx2==2.13.1) (3.19)
+Collecting truststore>=0.10 (from httpx2==2.13.1)
+  Downloading truststore-0.10.4-py3-none-any.whl.metadata (4.4 kB)
+Requirement already satisfied: typing-extensions>=4.5.0 in c:\users\legion\btl\_phase3_n1_rehearsal_20260925\backend\.venv\lib\site-packages (from httpx2==2.13.1) (4.16.0)
+Requirement already satisfied: h11>=0.16 in c:\users\legion\btl\_phase3_n1_rehearsal_20260925\backend\.venv\lib\site-packages (from httpcore2==2.13.1->httpx2==2.13.1) (0.16.0)
+Downloading httpx2-2.13.1-py3-none-any.whl (95 kB)
+Downloading httpcore2-2.13.1-py3-none-any.whl (83 kB)
+Downloading truststore-0.10.4-py3-none-any.whl (18 kB)
+Installing collected packages: truststore, httpcore2, httpx2
+Successfully installed httpcore2-2.13.1 httpx2-2.13.1 truststore-0.10.4

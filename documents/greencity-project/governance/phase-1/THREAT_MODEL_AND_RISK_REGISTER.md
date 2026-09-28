@@ -28,7 +28,7 @@ expiry bắt buộc và mitigation bù trừ.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | SEC-P1-01 | CAP-AI trong mã hiện tại mâu thuẫn với roadmap `SPEC-ONLY`; chưa có quyết định pilot. | High | PO + Tech Lead | 7 ngày | Open | Not accepted | PO/Tech Lead duyệt DEC-P1-01; giới hạn rõ capability trước pilot. |
 | SEC-P1-02 | SRS, enum và roster demo không cùng một tập role; policy/seed/UAT có thể cấp sai quyền. | High | Tech Lead + PO | 7 ngày | Open | Not accepted | Chốt DEC-P1-02, cập nhật role matrix/seed/negative tests. |
-| SEC-P1-03 | Repository trước Phase 1 không có CI secret/dependency/clean-clone gate. | High | DevOps + QA | 7 ngày | Mitigation implemented, verification pending | Not accepted | Workflow mới phải có run green trên GitHub; scan fail phải tạo finding hoặc approved exception. |
+| SEC-P1-03 | Repository trước Phase 1 không có CI secret/dependency/clean-clone gate. | High | DevOps + QA | 7 ngày | Mitigation implemented, remote verification failed | Not accepted | Runs 35731246282 và 35732574279 cho thấy Secret/Dependency/Frontend PASS nhưng Backend regression FAIL; sửa nguyên nhân, rồi có run green trên GitHub. |
 | SEC-P1-04 | Data classification, third-party owner, retention và pilot data boundary chưa có record được duyệt. | High | Security + PO | 14 ngày | Open | Not accepted | Xác nhận inventory, provider register, owner/retention và chỉ dùng fake data. |
 | SEC-P1-05 | Chưa có release evidence chuẩn liên kết version/tag, CI xanh, digest, SBOM và rollback reference. | Medium | Release Owner + DevOps | 14 ngày | Mitigation implemented, verification pending | Not accepted | Protected environment phải có required reviewers; manual workflow phải kiểm tag, main ancestry, CI cùng commit và tạo evidence artifact/SBOM/digest. |
 

@@ -26,13 +26,38 @@ Tài_nguyên.txt
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.pytest-temp*/
 .test-runtime/
 .private-evidence/
+.review/
 .coverage
 htmlcov/
 *.log
+
+# Reproducible deployment manifests are source-controlled; local secret values
+# under deploy/secrets remain ignored by their explicit filenames.
+!deploy/
+!deploy/**
+deploy/**/__pycache__/
+deploy/**/*.py[cod]
+deploy/secrets/*
+!deploy/secrets/README.txt
 
 # Keep ad-hoc Markdown files out; the published bundle is explicitly included below.
 *.md
 !documents/greencity-project/
 !documents/greencity-project/**
+
+# Raw GreenCity datasets are local-only and may contain personal data.
+documents/greencity-project/excel-data/
+documents/greencity-project/data_that/
+
+# Outputs derived from restricted raw data stay local, including failed staging.
+**/local_validation_pack/
+**/local_validation_manifest.json
+**/approved_pack/
+**/approved_manifest.json
+**/.approved_pack_tmp_*/
+
+# Local work files and submission-data reports may contain row-level metadata.
+.local/

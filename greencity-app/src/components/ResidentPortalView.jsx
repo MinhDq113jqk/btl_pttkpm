@@ -55,7 +55,7 @@ function ResidentError({ title, error, onRetry }) {
 
 function ResidentRequestsPanel({
   account, options, optionsError, requestState, selectedRequestId, setSelectedRequestId,
-  detail, showCreate, setShowCreate, form, setForm, busy, feedback, setFeedback,
+  detail, showCreate, setShowCreate, form, setForm, createErrors, setCreateErrors, createErrorSummaryRef, busy, feedback, setFeedback,
   onCreate, onUpdate, editForm, setEditForm, evidenceFile, setEvidenceFile, onUploadEvidence,
   onRetry,
 }) {
@@ -64,22 +64,38 @@ function ResidentRequestsPanel({
     return options.categories.filter(item => item.building_id === null || !unit || item.building_id === unit.building_id);
   }, [form.unit_id, options.categories, options.units]);
   const editable = detail.item && ['NEW', 'WAITING_INFO'].includes(detail.item.status);
+  const updateCreateField = (field, value) => {
+    setForm(previous => ({ ...previous, [field]: value }));
+    setCreateErrors(previous => {
+      if (!previous[field]) return previous;
+      const next = { ...previous };
+      delete next[field];
+      return next;
+    });
+  };
+  const createFieldErrors = [
+    ['unit_id', 'resident-create-unit', 'Căn hộ'],
+    ['category_id', 'resident-create-category', 'Loại yêu cầu'],
+    ['title', 'resident-create-title', 'Tiêu đề'],
+    ['description', 'resident-create-description', 'Mô tả'],
+  ];
 
   return <div className="resident-page resident-request-page">
-    <div className="resident-page-heading">
+      <div className="resident-page-heading">
       <div><p className="resident-eyebrow">Không gian của tôi</p><h1>Yêu cầu dịch vụ</h1><p>Gửi phản ánh tới Ban quản lý và theo dõi tiến độ theo căn hộ đã xác minh.</p></div>
-      <div className="resident-heading-actions"><span className="resident-scope-pill"><ShieldCheck size={14} aria-hidden="true" />Phạm vi cư dân do máy chủ cấp</span><button className="resident-primary" type="button" onClick={() => { setFeedback(null); setShowCreate(true); }}><Send size={16} aria-hidden="true" />Tạo yêu cầu</button></div>
+      <div className="resident-heading-actions"><span className="resident-scope-pill"><ShieldCheck size={14} aria-hidden="true" />Phạm vi cư dân do máy chủ cấp</span><button className="resident-primary" type="button" onClick={() => { setFeedback(null); setCreateErrors({}); setShowCreate(true); }}><Send size={16} aria-hidden="true" />Tạo yêu cầu</button></div>
     </div>
     {feedback && <div className={`resident-feedback resident-feedback-${feedback.type}`} role={feedback.type === 'error' ? 'alert' : 'status'}><span>{feedback.message}</span>{feedback.correlationId && <code>{feedback.correlationId}</code>}<button type="button" aria-label="Đóng thông báo" onClick={() => setFeedback(null)}><X size={15} aria-hidden="true" /></button></div>}
     {showCreate && <section className="surface resident-form-card" aria-label="Tạo yêu cầu dịch vụ">
-      <div className="resident-card-heading"><div><p className="resident-eyebrow">Yêu cầu mới</p><h2>Nội dung cần Ban quản lý hỗ trợ</h2><p>Chọn căn hộ từ danh sách máy chủ trả về. Không nhập tenant, site hoặc quyền vào biểu mẫu.</p></div><button type="button" className="resident-icon-button" aria-label="Đóng biểu mẫu" onClick={() => setShowCreate(false)}><X size={18} aria-hidden="true" /></button></div>
+      <div className="resident-card-heading"><div><p className="resident-eyebrow">Yêu cầu mới</p><h2>Nội dung cần Ban quản lý hỗ trợ</h2><p>Chọn căn hộ từ danh sách máy chủ trả về. Không nhập tenant, site hoặc quyền vào biểu mẫu.</p></div><button type="button" className="resident-icon-button" aria-label="Đóng biểu mẫu" onClick={() => { setCreateErrors({}); setShowCreate(false); }}><X size={18} aria-hidden="true" /></button></div>
       {optionsError && <ResidentError title="Không tải được lựa chọn tạo yêu cầu" error={optionsError} />}
       {!optionsError && <form className="resident-form-grid" onSubmit={onCreate} noValidate>
-        <label>Căn hộ<select value={form.unit_id} onChange={event => setForm(previous => ({ ...previous, unit_id: event.target.value, category_id: '' }))} required><option value="">Chọn căn hộ</option>{options.units.map(item => <option key={item.id} value={item.id}>{item.unit_number}</option>)}</select></label>
-        <label>Loại yêu cầu<select value={form.category_id} onChange={event => setForm(previous => ({ ...previous, category_id: event.target.value }))} required><option value="">Chọn loại hỗ trợ</option>{categories.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+        {Object.keys(createErrors).length > 0 && <div className="resident-error resident-validation-summary" role="alert" tabIndex={-1} ref={createErrorSummaryRef} aria-labelledby="resident-create-error-title"><CircleAlert size={19} aria-hidden="true" /><div><strong id="resident-create-error-title">Kiểm tra lại thông tin yêu cầu</strong><ul>{createFieldErrors.filter(([field]) => createErrors[field]).map(([field, id, label]) => <li key={field}><a href={`#${id}`} onClick={event => { event.preventDefault(); document.getElementById(id)?.focus(); }}>{label}: {createErrors[field]}</a></li>)}</ul></div></div>}
+        <label htmlFor="resident-create-unit">Căn hộ<select id="resident-create-unit" value={form.unit_id} onChange={event => { updateCreateField('unit_id', event.target.value); if (form.category_id) updateCreateField('category_id', ''); }} aria-invalid={Boolean(createErrors.unit_id)} aria-describedby={createErrors.unit_id ? 'resident-create-unit-error' : undefined} required><option value="">Chọn căn hộ</option>{options.units.map(item => <option key={item.id} value={item.id}>{item.unit_number}</option>)}</select>{createErrors.unit_id && <span className="field-error" id="resident-create-unit-error">{createErrors.unit_id}</span>}</label>
+        <label htmlFor="resident-create-category">Loại yêu cầu<select id="resident-create-category" value={form.category_id} onChange={event => updateCreateField('category_id', event.target.value)} aria-invalid={Boolean(createErrors.category_id)} aria-describedby={createErrors.category_id ? 'resident-create-category-error' : undefined} required><option value="">Chọn loại hỗ trợ</option>{categories.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select>{createErrors.category_id && <span className="field-error" id="resident-create-category-error">{createErrors.category_id}</span>}</label>
         <label>Ưu tiên<select value={form.priority} onChange={event => setForm(previous => ({ ...previous, priority: event.target.value }))}><option value="LOW">{PRIORITY_LABELS.LOW}</option><option value="MEDIUM">{PRIORITY_LABELS.MEDIUM}</option><option value="HIGH">{PRIORITY_LABELS.HIGH}</option><option value="URGENT">{PRIORITY_LABELS.URGENT}</option></select></label>
-        <label className="resident-form-wide">Tiêu đề<input value={form.title} onChange={event => setForm(previous => ({ ...previous, title: event.target.value }))} minLength={3} maxLength={200} required placeholder="Ví dụ: Rò rỉ nước dưới chậu rửa" /></label>
-        <label className="resident-form-wide">Mô tả<textarea value={form.description} onChange={event => setForm(previous => ({ ...previous, description: event.target.value }))} minLength={3} maxLength={4000} rows={4} required placeholder="Mô tả vị trí, thời điểm và mức độ ảnh hưởng…" /></label>
+        <label className="resident-form-wide" htmlFor="resident-create-title">Tiêu đề<input id="resident-create-title" value={form.title} onChange={event => updateCreateField('title', event.target.value)} aria-invalid={Boolean(createErrors.title)} aria-describedby={createErrors.title ? 'resident-create-title-error' : undefined} minLength={3} maxLength={200} required placeholder="Ví dụ: Rò rỉ nước dưới chậu rửa" />{createErrors.title && <span className="field-error" id="resident-create-title-error">{createErrors.title}</span>}</label>
+        <label className="resident-form-wide" htmlFor="resident-create-description">Mô tả<textarea id="resident-create-description" value={form.description} onChange={event => updateCreateField('description', event.target.value)} aria-invalid={Boolean(createErrors.description)} aria-describedby={createErrors.description ? 'resident-create-description-error' : undefined} minLength={3} maxLength={4000} rows={4} required placeholder="Mô tả vị trí, thời điểm và mức độ ảnh hưởng…" />{createErrors.description && <span className="field-error" id="resident-create-description-error">{createErrors.description}</span>}</label>
         <div className="resident-form-actions resident-form-wide"><button type="button" className="button-secondary" onClick={() => setShowCreate(false)}>Hủy</button><button className="resident-primary" type="submit" disabled={busy === 'create'}>{busy === 'create' ? <><LoaderCircle className="request-spinner" size={16} aria-hidden="true" />Đang gửi…</> : <><Send size={16} aria-hidden="true" />Gửi yêu cầu</>}</button></div>
       </form>}
     </section>}
@@ -149,6 +165,8 @@ export function ResidentPortalView({ account, client, onLogout, onSwitchSite, is
   const [notificationState, setNotificationState] = useState({ items: [], unreadCount: 0, loading: true, error: null });
   const [detail, setDetail] = useState({ item: null, timeline: [], evidence: [], loading: false, error: null });
   const [form, setForm] = useState({ unit_id: '', category_id: '', title: '', description: '', priority: 'MEDIUM' });
+  const [createErrors, setCreateErrors] = useState({});
+  const createErrorSummaryRef = useRef(null);
   const [editForm, setEditForm] = useState({ title: '', description: '', priority: 'MEDIUM' });
   const [evidenceFile, setEvidenceFile] = useState(null);
   const intentKeys = useRef(new Map());
@@ -221,10 +239,18 @@ export function ResidentPortalView({ account, client, onLogout, onSwitchSite, is
 
   const createRequest = async event => {
     event.preventDefault();
-    if (!form.unit_id || !form.category_id || form.title.trim().length < 3 || form.description.trim().length < 3) {
-      setFeedback({ type: 'error', message: 'Chọn căn hộ, loại yêu cầu và nhập đủ tiêu đề/mô tả.' });
+    const errors = {};
+    if (!form.unit_id) errors.unit_id = 'Chọn căn hộ đã xác minh.';
+    if (!form.category_id) errors.category_id = 'Chọn loại yêu cầu.';
+    if (form.title.trim().length < 3) errors.title = 'Nhập tiêu đề dài ít nhất 3 ký tự.';
+    if (form.description.trim().length < 3) errors.description = 'Nhập mô tả dài ít nhất 3 ký tự.';
+    if (Object.keys(errors).length) {
+      setCreateErrors(errors);
+      setFeedback(null);
+      requestAnimationFrame(() => createErrorSummaryRef.current?.focus());
       return;
     }
+    setCreateErrors({});
     setBusy('create'); setFeedback(null);
     try {
       const created = await client.createResidentServiceRequest(form, { idempotencyKey: makeIntent('resident-create') });
@@ -275,7 +301,7 @@ export function ResidentPortalView({ account, client, onLogout, onSwitchSite, is
 
   return <div className="resident-shell">
     <header className="resident-header"><div className="resident-brand"><GreenCityLogo /><span className="resident-brand-divider" /><div><strong>Cổng cư dân</strong><span>Self‑Service</span></div></div><div className="resident-header-scope"><Building2 size={17} aria-hidden="true" /><label htmlFor="resident-site-select">Site hiện hành</label><select id="resident-site-select" value={account.activeSiteId || ''} disabled={isSwitchingSite || account.allowedSites.length < 2} onChange={event => onSwitchSite?.(event.target.value)}>{account.allowedSites.map(site => <option key={site.id} value={site.id}>{site.name}</option>)}</select>{siteSwitchError && <small role="alert">{errorText(siteSwitchError)}</small>}</div><div className="resident-header-user"><div><strong>{account.name}</strong><span>{account.site}</span></div><button type="button" className="resident-logout" onClick={onLogout}><LogOut size={16} aria-hidden="true" />Đăng xuất</button></div></header>
-    <div className="resident-body"><aside className="resident-nav" aria-label="Điều hướng cổng cư dân"><p className="resident-nav-caption">Không gian cá nhân</p>{sections.map(section => { const Icon = section.icon; return <button key={section.id} type="button" role="tab" aria-selected={activeSection === section.id} className={activeSection === section.id ? 'is-active' : ''} onClick={() => setActiveSection(section.id)}><Icon size={18} aria-hidden="true" /><span>{section.label}</span>{section.count > 0 && <b>{section.count}</b>}</button>; })}<div className="resident-nav-note"><ShieldCheck size={18} aria-hidden="true" /><p><strong>Dữ liệu riêng tư</strong>Danh tính và căn hộ được đối chiếu ở máy chủ cho mỗi request.</p></div></aside><main className="resident-main" role="tabpanel" tabIndex={-1}>{activeSection === 'requests' && <ResidentRequestsPanel account={account} options={options} optionsError={optionsError} requestState={requestState} selectedRequestId={selectedRequestId} setSelectedRequestId={setSelectedRequestId} detail={detail} showCreate={showCreate} setShowCreate={setShowCreate} form={form} setForm={setForm} busy={busy} feedback={feedback} setFeedback={setFeedback} onCreate={createRequest} onUpdate={updateRequest} editForm={editForm} setEditForm={setEditForm} evidenceFile={evidenceFile} setEvidenceFile={setEvidenceFile} onUploadEvidence={uploadEvidence} onRetry={retryAll} />}{activeSection === 'billing' && <ResidentBillingPanel billingState={billingState} asOf={asOf} onRetry={retryAll} />}{activeSection === 'notifications' && <ResidentNotificationsPanel notificationState={notificationState} showRead={showRead} setShowRead={setShowRead} onMarkRead={markRead} onRetry={retryAll} />}</main></div>
+    <div className="resident-body"><aside className="resident-nav" aria-label="Điều hướng cổng cư dân"><p className="resident-nav-caption">Không gian cá nhân</p>{sections.map(section => { const Icon = section.icon; return <button key={section.id} type="button" role="tab" aria-selected={activeSection === section.id} className={activeSection === section.id ? 'is-active' : ''} onClick={() => setActiveSection(section.id)}><Icon size={18} aria-hidden="true" /><span>{section.label}</span>{section.count > 0 && <b>{section.count}</b>}</button>; })}<div className="resident-nav-note"><ShieldCheck size={18} aria-hidden="true" /><p><strong>Dữ liệu riêng tư</strong>Danh tính và căn hộ được đối chiếu ở máy chủ cho mỗi request.</p></div></aside><main className="resident-main" role="tabpanel" tabIndex={-1}>{activeSection === 'requests' && <ResidentRequestsPanel account={account} options={options} optionsError={optionsError} requestState={requestState} selectedRequestId={selectedRequestId} setSelectedRequestId={setSelectedRequestId} detail={detail} showCreate={showCreate} setShowCreate={setShowCreate} form={form} setForm={setForm} createErrors={createErrors} setCreateErrors={setCreateErrors} createErrorSummaryRef={createErrorSummaryRef} busy={busy} feedback={feedback} setFeedback={setFeedback} onCreate={createRequest} onUpdate={updateRequest} editForm={editForm} setEditForm={setEditForm} evidenceFile={evidenceFile} setEvidenceFile={setEvidenceFile} onUploadEvidence={uploadEvidence} onRetry={retryAll} />}{activeSection === 'billing' && <ResidentBillingPanel billingState={billingState} asOf={asOf} onRetry={retryAll} />}{activeSection === 'notifications' && <ResidentNotificationsPanel notificationState={notificationState} showRead={showRead} setShowRead={setShowRead} onMarkRead={markRead} onRetry={retryAll} />}</main></div>
     <footer className="resident-footer"><span>GreenCity · Phiên cư dân đã xác minh</span><span>Scope: {account.scope}</span></footer>
   </div>;
 }

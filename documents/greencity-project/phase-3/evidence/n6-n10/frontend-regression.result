@@ -1,0 +1,5 @@
+date=2026-09-25
+frontend_unit=55_passed_0_failed
+frontend_build=PASS_1625_modules
+browser_golden_flows=PASS_GF01_GF08_fixture_browser
+real_backend_scope=GF01_GF02_only

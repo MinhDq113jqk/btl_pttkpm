@@ -1,26 +1,34 @@
 """Actual PostgreSQL + HTTP/auth; only the disposable cluster runner enables these."""
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
+from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
 import os
 import secrets
-from uuid import uuid4
+from threading import Barrier
+from uuid import UUID, uuid4
 
 import pytest
+from fastapi import Header, Request
 from fastapi.testclient import TestClient
-from sqlalchemy import event, select, text
+from sqlalchemy import delete, event, func, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
 from app.core.config import Settings
 from app.core.database import Database
-from app.core.security import create_token, hash_password
+from app.core.policy import get_current_user_context
+from app.core.security import create_token, decode_token, hash_password
 from app.main import create_app
 from app.models.account import Account, AccountRole
+from app.models.auth_session import AuthSession
+from app.models.login_throttle import LoginThrottle
 from app.models.building import Building
 from app.models.person import Person, UnitPersonRelationship
 from app.models.site import Site
 from app.models.tenant import Tenant
 from app.models.unit import Unit
+from app.services.login_throttle import login_identity_key
+from auth_test_support import mint_session_token
 
 pytestmark = [pytest.mark.integration, pytest.mark.skipif(
     os.getenv("GREENCITY_ISOLATED_SECURITY_TESTS") != "1",
@@ -104,10 +112,257 @@ def assert_scoped_404(response):
     assert error["correlation_id"] == response.headers["x-correlation-id"]
 
 
+def test_session_token_is_persisted_and_logout_revokes_only_that_session(case):
+    client, database, settings, _, accounts, *_ = case
+    first = login(case, 0)
+    second = login(case, 0)
+    claims = decode_token(first["Authorization"][7:], settings.auth_secret())
+    with database.get_session() as session:
+        stored = session.get(AuthSession, UUID(claims["sid"]))
+        assert stored is not None
+        assert stored.account_id == accounts[0].id
+
+    response = client.post("/api/v1/auth/logout", headers=first)
+    assert response.status_code == 204
+    assert client.get("/api/v1/auth/me", headers=first).status_code == 401
+    assert client.get("/api/v1/auth/me", headers=second).status_code == 200
+
+
+def test_logout_all_invalidates_every_account_session(case):
+    client, _, _, _, _, *_ = case
+    first = login(case, 0)
+    second = login(case, 0)
+    response = client.post("/api/v1/auth/logout-all", headers=first)
+    assert response.status_code == 204
+    assert client.get("/api/v1/auth/me", headers=first).status_code == 401
+    assert client.get("/api/v1/auth/me", headers=second).status_code == 401
+
+
+def test_site_switch_issues_new_scope_without_invalidating_other_tabs(case):
+    client, _, _, _, _, sites, *_ = case
+    previous = login(case, 0)
+    switched = client.post(
+        "/api/v1/auth/switch-site", headers=previous,
+        json={"site_id": str(sites[1].id)},
+    )
+    assert switched.status_code == 200
+    current = {"Authorization": "Bearer " + switched.json()["access_token"]}
+    assert client.get("/api/v1/auth/me", headers=current).json()["active_site_id"] == str(sites[1].id)
+    assert client.get("/api/v1/auth/me", headers=previous).json()["active_site_id"] == str(sites[0].id)
+
+
+def test_site_switch_cannot_recreate_a_session_revoked_after_dependency_validation(case):
+    client, database, _, _, accounts, sites, *_ = case
+    previous = login(case, 0)
+
+    def revoke_after_authentication(request: Request, authorization: str | None = Header(None)):
+        context = get_current_user_context(request, authorization)
+        with database.get_session() as session:
+            account = session.scalar(select(Account).where(
+                Account.id == context.account_id,
+            ).with_for_update())
+            account.session_version += 1
+            session.execute(update(AuthSession).where(
+                AuthSession.account_id == account.id,
+                AuthSession.revoked_at.is_(None),
+            ).values(revoked_at=datetime.now(UTC)))
+            session.commit()
+        return context
+
+    client.app.dependency_overrides[get_current_user_context] = revoke_after_authentication
+    try:
+        response = client.post(
+            "/api/v1/auth/switch-site", headers=previous,
+            json={"site_id": str(sites[1].id)},
+        )
+    finally:
+        client.app.dependency_overrides.pop(get_current_user_context, None)
+
+    assert response.status_code == 401
+    with database.get_session() as session:
+        assert session.scalar(select(Account.session_version).where(Account.id == accounts[0].id)) == 2
+        assert session.scalar(select(AuthSession).where(
+            AuthSession.account_id == accounts[0].id,
+            AuthSession.revoked_at.is_(None),
+        )) is None
+
+
+def test_forced_password_change_blocks_business_routes_and_revokes_old_session(case):
+    client, database, _, password, accounts, _, units, _ = case
+    with database.get_session() as session:
+        session.get(Account, accounts[1].id).must_change_password = True
+        session.commit()
+
+    initial = client.post("/api/v1/auth/login", json={
+        "username": accounts[1].username, "password": password,
+    })
+    assert initial.status_code == 200
+    old_token = {"Authorization": "Bearer " + initial.json()["access_token"]}
+    assert initial.json()["user"]["must_change_password"] is True
+    assert client.get("/api/v1/auth/me", headers=old_token).status_code == 200
+    blocked = client.get(f"/api/v1/units/{units[0].id}/360", headers=old_token)
+    assert blocked.status_code == 403
+    assert blocked.json()["error"]["code"] == "ERR-PASSWORD-CHANGE-REQUIRED"
+
+    changed = client.post("/api/v1/auth/change-password", headers=old_token, json={
+        "current_password": password,
+        "new_password": "distinct-password-for-test-user",
+    })
+    assert changed.status_code == 204
+    assert client.get("/api/v1/auth/me", headers=old_token).status_code == 401
+    relogin = client.post("/api/v1/auth/login", json={
+        "username": accounts[1].username,
+        "password": "distinct-password-for-test-user",
+    })
+    assert relogin.status_code == 200
+    assert relogin.json()["user"]["must_change_password"] is False
+    current = {"Authorization": "Bearer " + relogin.json()["access_token"]}
+    assert client.get(f"/api/v1/units/{units[0].id}/360", headers=current).status_code == 200
+
+
+def test_legacy_session_token_without_persisted_session_claims_is_rejected(case):
+    client, _, settings, _, accounts, sites, *_ = case
+    legacy = create_token({
+        "sub": str(accounts[1].id), "active_site_id": str(sites[0].id), "purpose": "session",
+    }, settings.auth_secret())
+    response = client.get("/api/v1/auth/me", headers={"Authorization": "Bearer " + legacy})
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "ERR-UNAUTHORIZED"
+
+
+def test_login_throttle_persists_cooldown_and_resets_after_success(case):
+    client, database, settings, password, accounts, *_ = case
+    username = accounts[1].username
+    unknown_username = f"unknown_{uuid4().hex}"
+    for _ in range(settings.login_throttle_failure_threshold):
+        wrong = client.post("/api/v1/auth/login", json={"username": username, "password": "incorrect"})
+        assert wrong.status_code == 401
+        assert wrong.json()["error"]["code"] == "ERR-UNAUTHORIZED"
+        unknown = client.post("/api/v1/auth/login", json={"username": unknown_username, "password": "incorrect"})
+        assert unknown.status_code == 401
+        assert unknown.json()["error"]["code"] == "ERR-UNAUTHORIZED"
+        assert unknown.json()["error"]["message"] == wrong.json()["error"]["message"]
+
+    origin = settings.cors_origins[0]
+    throttled = client.post("/api/v1/auth/login", headers={"Origin": origin}, json={
+        "username": username, "password": password,
+    })
+    unknown_throttled = client.post("/api/v1/auth/login", json={
+        "username": unknown_username, "password": "incorrect",
+    })
+    assert throttled.status_code == 429
+    assert throttled.json()["error"]["code"] == "ERR-LOGIN-THROTTLED"
+    assert unknown_throttled.status_code == 429
+    assert unknown_throttled.json()["error"]["code"] == throttled.json()["error"]["code"]
+    assert unknown_throttled.json()["error"]["message"] == throttled.json()["error"]["message"]
+    assert 1 <= int(throttled.headers["retry-after"]) <= settings.login_throttle_base_backoff_seconds
+    assert "retry-after" in throttled.headers["access-control-expose-headers"].lower()
+    assert throttled.headers["cache-control"] == "private, no-store"
+    login_responses = client.get("/openapi.json").json()["paths"]["/api/v1/auth/login"]["post"]["responses"]
+    assert "Retry-After" in login_responses["429"]["headers"]
+    key = login_identity_key(username, settings.auth_secret())
+    with database.get_session() as session:
+        state = session.get(LoginThrottle, key)
+        assert state is not None
+        locked_until = state.locked_until
+
+    repeated = client.post("/api/v1/auth/login", json={"username": username, "password": "incorrect"})
+    assert repeated.status_code == 429
+    with database.get_session() as session:
+        assert session.get(LoginThrottle, key).locked_until == locked_until
+
+    reset_username = accounts[2].username
+    failed_before_success = client.post("/api/v1/auth/login", json={
+        "username": reset_username, "password": "incorrect",
+    })
+    assert failed_before_success.status_code == 401
+    reset_key = login_identity_key(reset_username, settings.auth_secret())
+    with database.get_session() as session:
+        assert session.get(LoginThrottle, reset_key).failure_count == 1
+    recovered = client.post("/api/v1/auth/login", json={"username": reset_username, "password": password})
+    assert recovered.status_code == 200
+    with database.get_session() as session:
+        assert session.get(LoginThrottle, reset_key) is None
+
+
+def test_login_throttle_failures_are_atomic_across_workers(case):
+    settings = case[2]
+    database = Database(settings)
+    tenant_id, account_id = uuid4(), uuid4()
+    username = f"concurrent_login_{uuid4().hex}"
+    with database.get_session() as session:
+        session.add(Tenant(id=tenant_id, name=f"Concurrent login {tenant_id}"))
+        session.flush()
+        session.add(Account(
+            id=account_id,
+            tenant_id=tenant_id,
+            username=username,
+            full_name="Concurrent login fixture",
+            hashed_password=hash_password(secrets.token_urlsafe(24)),
+        ))
+        session.commit()
+
+    barrier = Barrier(3, timeout=10)
+
+    def fail_from_worker():
+        worker_database = Database(settings)
+        try:
+            with TestClient(create_app(settings, worker_database)) as client:
+                barrier.wait()
+                return client.post("/api/v1/auth/login", json={
+                    "username": username, "password": "incorrect",
+                })
+        finally:
+            worker_database.close()
+
+    key = login_identity_key(username, settings.auth_secret())
+    try:
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [executor.submit(fail_from_worker) for _ in range(2)]
+            barrier.wait()
+            responses = [future.result(timeout=15) for future in futures]
+        assert [response.status_code for response in responses] == [401, 401]
+        with database.get_session() as session:
+            state = session.get(LoginThrottle, key)
+            assert state is not None
+            assert state.failure_count == 2
+    finally:
+        with database.get_session() as session:
+            session.execute(delete(LoginThrottle).where(LoginThrottle.identity_key == key))
+            session.execute(delete(Account).where(Account.id == account_id))
+            session.execute(delete(Tenant).where(Tenant.id == tenant_id))
+            session.commit()
+        database.close()
+
+
+def test_login_throttle_bounds_unknown_identity_rows(case):
+    client, database, settings, password, accounts, *_ = case
+    client.app.state.settings.login_throttle_max_identities = 1
+    first_unknown = f"unknown_{uuid4().hex}"
+    second_unknown = f"unknown_{uuid4().hex}"
+
+    first_failure = client.post("/api/v1/auth/login", json={
+        "username": first_unknown, "password": "incorrect",
+    })
+    assert first_failure.status_code == 401
+    overflow = client.post("/api/v1/auth/login", json={
+        "username": second_unknown, "password": "incorrect",
+    })
+    assert overflow.status_code == 429
+    assert overflow.headers["retry-after"] == str(settings.login_throttle_base_backoff_seconds)
+    with database.get_session() as session:
+        assert session.scalar(select(func.count()).select_from(LoginThrottle)) == 1
+
+    valid_existing = client.post("/api/v1/auth/login", json={
+        "username": accounts[1].username, "password": password,
+    })
+    assert valid_existing.status_code == 200
+
+
 def test_postgres_tls_and_head(case):
     with case[1].engine.connect() as connection:
         assert connection.scalar(text("SELECT ssl FROM pg_stat_ssl WHERE pid=pg_backend_pid()"))
-        assert connection.scalar(text("SELECT version_num FROM greencity.alembic_version")) == "0015"
+        assert connection.scalar(text("SELECT version_num FROM greencity.alembic_version")) == "0018"
 
 
 def test_seed_repeat_keeps_expected_counts(case):
@@ -286,13 +541,17 @@ def test_claims_never_override_database_identity_or_scope(case):
     client, _, settings, _, accounts, sites, units, _ = case
     claims = {"sub": str(accounts[1].id), "tenant_id": str(uuid4()),
               "roles": ["admin"], "active_site_id": str(sites[0].id), "purpose": "session"}
-    headers = {"Authorization": "Bearer " + create_token(claims, settings.auth_secret())}
+    headers = {"Authorization": "Bearer " + mint_session_token(
+        case[1], accounts[1].id, settings.auth_secret(), claims=claims,
+    )}
     response = client.get("/api/v1/auth/me", headers=headers)
     assert response.status_code == 200
     assert response.json()["tenant_id"] == str(accounts[1].tenant_id)
     assert response.json()["roles"] == ["cskh"]
     claims["active_site_id"] = str(sites[2].id)
-    headers = {"Authorization": "Bearer " + create_token(claims, settings.auth_secret())}
+    headers = {"Authorization": "Bearer " + mint_session_token(
+        case[1], accounts[1].id, settings.auth_secret(), claims=claims,
+    )}
     assert_scoped_404(client.get(f"/api/v1/units/{units[2].id}/360", headers=headers))
 
 
@@ -320,7 +579,9 @@ def test_resident_identity_and_scope_are_database_derived(case):
         "person_id": str(people[1].id), "roles": ["admin", "resident"],
         "active_site_id": str(sites[0].id), "purpose": "session",
     }
-    forged_headers = {"Authorization": "Bearer " + create_token(claims, settings.auth_secret())}
+    forged_headers = {"Authorization": "Bearer " + mint_session_token(
+        case[1], accounts[3].id, settings.auth_secret(), claims=claims,
+    )}
     forged = client.get("/api/v1/auth/me", headers=forged_headers)
     assert forged.status_code == 200
     assert forged.json()["resident_person_id"] == str(people[0].id)
@@ -328,7 +589,9 @@ def test_resident_identity_and_scope_are_database_derived(case):
     assert forged.json()["roles"] == ["resident"]
 
     claims["active_site_id"] = str(sites[1].id)
-    invalid_site_headers = {"Authorization": "Bearer " + create_token(claims, settings.auth_secret())}
+    invalid_site_headers = {"Authorization": "Bearer " + mint_session_token(
+        case[1], accounts[3].id, settings.auth_secret(), claims=claims,
+    )}
     assert_scoped_404(client.get("/api/v1/auth/me", headers=invalid_site_headers))
 
 
@@ -570,6 +833,8 @@ def test_client_building_and_role_claims_cannot_expand_database_grant(case, same
     claims = {"sub": str(case[4][1].id), "active_site_id": str(site.id), "roles": ["admin"],
               "building_ids": [str(same_site_other_building[0].id)],
               "unit_grants": [{"role": "admin", "building_id": None}], "purpose": "session"}
-    headers = {"Authorization": "Bearer " + create_token(claims, case[2].auth_secret()),
+    headers = {"Authorization": "Bearer " + mint_session_token(
+        case[1], case[4][1].id, case[2].auth_secret(), claims=claims,
+    ),
                "X-Role": "admin", "X-Building-ID": str(same_site_other_building[0].id)}
     assert_scoped_404(case[0].get(f"/api/v1/units/{same_site_other_building[1].id}/360?role=admin", headers=headers))

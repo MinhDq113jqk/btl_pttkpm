@@ -6,4 +6,8 @@ psycopg[binary]>=3.2,<4
 alembic>=1.14,<2
 uvicorn>=0.34,<1
 httpx>=0.28,<1
+# Starlette's TestClient uses httpx2; httpx remains the runtime client for Gemini.
+httpx2>=2.13,<3
+starlette>=1.7,<2
 pytest>=8,<10
+openpyxl>=3.1,<4

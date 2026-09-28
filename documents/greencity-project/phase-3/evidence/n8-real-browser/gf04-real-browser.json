@@ -1,0 +1,21 @@
+{
+  "flow": "GF-04",
+  "checks": [
+    "GF04 cleaning shift creates 1 server-snapshotted task(s)",
+    "GF04 manager assigns Sảnh chính to a cleaning worker",
+    "GF04 worker starts Sảnh chính",
+    "GF04 worker records all passed checklist",
+    "GF04 worker submits the passing cleaning path",
+    "GF04 manager accepts the passing cleaning task",
+    "GF04 cleaning shift creates 1 server-snapshotted task(s)",
+    "GF04 manager assigns Sảnh chính to a cleaning worker",
+    "GF04 worker starts Sảnh chính",
+    "GF04 worker records a failed and a passed checklist",
+    "GF04 worker submits the failing cleaning path",
+    "GF04 failed checklist creates a visible rework Work Order and Case",
+    "GF04 browser has no page errors",
+    "GF04 API calls have no failed responses"
+  ],
+  "errors": [],
+  "apiFailures": []
+}

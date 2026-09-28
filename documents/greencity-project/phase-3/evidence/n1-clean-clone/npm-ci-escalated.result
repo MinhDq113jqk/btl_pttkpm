@@ -1,0 +1,3 @@
+NPM_CI_EXIT=0
+WORKDIR=C:\Users\LEGION\btl\_phase3_n1_rehearsal_20260925\greencity-app
+CACHE=C:\Users\LEGION\btl\_phase3_n1_rehearsal_20260925\greencity-app\npm-cache

@@ -95,6 +95,8 @@ def chat(
     body: AssistantChatRequest,
     current_user: UserContext = Depends(get_current_user_context),
 ) -> AssistantChatResponse:
+    if not request.app.state.settings.assistant_enabled:
+        raise AppError("ERR-ASSISTANT-DISABLED", "Trợ lý hiện chưa được bật.", 503)
     scope = _server_scope(request, current_user)
     try:
         reply = GeminiClient().generate_content(

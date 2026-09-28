@@ -1,0 +1,12 @@
+{
+  "classification": "SYNTHETIC_TEST_ONLY",
+  "links": [
+    { "username": "syn_resident_01", "resident_code": "SYN-RES-001", "billing_account_number": "SYN-BA-001" },
+    { "username": "syn_resident_02", "resident_code": "SYN-RES-002", "billing_account_number": "SYN-BA-002" },
+    { "username": "syn_resident_03", "resident_code": "SYN-RES-003", "billing_account_number": "SYN-BA-003" },
+    { "username": "syn_resident_04", "resident_code": "SYN-RES-004", "billing_account_number": "SYN-BA-004" },
+    { "username": "syn_resident_05", "resident_code": "SYN-RES-005", "billing_account_number": "SYN-BA-005" },
+    { "username": "syn_resident_06", "resident_code": "SYN-RES-006", "billing_account_number": "SYN-BA-006" },
+    { "username": "syn_resident_07", "resident_code": "SYN-RES-007", "billing_account_number": "SYN-BA-007" }
+  ]
+}

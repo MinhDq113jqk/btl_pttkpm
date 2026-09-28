@@ -1,0 +1,14 @@
+PASS real backend browser starts on the credential form
+PASS the backend health endpoint is reachable during the browser run
+PASS backend enforces the first-login password change in the browser
+PASS browser login then /auth/me loads the resident workspace
+PASS resident service options and list came from the real API
+PASS the browser keeps the bearer session in memory
+PASS resident create request reaches the real backend
+PASS double submit sends one idempotent intent
+PASS created request remains after browser reload and re-authentication
+PASS replaying the same Idempotency-Key returns the original request
+PASS the real backend exposes an audit timeline for the created request
+PASS server-owned resident scope is one site and one linked unit
+PASS no browser page errors occurred
+REAL_BACKEND_GF_01_02 PASS (13 checks)

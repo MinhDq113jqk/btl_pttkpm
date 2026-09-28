@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ASSISTANT_STORAGE_KEY, assistantReducer, createAssistantState, createConversation, loadAssistantHistory, persistAssistantHistory, restoreAssistantState, shouldSendOnEnter } from '../src/data/assistantStore.js';
+import { ASSISTANT_STORAGE_KEY, assistantAccountClearSignalKey, assistantReducer, clearAssistantHistory, clearAssistantHistoryForAccount, createAssistantState, createConversation, loadAssistantHistory, persistAssistantHistory, restoreAssistantState, shouldSendOnEnter } from '../src/data/assistantStore.js';
 import { requestAssistantReply } from '../src/services/greenAssistant.js';
 
 const fresh = () => createAssistantState(createConversation('one', 1000));
@@ -11,6 +11,10 @@ const sent = () => assistantReducer(fresh(), { type: 'send', conversationId: 'on
 test('new chat does not create duplicate empty conversations', () => {
   const initial = fresh();
   assert.equal(assistantReducer(initial, { type: 'new', conversation: createConversation('two') }), initial);
+});
+test('clear replaces the complete assistant state', () => {
+  const empty = createAssistantState(createConversation('empty', 3000));
+  assert.equal(assistantReducer(sent(), { type: 'clear', state: empty }), empty);
 });
 test('send creates distinct user/pending assistant messages and clears draft', () => {
   const state = sent();
@@ -69,6 +73,37 @@ test('malformed history is rejected, not silently overwritten', () => {
 test('storage read/write failures propagate for visible recovery feedback', () => {
   assert.throws(() => loadAssistantHistory({ getItem() { throw new Error('blocked'); } }));
   assert.throws(() => persistAssistantHistory({ setItem() { throw new Error('quota'); } }, fresh()));
+});
+test('history deletion removes one site key only', () => {
+  const values = new Map([
+    [`${ASSISTANT_STORAGE_KEY}:account-a:site-a`, 'current'],
+    [`${ASSISTANT_STORAGE_KEY}:account-a:site-b`, 'other site'],
+  ]);
+  const storage = { removeItem: key => values.delete(key) };
+  clearAssistantHistory(storage, `${ASSISTANT_STORAGE_KEY}:account-a:site-a`);
+  assert.equal(values.has(`${ASSISTANT_STORAGE_KEY}:account-a:site-a`), false);
+  assert.equal(values.get(`${ASSISTANT_STORAGE_KEY}:account-a:site-b`), 'other site');
+});
+test('account logout clears every site key without touching another account and broadcasts the clear', () => {
+  const values = new Map([
+    [`${ASSISTANT_STORAGE_KEY}:account-a:site-a`, 'site a'],
+    [`${ASSISTANT_STORAGE_KEY}:account-a:site-b`, 'site b'],
+    [`${ASSISTANT_STORAGE_KEY}:account-ab:site-a`, 'other account'],
+    ['unrelated.preference', 'keep'],
+  ]);
+  const storage = {
+    get length() { return values.size; },
+    key(index) { return [...values.keys()][index] ?? null; },
+    setItem(key, value) { values.set(key, value); },
+    removeItem(key) { values.delete(key); },
+  };
+
+  assert.equal(clearAssistantHistoryForAccount(storage, 'account-a'), 2);
+  assert.equal(values.has(`${ASSISTANT_STORAGE_KEY}:account-a:site-a`), false);
+  assert.equal(values.has(`${ASSISTANT_STORAGE_KEY}:account-a:site-b`), false);
+  assert.equal(values.get(`${ASSISTANT_STORAGE_KEY}:account-ab:site-a`), 'other account');
+  assert.equal(values.get('unrelated.preference'), 'keep');
+  assert.equal(values.has(assistantAccountClearSignalKey('account-a')), false);
 });
 test('out-of-range dates in saved history do not reach the renderer', () => {
   const state = sent();

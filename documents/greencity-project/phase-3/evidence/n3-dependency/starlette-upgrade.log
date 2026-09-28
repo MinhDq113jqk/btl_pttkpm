@@ -1,0 +1,12 @@
+Collecting starlette==1.7.0
+  Downloading starlette-1.7.0-py3-none-any.whl.metadata (6.6 kB)
+Requirement already satisfied: anyio<5,>=4.0.0 in c:\users\legion\btl\_phase3_n1_rehearsal_20260925\backend\.venv\lib\site-packages (from starlette==1.7.0) (4.15.1)
+Requirement already satisfied: typing-extensions>=4.10.0 in c:\users\legion\btl\_phase3_n1_rehearsal_20260925\backend\.venv\lib\site-packages (from starlette==1.7.0) (4.16.0)
+Requirement already satisfied: idna>=2.8 in c:\users\legion\btl\_phase3_n1_rehearsal_20260925\backend\.venv\lib\site-packages (from anyio<5,>=4.0.0->starlette==1.7.0) (3.19)
+Downloading starlette-1.7.0-py3-none-any.whl (78 kB)
+Installing collected packages: starlette
+  Attempting uninstall: starlette
+    Found existing installation: starlette 1.6.0
+    Uninstalling starlette-1.6.0:
+      Successfully uninstalled starlette-1.6.0
+Successfully installed starlette-1.7.0

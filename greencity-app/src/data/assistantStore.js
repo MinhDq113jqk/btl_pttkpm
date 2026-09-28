@@ -1,5 +1,12 @@
 export const ASSISTANT_STORAGE_KEY = 'greencity.assistant.v1';
+export const ASSISTANT_ACCOUNT_CLEARED_EVENT = 'greencity:assistant-account-history-cleared';
 export const MAX_QUESTION_LENGTH = 2000;
+
+export function assistantAccountClearSignalKey(accountId) {
+  return typeof accountId === 'string' && accountId
+    ? `${ASSISTANT_STORAGE_KEY}.clear:${accountId}`
+    : null;
+}
 
 export function createConversation(id = crypto.randomUUID(), now = Date.now()) {
   return { id, title: 'Cuộc trò chuyện mới', createdAt: now, updatedAt: now, draft: '', messages: [] };
@@ -10,6 +17,7 @@ export function createAssistantState(conversation = createConversation()) {
 }
 
 export function assistantReducer(state, action) {
+  if (action.type === 'clear') return action.state;
   if (action.type === 'new') {
     const active = state.conversations.find(item => item.id === state.activeId);
     if (!active.messages.length && !active.draft.trim()) return state;
@@ -89,6 +97,31 @@ export function loadAssistantHistory(storage, key = ASSISTANT_STORAGE_KEY) {
 
 export function persistAssistantHistory(storage, state, key = ASSISTANT_STORAGE_KEY) {
   storage.setItem(key, JSON.stringify(state));
+}
+
+export function clearAssistantHistory(storage, key = ASSISTANT_STORAGE_KEY) {
+  storage.removeItem(key);
+}
+
+export function clearAssistantHistoryForAccount(storage, accountId) {
+  if (typeof accountId !== 'string' || !accountId) return 0;
+  const prefix = `${ASSISTANT_STORAGE_KEY}:${accountId}:`;
+  const keys = [];
+  for (let index = 0; index < storage.length; index += 1) {
+    const key = storage.key(index);
+    if (key?.startsWith(prefix)) keys.push(key);
+  }
+  for (const key of keys) storage.removeItem(key);
+
+  const signalKey = assistantAccountClearSignalKey(accountId);
+  storage.setItem(signalKey, String(Date.now()));
+  storage.removeItem(signalKey);
+  try {
+    if (typeof window !== 'undefined' && storage === window.localStorage) {
+      window.dispatchEvent(new CustomEvent(ASSISTANT_ACCOUNT_CLEARED_EVENT, { detail: { accountId } }));
+    }
+  } catch { /* local deletion must still succeed when event delivery is unavailable */ }
+  return keys.length;
 }
 
 export function shouldSendOnEnter(event) {

@@ -86,6 +86,8 @@
 .assistant-history { flex: 1; overflow-y: auto; min-height: 0; padding: 16px; background: var(--chat-wash); }
 .assistant-history-heading { display: flex; align-items: center; gap: 7px; }
 .assistant-history-heading h3 { font-size: 16px; font-weight: 650; }
+.assistant-history-clear { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 5px 8px; border: 1px solid #e7c8c8; border-radius: 6px; color: #9b3d3d; background: #fff; font-size: 12px; font-weight: 600; }
+.assistant-history-clear:hover { background: #fff1f1; }
 .assistant-history-note { font-size: 12px; line-height: 1.7; color: var(--chat-muted); margin: 12px 4px 16px; }
 .assistant-history-list { display: flex; flex-direction: column; gap: 9px; }
 .assistant-history-item { display: flex; align-items: flex-start; gap: 10px; padding: 14px 12px; width: 100%; min-width: 0; border: 1px solid var(--chat-line); border-radius: 9px; background: white; text-align: left; }

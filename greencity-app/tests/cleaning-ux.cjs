@@ -27,6 +27,13 @@ const task = {
     { id: randomUUID(), position: 2, label: 'Thùng rác đã kiểm tra', is_required: true, result: 'PENDING', note: null, performed_by_id: null, performed_at: null, version: 1 },
   ],
 };
+const failedTask = {
+  ...task,
+  id: randomUUID(), route_stop_id: randomUUID(), area_id: randomUUID(), area_code: 'LOBBY-2',
+  area_name: 'Sảnh phụ', version: 1, status: 'ASSIGNED',
+  checklist: task.checklist.map(item => ({ ...item, id: randomUUID(), version: 1, result: 'PENDING' })),
+};
+const tasks = [task, failedTask];
 
 (async () => {
   const browser = await chromium.launch({ headless: true, channel: 'msedge' });
@@ -42,19 +49,25 @@ const task = {
     const headers = { 'Content-Type': 'application/json', 'X-Correlation-ID': correlationId };
     if (url.pathname.endsWith('/auth/login')) return route.fulfill({ status: 200, headers, body: JSON.stringify({ access_token: token }) });
     if (url.pathname.endsWith('/auth/me')) return route.fulfill({ status: 200, headers, body: JSON.stringify(user) });
-    if (url.pathname.endsWith('/cleaning/tasks') && request.method() === 'GET') return route.fulfill({ status: 200, headers, body: JSON.stringify({ items: [task] }) });
+    if (url.pathname.endsWith('/cleaning/tasks') && request.method() === 'GET') return route.fulfill({ status: 200, headers, body: JSON.stringify({ items: tasks }) });
     if (url.pathname.endsWith('/start')) {
-      task.status = 'IN_PROGRESS'; task.started_at = '2026-09-13T01:10:00Z'; task.version += 1;
-      return route.fulfill({ status: 200, headers, body: JSON.stringify(task) });
+      const current = tasks.find(item => url.pathname.includes(item.id));
+      current.status = 'IN_PROGRESS'; current.started_at = '2026-09-13T01:10:00Z'; current.version += 1;
+      return route.fulfill({ status: 200, headers, body: JSON.stringify(current) });
     }
     if (url.pathname.includes('/checklist/')) {
-      const item = task.checklist.find(entry => url.pathname.endsWith(entry.id));
-      item.result = request.postDataJSON().result; item.version += 1; item.performed_by_id = user.account_id; item.performed_at = '2026-09-13T01:20:00Z'; task.version += 1;
-      return route.fulfill({ status: 200, headers, body: JSON.stringify(task) });
+      const current = tasks.find(item => url.pathname.includes(item.id));
+      const item = current.checklist.find(entry => url.pathname.endsWith(entry.id));
+      item.result = request.postDataJSON().result; item.version += 1; item.performed_by_id = user.account_id; item.performed_at = '2026-09-13T01:20:00Z'; current.version += 1;
+      return route.fulfill({ status: 200, headers, body: JSON.stringify(current) });
     }
     if (url.pathname.endsWith('/submit')) {
-      task.status = 'SUBMITTED'; task.submitted_at = '2026-09-13T01:30:00Z'; task.version += 1;
-      return route.fulfill({ status: 200, headers, body: JSON.stringify(task) });
+      const current = tasks.find(item => url.pathname.includes(item.id));
+      const failed = current.checklist.some(item => item.result === 'FAIL');
+      current.status = failed ? 'REWORK_REQUIRED' : 'SUBMITTED';
+      current.submitted_at = '2026-09-13T01:30:00Z'; current.version += 1;
+      if (failed) { current.rework_work_order_id = randomUUID(); current.rework_case_id = randomUUID(); }
+      return route.fulfill({ status: 200, headers, body: JSON.stringify(current) });
     }
     return route.fulfill({ status: 404, headers, body: JSON.stringify({ error: { code: 'ERR-NOTFOUND', message: 'Không tìm thấy.', correlation_id: correlationId } }) });
   });
@@ -65,23 +78,34 @@ const task = {
     await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
     await page.getByRole('navigation', { name: 'Điều hướng chính' }).getByRole('button', { name: 'Vệ sinh môi trường', exact: true }).click();
     await page.getByRole('heading', { name: 'Ca vệ sinh của tôi', exact: true }).waitFor();
-    await page.getByText('Sảnh chính', { exact: true }).waitFor();
-    assert.ok(await page.getByText('Sảnh chính', { exact: true }).isVisible());
-    await page.getByRole('button', { name: 'Bắt đầu', exact: true }).click();
-    await page.getByRole('button', { name: 'Nộp kết quả', exact: true }).waitFor();
-    await page.getByLabel('Kết quả Sàn sạch').selectOption('PASS');
-    await page.getByLabel('Kết quả Thùng rác đã kiểm tra').selectOption('PASS');
-    await page.getByRole('button', { name: 'Nộp kết quả', exact: true }).click();
-    await page.getByText('Chờ nghiệm thu', { exact: true }).waitFor();
+    const passCard = page.locator('.cleaning-task-card').filter({ hasText: 'Sảnh chính' });
+    const failCard = page.locator('.cleaning-task-card').filter({ hasText: 'Sảnh phụ' });
+    await passCard.waitFor(); await failCard.waitFor();
+    await passCard.getByRole('button', { name: 'Bắt đầu', exact: true }).click();
+    await passCard.getByRole('button', { name: 'Nộp kết quả', exact: true }).waitFor();
+    await passCard.getByLabel('Kết quả Sàn sạch').selectOption('PASS');
+    await passCard.getByLabel('Kết quả Thùng rác đã kiểm tra').selectOption('PASS');
+    await passCard.getByRole('button', { name: 'Nộp kết quả', exact: true }).click();
+    await passCard.getByText('Chờ nghiệm thu', { exact: true }).waitFor();
+    assert.equal(task.status, 'SUBMITTED');
+
+    await failCard.getByRole('button', { name: 'Bắt đầu', exact: true }).click();
+    await failCard.getByLabel('Kết quả Sàn sạch').selectOption('FAIL');
+    await failCard.getByLabel('Kết quả Thùng rác đã kiểm tra').selectOption('PASS');
+    await failCard.getByRole('button', { name: 'Nộp kết quả', exact: true }).click();
+    await failCard.getByText('Cần làm lại', { exact: true }).waitFor();
+    assert.equal(failedTask.status, 'REWORK_REQUIRED');
+    assert.ok(failedTask.rework_work_order_id && failedTask.rework_case_id);
+    assert.ok(await failCard.locator('.cleaning-rework-note').getByText(failedTask.rework_work_order_id).isVisible());
     await page.screenshot({ path: path.join(output, 'cleaning-worker-submitted.png'), fullPage: true });
     const operationRequests = requests.filter(item => item.path.includes('/cleaning/'));
     assert.ok(operationRequests.filter(item => item.method === 'GET').length >= 1);
-    assert.deepEqual(operationRequests.filter(item => item.method !== 'GET').map(item => item.method), ['POST', 'PATCH', 'PATCH', 'POST']);
+    assert.deepEqual(operationRequests.filter(item => item.method !== 'GET').map(item => item.method), ['POST', 'PATCH', 'PATCH', 'POST', 'POST', 'PATCH', 'PATCH', 'POST']);
     assert.ok(operationRequests.every(item => item.authorization === `Bearer ${token}`));
     assert.ok(!JSON.stringify(operationRequests).match(/tenant_id|site_id|role/));
     assert.equal(errors.length, 0);
-    fs.writeFileSync(path.join(output, 'test-results.json'), JSON.stringify({ passed: 6, errors }, null, 2));
-    console.log('CLEANING UX: 6 checks passed.');
+    fs.writeFileSync(path.join(output, 'test-results.json'), JSON.stringify({ passed: 8, errors }, null, 2));
+    console.log('CLEANING UX: 8 checks passed.');
   } finally {
     await browser.close();
   }

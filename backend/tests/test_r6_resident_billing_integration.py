@@ -12,7 +12,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.core.config import Settings
 from app.core.database import Database
-from app.core.security import create_token, hash_password
+from app.core.security import hash_password
 from app.main import create_app
 from app.models.account import Account, AccountRole
 from app.models.billing import (
@@ -31,6 +31,7 @@ from app.models.person import Person, UnitPersonRelationship
 from app.models.site import Site
 from app.models.tenant import Tenant
 from app.models.unit import Unit
+from auth_test_support import mint_session_token
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.skipif(
@@ -362,10 +363,11 @@ def test_resident_billing_rejects_invalid_or_revoked_scope(resident_billing_case
     assert naive.status_code == 422
     assert naive.json()["error"]["code"] == "ERR-AS-OF-TIMEZONE"
 
-    forged_tenant_and_roles = create_token({
-        "sub": str(case["residents"]["resident"][0].id), "tenant_id": str(uuid4()),
-        "roles": ["admin", "resident"], "active_site_id": str(case["site"].id), "purpose": "session",
-    }, case["settings"].auth_secret())
+    forged_tenant_and_roles = mint_session_token(
+        case["database"], case["residents"]["resident"][0].id, case["settings"].auth_secret(),
+        claims={"tenant_id": str(uuid4()), "roles": ["admin", "resident"],
+                "active_site_id": str(case["site"].id)},
+    )
     forged_allowed = case["client"].get(
         "/api/v1/resident/billing/summary", headers={"Authorization": "Bearer " + forged_tenant_and_roles},
         params={"as_of": cutoff},
@@ -373,10 +375,11 @@ def test_resident_billing_rejects_invalid_or_revoked_scope(resident_billing_case
     assert forged_allowed.status_code == 200
     assert forged_allowed.json()["total_ar_balance_vnd"] == 100_000
 
-    forged_site = create_token({
-        "sub": str(case["residents"]["resident"][0].id), "tenant_id": str(case["tenant"].id),
-        "roles": ["resident"], "active_site_id": str(case["other_site"].id), "purpose": "session",
-    }, case["settings"].auth_secret())
+    forged_site = mint_session_token(
+        case["database"], case["residents"]["resident"][0].id, case["settings"].auth_secret(),
+        claims={"tenant_id": str(case["tenant"].id), "roles": ["resident"],
+                "active_site_id": str(case["other_site"].id)},
+    )
     _scope_error(case["client"].get(
         "/api/v1/resident/billing/summary", headers={"Authorization": "Bearer " + forged_site},
         params={"as_of": cutoff},

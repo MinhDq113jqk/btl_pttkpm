@@ -12,8 +12,6 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.config import Settings
 from app.core.database import Database
-from app.core.security import hash_password
-from app.models.account import Account
 from app.models.building import Building
 from app.models.operations import SecurityIncident
 from app.models.parcel import Parcel
@@ -22,6 +20,7 @@ from app.models.service import CaseRecord
 from app.models.site import Site
 from app.models.tenant import Tenant
 from app.models.unit import Unit
+from scripts.migration_fixtures import add_legacy_account
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = "greencity"
@@ -91,31 +90,33 @@ def main() -> int:
             session.add(building)
             session.flush()
             unit = Unit(building_id=building.id, unit_number="P-0101", floor=1, area_m2=50, status="occupied")
-            account = Account(tenant_id=tenant.id, username=f"parcel_{uuid4().hex}",
-                              full_name="Parcel operator", hashed_password=hash_password("migration-only"))
-            session.add_all((unit, account))
+            account_id = add_legacy_account(
+                session, tenant_id=tenant.id, username=f"parcel_{uuid4().hex}",
+                full_name="Parcel operator",
+            )
+            session.add(unit)
             session.flush()
             parcel = Parcel(
                 tenant_id=tenant.id, site_id=site.id, building_id=building.id, unit_id=unit.id,
                 parcel_code="P-001", recipient_name_snapshot="Parcel recipient", pin_hash="a" * 60,
-                received_at=datetime.now(UTC), created_by_id=account.id, updated_by_id=account.id,
+                received_at=datetime.now(UTC), created_by_id=account_id, updated_by_id=account_id,
             )
             session.add(parcel)
             session.flush()
             case_record = CaseRecord(
                 tenant_id=tenant.id, site_id=site.id, building_id=building.id,
-                source_parcel_id=parcel.id, reason="Migration evidence", created_by_id=account.id,
-                updated_by_id=account.id,
+                source_parcel_id=parcel.id, reason="Migration evidence", created_by_id=account_id,
+                updated_by_id=account_id,
             )
             incident = SecurityIncident(
                 tenant_id=tenant.id, site_id=site.id, building_id=building.id, parcel_id=parcel.id,
                 code="INC-0015", incident_type="SECURITY", severity="LOW", title="Parcel evidence",
                 description="Migration evidence", occurred_at=datetime.now(UTC),
-                reported_by_id=account.id, created_by_id=account.id, updated_by_id=account.id,
+                reported_by_id=account_id, created_by_id=account_id, updated_by_id=account_id,
             )
             attachment = Attachment(
                 tenant_id=tenant.id, site_id=site.id, building_id=building.id, parcel_id=parcel.id,
-                uploaded_by_id=account.id, original_name="evidence.png", storage_key=f"0015/{uuid4().hex}.png",
+                uploaded_by_id=account_id, original_name="evidence.png", storage_key=f"0015/{uuid4().hex}.png",
                 mime_type="image/png", size_bytes=8, sha256="a" * 64,
             )
             session.add_all((case_record, incident, attachment))
@@ -125,7 +126,7 @@ def main() -> int:
             invalid = CaseRecord(
                 tenant_id=tenant.id, site_id=site.id, building_id=building.id,
                 source_parcel_id=parcel.id, source_work_order_id=uuid4(), reason="invalid",
-                created_by_id=account.id, updated_by_id=account.id,
+                created_by_id=account_id, updated_by_id=account_id,
             )
             session.add(invalid)
             try:

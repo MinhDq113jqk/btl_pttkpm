@@ -6,12 +6,12 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy import func, select
 
-from app.core.security import create_token
 from app.models.account import Account, AccountRole
 from app.models.operations import CleaningArea, CleaningRoute, CleaningRouteStop, CleaningShift
 from app.models.platform import AuditEvent
 from app.models.service import CaseRecord, WorkOrder
 from test_r2_integration import r2_case, with_key
+from auth_test_support import mint_session_token
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.skipif(
@@ -21,11 +21,10 @@ pytestmark = [pytest.mark.integration, pytest.mark.skipif(
 
 
 def _auth(case, account):
-    token = create_token({
-        "sub": str(account.id),
-        "active_site_id": str(case["sites"][0].id),
-        "purpose": "session",
-    }, case["settings"].auth_secret())
+    token = mint_session_token(
+        case["database"], account.id, case["settings"].auth_secret(),
+        claims={"active_site_id": str(case["sites"][0].id)},
+    )
     return {"Authorization": "Bearer " + token}
 
 

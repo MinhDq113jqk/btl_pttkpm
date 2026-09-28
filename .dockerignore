@@ -1,0 +1,17 @@
+.git
+.venv
+**/.venv
+**/node_modules
+**/dist
+**/.pytest_cache
+**/__pycache__
+**/.test-runtime
+**/.private-evidence
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.pilot.example
+deploy/secrets/*
+!deploy/secrets/README.txt
+documents
+**/*.pyc

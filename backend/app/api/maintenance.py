@@ -1,26 +1,33 @@
 from datetime import UTC
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, Header, Request
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, Header, Query, Request
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.core.exceptions import AppError
 from app.core.policy import UserContext, get_current_user_context, scope_not_found
+from app.models.building import Building
 from app.models.maintenance import Asset, MaintenanceHistory, MaintenanceOccurrence, MaintenancePlan
+from app.models.platform import Attachment
 from app.models.service import WorkOrder, WorkOrderChecklistItem
 from app.models.unit import Unit
 from app.schemas.r2 import (
     AssetCreate,
     AssetView,
+    ChecklistItemView,
     MaintenanceHistoryListResponse,
     MaintenanceHistoryView,
+    MaintenanceOccurrenceListItem,
+    MaintenanceOccurrenceListResponse,
     MaintenanceDefer,
     MaintenancePlanCreate,
     MaintenancePlanView,
     SchedulerOccurrenceView,
     SchedulerRun,
     SchedulerRunView,
+    ServiceRequestFormBuilding,
+    WorkOrderView,
 )
 from app.services.r2 import (
     audit,
@@ -54,6 +61,143 @@ def _scoped_plan(session, context: UserContext, plan_id: UUID, *, lock: bool = F
     if plan is None:
         raise scope_not_found()
     return plan
+
+
+def _maintenance_work_order_view(session, record: WorkOrder) -> WorkOrderView:
+    checklist = session.scalars(select(WorkOrderChecklistItem).where(
+        WorkOrderChecklistItem.work_order_id == record.id,
+    ).order_by(WorkOrderChecklistItem.position)).all()
+    evidence_count = session.scalar(select(func.count(Attachment.id)).where(
+        Attachment.work_order_id == record.id,
+        Attachment.is_quarantined.is_(False),
+        Attachment.mime_type.in_(("image/png", "image/jpeg")),
+    )) or 0
+    return WorkOrderView(
+        id=record.id,
+        code=record.code,
+        tenant_id=record.tenant_id,
+        site_id=record.site_id,
+        building_id=record.building_id,
+        service_request_id=record.service_request_id,
+        maintenance_occurrence_id=record.maintenance_occurrence_id,
+        title=record.title,
+        description=record.description,
+        status=record.status,
+        assigned_to_id=record.assigned_to_id,
+        acceptance_mode=record.acceptance_mode,
+        acceptance_reason=record.acceptance_reason,
+        acceptance_evidence_id=record.acceptance_evidence_id,
+        result_summary=record.result_summary,
+        completed_at=record.completed_at,
+        closed_at=record.closed_at,
+        version=record.version,
+        checklist=[ChecklistItemView.model_validate(item) for item in checklist],
+        evidence_count=evidence_count,
+    )
+
+
+@router.get("/maintenance/buildings", response_model=list[ServiceRequestFormBuilding])
+def list_maintenance_buildings(
+    request: Request,
+    current_user: UserContext = Depends(get_current_user_context),
+):
+    current_user.assert_role("technical_lead")
+    active_site_id = current_user.assert_active_site()
+    building_ids = {
+        grant.building_id for grant in current_user.role_grants
+        if grant.role == "technical_lead" and grant.building_id is not None
+    }
+    with request.app.state.database.get_session() as session:
+        buildings = session.execute(
+            select(Building.id, Building.code, Building.name)
+            .where(
+                Building.site_id == active_site_id,
+                Building.id.in_(building_ids),
+            )
+            .order_by(Building.code, Building.id)
+        ).all()
+        return [ServiceRequestFormBuilding(id=row.id, code=row.code, name=row.name) for row in buildings]
+
+
+@router.get("/maintenance/assigned-work-orders", response_model=list[WorkOrderView])
+def list_assigned_maintenance_work_orders(
+    request: Request,
+    current_user: UserContext = Depends(get_current_user_context),
+):
+    current_user.assert_role("technician")
+    with request.app.state.database.get_session() as session:
+        work_orders = session.scalars(select(WorkOrder).where(
+            *current_user.scope_conditions(WorkOrder),
+            WorkOrder.assigned_to_id == current_user.account_id,
+            WorkOrder.maintenance_occurrence_id.is_not(None),
+        ).order_by(WorkOrder.status, WorkOrder.created_at, WorkOrder.id)).all()
+        return [_maintenance_work_order_view(session, work_order) for work_order in work_orders]
+
+
+@router.get("/maintenance/assets", response_model=list[AssetView])
+def list_maintenance_assets(
+    request: Request,
+    building_id: UUID = Query(...),
+    current_user: UserContext = Depends(get_current_user_context),
+):
+    current_user.assert_building_role(building_id, "technical_lead")
+    with request.app.state.database.get_session() as session:
+        assets = session.scalars(select(Asset).where(
+            *current_user.scope_conditions(Asset),
+            Asset.building_id == building_id,
+        ).order_by(Asset.code, Asset.id)).all()
+        return [AssetView.model_validate(asset) for asset in assets]
+
+
+@router.get("/maintenance/assets/{asset_id}/plans", response_model=list[MaintenancePlanView])
+def list_asset_maintenance_plans(
+    request: Request,
+    asset_id: UUID,
+    current_user: UserContext = Depends(get_current_user_context),
+):
+    with request.app.state.database.get_session() as session:
+        asset = _scoped_asset(session, current_user, asset_id)
+        current_user.assert_building_role(asset.building_id, "technical_lead")
+        plans = session.scalars(select(MaintenancePlan).where(
+            *current_user.scope_conditions(MaintenancePlan),
+            MaintenancePlan.asset_id == asset.id,
+        ).order_by(MaintenancePlan.code, MaintenancePlan.id)).all()
+        return [MaintenancePlanView.model_validate(plan) for plan in plans]
+
+
+@router.get("/maintenance/occurrences", response_model=MaintenanceOccurrenceListResponse)
+def list_maintenance_occurrences(
+    request: Request,
+    building_id: UUID = Query(...),
+    current_user: UserContext = Depends(get_current_user_context),
+):
+    current_user.assert_building_role(building_id, "technical_lead")
+    with request.app.state.database.get_session() as session:
+        records = session.execute(
+            select(MaintenanceOccurrence, MaintenancePlan.asset_id, WorkOrder.id)
+            .join(MaintenancePlan, MaintenancePlan.id == MaintenanceOccurrence.plan_id)
+            .outerjoin(WorkOrder, WorkOrder.maintenance_occurrence_id == MaintenanceOccurrence.id)
+            .where(
+                *current_user.scope_conditions(MaintenanceOccurrence),
+                MaintenanceOccurrence.building_id == building_id,
+            )
+            .order_by(MaintenanceOccurrence.due_at.desc(), MaintenanceOccurrence.id)
+        ).all()
+        return MaintenanceOccurrenceListResponse(items=[
+            MaintenanceOccurrenceListItem(
+                id=occurrence.id,
+                asset_id=asset_id,
+                plan_id=occurrence.plan_id,
+                due_at=occurrence.due_at,
+                status=occurrence.status,
+                defer_until=occurrence.defer_until,
+                defer_reason=occurrence.defer_reason,
+                completed_at=occurrence.completed_at,
+                work_order_id=work_order_id,
+                version=occurrence.version,
+            )
+            for occurrence, asset_id, work_order_id in records
+        ])
 
 
 @router.post("/assets", response_model=AssetView, status_code=201)

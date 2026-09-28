@@ -88,6 +88,9 @@ def test_production_app_has_no_test_probes():
         "/api/v1/auth/login",
         "/api/v1/auth/me",
         "/api/v1/auth/switch-site",
+        "/api/v1/auth/logout",
+        "/api/v1/auth/logout-all",
+        "/api/v1/auth/change-password",
         "/api/v1/assistant/chat",
         "/api/v1/billing/accounts",
         "/api/v1/billing/accounts/{billing_account_id}",
@@ -126,6 +129,11 @@ def test_production_app_has_no_test_probes():
         "/api/v1/import-runs/{run_id}/preview",
         "/api/v1/import-runs/{run_id}/rows",
         "/api/v1/maintenance-occurrences/{occurrence_id}/defer",
+        "/api/v1/maintenance/assigned-work-orders",
+        "/api/v1/maintenance/assets",
+        "/api/v1/maintenance/assets/{asset_id}/plans",
+        "/api/v1/maintenance/buildings",
+        "/api/v1/maintenance/occurrences",
         "/api/v1/maintenance-plans",
         "/api/v1/maintenance-plans/{plan_id}",
         "/api/v1/maintenance/scheduler/run",
@@ -170,6 +178,7 @@ def test_production_app_has_no_test_probes():
         "/api/v1/service-requests/{request_id}/close",
         "/api/v1/service-requests/{request_id}/triage",
         "/api/v1/service-requests/{request_id}/work-orders",
+        "/api/v1/service-requests/{request_id}/assignees",
         "/api/v1/security/assignees",
         "/api/v1/security/dashboard",
         "/api/v1/security/incidents",
@@ -186,6 +195,7 @@ def test_production_app_has_no_test_probes():
         "/api/v1/security/shifts/{shift_id}/start",
         "/api/v1/security/shifts/{shift_id}/visitors",
         "/api/v1/units/import",
+        "/api/v1/units/export",
         "/api/v1/units/{unit_id}/360",
         "/api/v1/work-orders/{work_order_id}",
         "/api/v1/work-orders/{work_order_id}/accept",
@@ -195,6 +205,7 @@ def test_production_app_has_no_test_probes():
         "/api/v1/work-orders/{work_order_id}/close",
         "/api/v1/work-orders/{work_order_id}/cost-lines",
         "/api/v1/work-orders/{work_order_id}/evidence",
+        "/api/v1/work-orders/{work_order_id}/assignees",
         "/api/v1/work-orders/{work_order_id}/reopen",
         "/api/v1/work-orders/{work_order_id}/start",
         "/api/v1/work-orders/{work_order_id}/submit",
@@ -226,11 +237,11 @@ def test_r6_resident_openapi_surface_has_only_intended_methods(contract_client):
 
 def test_readiness_requires_exact_schema_head(contract_client):
     http, database = contract_client
-    database.current_revision.return_value = "0015"
+    database.current_revision.return_value = "0018"
     response = http.get("/api/v1/readiness")
     assert response.status_code == 200
     assert response.json() == {
-        "status": "ready", "database": "connected", "schema_revision": "0015",
+        "status": "ready", "database": "connected", "schema_revision": "0018",
     }
     database.current_revision.return_value = "0005"
     response = http.get("/api/v1/readiness")

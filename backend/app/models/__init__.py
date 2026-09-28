@@ -42,8 +42,11 @@ from app.models.building import Building
 from app.models.unit import Unit
 from app.models.person import Person, UnitPersonRelationship
 from app.models.account import Account, AccountRole
+from app.models.auth_session import AuthSession
+from app.models.login_throttle import LoginThrottle
 from app.models.platform import Attachment, AuditEvent, DomainEvent, IdempotencyRecord, NotificationReadModel
 from app.models.import_run import ImportRun, ImportRunRow
+from app.models.submission_import import SubmissionExternalReference, SubmissionImportRun
 from app.models.service import (
     CaseRecord,
     ChargeReversal,
@@ -101,6 +104,8 @@ __all__ = [
     "UnitPersonRelationship",
     "Account",
     "AccountRole",
+    "AuthSession",
+    "LoginThrottle",
     "Attachment",
     "AuditEvent",
     "DomainEvent",
@@ -108,6 +113,8 @@ __all__ = [
     "IdempotencyRecord",
     "ImportRun",
     "ImportRunRow",
+    "SubmissionImportRun",
+    "SubmissionExternalReference",
     "ServiceCategory",
     "ServiceRequest",
     "WorkOrder",

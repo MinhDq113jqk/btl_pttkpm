@@ -1,5 +1,5 @@
 """R5 AC-22/NFR-05 tests against the disposable PostgreSQL cluster."""
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 import os
 from types import SimpleNamespace
 from uuid import UUID, uuid4
@@ -178,3 +178,84 @@ def test_dead_letter_manual_retry_and_backend_audit_roster(r2_case):
     )
     assert accountant_audit.status_code == 200
     assert accountant_audit.json()["items"] == []
+
+
+def test_notification_and_outbox_lists_share_timezone_aware_as_of_cutoff(r2_case):
+    before = datetime.now(UTC) - timedelta(seconds=2)
+    _, event_id, _ = _enqueue_source_notification(r2_case, "as-of")
+    after = datetime.now(UTC) + timedelta(seconds=2)
+
+    inbox_before = r2_case["client"].get(
+        "/api/v1/notifications",
+        params={"include_read": "true", "as_of": before.isoformat()},
+        headers=r2_case["auth"]["director"],
+    )
+    inbox_after = r2_case["client"].get(
+        "/api/v1/notifications",
+        params={"include_read": "true", "as_of": after.isoformat()},
+        headers=r2_case["auth"]["director"],
+    )
+    assert inbox_before.status_code == 200, inbox_before.text
+    assert inbox_after.status_code == 200, inbox_after.text
+    echoed = datetime.fromisoformat(inbox_before.json()["as_of"].replace("Z", "+00:00"))
+    assert echoed == before
+    assert str(event_id) not in {item["domain_event_id"] for item in inbox_before.json()["items"]}
+    assert str(event_id) in {item["domain_event_id"] for item in inbox_after.json()["items"]}
+
+    outbox_before = r2_case["client"].get(
+        "/api/v1/outbox/events", params={"as_of": before.isoformat()},
+        headers=r2_case["auth"]["director"],
+    )
+    outbox_after = r2_case["client"].get(
+        "/api/v1/outbox/events", params={"as_of": after.isoformat()},
+        headers=r2_case["auth"]["director"],
+    )
+    assert outbox_before.status_code == 200, outbox_before.text
+    assert outbox_after.status_code == 200, outbox_after.text
+    assert str(event_id) not in {item["id"] for item in outbox_before.json()["items"]}
+    assert str(event_id) in {item["id"] for item in outbox_after.json()["items"]}
+    naive = r2_case["client"].get(
+        "/api/v1/notifications", params={"as_of": "2026-09-25T12:00:00"},
+        headers=r2_case["auth"]["director"],
+    )
+    assert naive.status_code == 422
+
+
+def test_notification_and_outbox_lists_share_timezone_aware_as_of_cutoff(r2_case):
+    before = datetime.now(UTC) - timedelta(seconds=2)
+    _, event_id, _ = _enqueue_source_notification(r2_case, "as-of")
+    after = datetime.now(UTC) + timedelta(seconds=2)
+
+    inbox_before = r2_case["client"].get(
+        "/api/v1/notifications",
+        params={"include_read": "true", "as_of": before.isoformat()},
+        headers=r2_case["auth"]["director"],
+    )
+    inbox_after = r2_case["client"].get(
+        "/api/v1/notifications",
+        params={"include_read": "true", "as_of": after.isoformat()},
+        headers=r2_case["auth"]["director"],
+    )
+    assert inbox_before.status_code == 200, inbox_before.text
+    assert inbox_after.status_code == 200, inbox_after.text
+    assert datetime.fromisoformat(inbox_before.json()["as_of"].replace("Z", "+00:00")) == before
+    assert str(event_id) not in {item["domain_event_id"] for item in inbox_before.json()["items"]}
+    assert str(event_id) in {item["domain_event_id"] for item in inbox_after.json()["items"]}
+
+    outbox_before = r2_case["client"].get(
+        "/api/v1/outbox/events", params={"as_of": before.isoformat()},
+        headers=r2_case["auth"]["director"],
+    )
+    outbox_after = r2_case["client"].get(
+        "/api/v1/outbox/events", params={"as_of": after.isoformat()},
+        headers=r2_case["auth"]["director"],
+    )
+    assert outbox_before.status_code == 200, outbox_before.text
+    assert outbox_after.status_code == 200, outbox_after.text
+    assert str(event_id) not in {item["id"] for item in outbox_before.json()["items"]}
+    assert str(event_id) in {item["id"] for item in outbox_after.json()["items"]}
+    naive = r2_case["client"].get(
+        "/api/v1/notifications", params={"as_of": "2026-09-25T12:00:00"},
+        headers=r2_case["auth"]["director"],
+    )
+    assert naive.status_code == 422

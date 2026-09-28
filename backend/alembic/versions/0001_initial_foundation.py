@@ -1,7 +1,7 @@
 """initial_foundation
 
 Revision ID: 0001
-Revises: 
+Revises:
 """
 from typing import Sequence, Union
 from alembic import op

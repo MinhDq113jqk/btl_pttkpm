@@ -7,7 +7,6 @@ import pytest
 from sqlalchemy import select, text
 from sqlalchemy.exc import DBAPIError
 
-from app.core.security import create_token
 from app.models.account import Account, AccountRole
 from app.models.billing import (
     AccountingPeriod,
@@ -26,6 +25,7 @@ from app.models.site import Site
 from app.models.tenant import Tenant
 from app.models.unit import Unit
 from test_r2_integration import r2_case, with_key
+from auth_test_support import mint_session_token
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.skipif(
@@ -35,11 +35,10 @@ pytestmark = [pytest.mark.integration, pytest.mark.skipif(
 
 
 def _auth(case, account, site_id):
-    token = create_token({
-        "sub": str(account.id),
-        "active_site_id": str(site_id),
-        "purpose": "session",
-    }, case["settings"].auth_secret())
+    token = mint_session_token(
+        case["database"], account.id, case["settings"].auth_secret(),
+        claims={"active_site_id": str(site_id)},
+    )
     return {"Authorization": "Bearer " + token}
 
 

@@ -1,0 +1,6 @@
+WARNING: Error loading config file: open C:\Users\LEGION\.docker\config.json: Access is denied.
+WARNING: Error loading config file: open C:\Users\LEGION\.docker\config.json: Access is denied.
+WARNING: Error loading config file: open C:\Users\LEGION\.docker\config.json: Access is denied.
+
+CreateFile C:\Users\LEGION\.docker\buildx\instances: Access is denied.
+

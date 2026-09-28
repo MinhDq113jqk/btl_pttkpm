@@ -1,0 +1,4 @@
+date=2026-09-25
+backend_isolated=295_passed_1_skipped
+warnings=2_known_deprecation_warnings_fastapi_starlette_testclient_anyio
+database=disposable_postgresql_tls

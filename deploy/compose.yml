@@ -1,0 +1,160 @@
+name: greencity-phase3
+
+services:
+  db:
+    build:
+      context: ..
+      dockerfile: deploy/postgres.Dockerfile
+    environment:
+      POSTGRES_DB: greencity
+      POSTGRES_USER: greencity_admin
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U greencity_admin -d greencity"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ..
+      dockerfile: deploy/backend.Dockerfile
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      GREENCITY_DISABLE_DOTENV: "1"
+      CORS_ORIGINS: '["https://${PUBLIC_HOST:-localhost}"]'
+      PRIVATE_STORAGE_PATH: /srv/private-evidence
+      ASSISTANT_ENABLED: "false"
+      DATABASE_URL_SECRET_FILE: /run/secrets/runtime_database_url
+    secrets:
+      - runtime_database_url
+      - secret_key
+    volumes:
+      - evidence-data:/srv/private-evidence
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=2)\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  migrate:
+    build:
+      context: ..
+      dockerfile: deploy/backend.Dockerfile
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      GREENCITY_DISABLE_DOTENV: "1"
+      DATABASE_URL_SECRET_FILE: /run/secrets/migration_database_url
+      MIGRATION_ROLE: greencity_owner
+    secrets:
+      - migration_database_url
+      - secret_key
+    depends_on:
+      role-setup:
+        condition: service_completed_successfully
+    command: ["python", "-m", "scripts.migrate", "upgrade", "head"]
+    restart: "no"
+
+  role-setup:
+    build:
+      context: ..
+      dockerfile: deploy/backend.Dockerfile
+    environment:
+      PHASE3_ADMIN_HOST: db
+      PHASE3_ADMIN_DATABASE: greencity
+      PHASE3_ADMIN_ROLE: greencity_admin
+      PHASE3_ADMIN_PASSWORD_FILE: /run/secrets/postgres_password
+      PHASE3_MIGRATOR_PASSWORD_FILE: /run/secrets/migrator_password
+      PHASE3_RUNTIME_PASSWORD_FILE: /run/secrets/runtime_password
+    secrets:
+      - postgres_password
+      - migrator_password
+      - runtime_password
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["python", "-m", "scripts.phase3_provision_roles"]
+    restart: "no"
+
+  backup:
+    profiles: ["scheduled-backup"]
+    build:
+      context: ..
+      dockerfile: deploy/postgres.Dockerfile
+    user: "70:70"
+    group_add: ["10001"]
+    environment:
+      DATABASE_URL_SECRET_FILE: /run/secrets/runtime_database_url
+      PRIVATE_STORAGE_PATH: /srv/private-evidence
+      BACKUP_PATH: /var/lib/greencity-backups
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-}
+    secrets:
+      - runtime_database_url
+    volumes:
+      - evidence-data:/srv/private-evidence:ro
+      - backup-data:/var/lib/greencity-backups
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      backend:
+        condition: service_healthy
+    command: ["python3", "/opt/greencity/backup_loop.py"]
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: deploy/frontend.Dockerfile
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  proxy:
+    image: caddy:2.11.4-alpine
+    environment:
+      PUBLIC_HOST: ${PUBLIC_HOST:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      frontend:
+        condition: service_started
+    restart: unless-stopped
+
+secrets:
+  postgres_password:
+    file: ./secrets/postgres_password
+  migration_database_url:
+    file: ./secrets/migration_database_url
+  runtime_database_url:
+    file: ./secrets/runtime_database_url
+  secret_key:
+    file: ./secrets/secret_key
+  migrator_password:
+    file: ./secrets/migrator_password
+  runtime_password:
+    file: ./secrets/runtime_password
+
+volumes:
+  db-data:
+  evidence-data:
+  backup-data:
+  caddy-data:
+  caddy-config:

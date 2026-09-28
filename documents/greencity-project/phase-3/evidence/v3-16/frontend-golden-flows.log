@@ -1,0 +1,173 @@
+
+> greencity-app@1.0.0 test:golden-flows
+> node tests/golden-flows.cjs
+
+
+GF-01: Đăng nhập, /auth/me, menu vai trò, đổi site/mật khẩu, đăng xuất
+PASS real credential form is the initial surface
+PASS no account or role picker is rendered
+PASS password input accepts credentials
+PASS CSKH sees only implemented pages permitted for the server role
+PASS unsupported prototype pages are absent from the role menu
+PASS direct link to unsupported Maintenance tab returns to Overview
+PASS loading state is visible while the scoped request is pending
+PASS request order is login then me then service list
+PASS login sends only username and password
+PASS /auth/me and list receive the Bearer session
+PASS menu comes from /auth/me rather than login response user
+PASS read-only row renders code, building, unit, priority and status
+PASS issued token is absent from browser storage
+PASS pagination is executed on the server without scope query parameters
+PASS overview distinguishes request failure from a genuinely empty queue
+PASS overview retry reloads data without losing the active status filter
+PASS CSKH can open a create-request form with visible labels
+PASS form options and submit keep scope server-owned
+PASS rapid double submit creates only one request
+PASS filtered and unfiltered empty states are distinct
+PASS network error exposes retry and a correlation identifier
+PASS retry recovers the service-request list
+PASS ERR-SCOPE-NOTFOUND is shown without silently falling back to mock data
+PASS Unit 360 starts with an actionable empty state
+PASS Unit 360 loading state is announced
+PASS Unit lookup sends only the ID path with Bearer auth
+PASS Unit projection renders masked resident data
+PASS rejected site switch keeps the old scope and clears the prior Unit 360 result
+PASS site switch sends only site_id with the current Bearer token
+PASS site switch always refreshes /auth/me with the newly issued token
+PASS switching site remounts Unit 360 and clears its prior lookup
+PASS Unit network failure shows retry and correlation ID
+PASS Unit retry recovers the read-only profile
+PASS Unit ERR-SCOPE-NOTFOUND does not reveal whether the record exists
+PASS Unit 401 clears the UI session and returns to login
+PASS seeded user reaches a restricted password-change screen
+PASS password update sends only old/new passwords over the authenticated client
+PASS password change ends the old session and requires re-login
+PASS re-login with the changed password returns to the workspace
+PASS no runtime JavaScript errors
+STAFF INTEGRATION UX: 40 checks passed.
+
+GF-02: Cư dân tạo yêu cầu và nhân viên xử lý Work Order
+PASS Resident shell is selected from server role
+PASS Resident scope shows active site
+PASS Resident navigation exposes only three self-service surfaces
+PASS Resident request list starts empty
+PASS invalid resident form focuses a linked error summary and marks fields
+PASS Network failure is visible and does not claim success
+PASS Resident create retries with the same idempotency key
+PASS Resident create body contains no forged scope fields
+PASS Created request appears only after API success
+PASS Request detail includes timeline from API
+PASS Request detail includes evidence workspace
+PASS Billing panel displays integer VND from server
+PASS All billing requests share one fixed as_of
+PASS Invoice snapshot is read-only in resident portal
+PASS Resident inbox shows unread notification
+PASS Resident can acknowledge notification without exposing event internals
+PASS Resident layout remains within mobile viewport
+PASS No unhandled browser errors
+RESIDENT UX: 18 checks passed.
+PASS CSKH triage persists owner and priority from the server response
+PASS CSKH creates a Work Order with server-owned idempotency key
+PASS CSKH does not receive technician start controls
+PASS Technical Lead assigns only a server-listed technician
+PASS Technician checklist, private evidence, cost and submit are persisted in the mocked API flow
+PASS CSKH proxy accepts with evidence, then closes the resolved request
+PASS no runtime browser errors
+WORK ORDER UX: 7 checks passed.
+
+GF-03: Asset, maintenance plan, occurrence và history
+PASS technical lead creates Asset through the scoped API
+PASS Maintenance Plan is saved with checklist and next due date
+PASS scheduler creates one occurrence linked to a Work Order
+PASS technical lead assigns the maintenance Work Order to the listed technician
+PASS assigned technician completes the maintenance checklist and submits evidence
+PASS technical acceptance writes the Asset maintenance history
+PASS no runtime browser errors
+MAINTENANCE UX: 7 checks passed.
+
+GF-04: Ca vệ sinh, checklist đạt/trượt và xử lý lại
+CLEANING UX: 8 checks passed.
+CLEANING MANAGER UX: 8 checks passed.
+
+GF-05: Ca an ninh, bàn giao, tuần tra và incident mức cao
+SECURITY UX: 7 checks passed.
+PASS manager creates a scoped shift and starts the assigned patrol
+PASS handoff, visitor and patrol results persist through the dashboard refresh
+PASS high severity incident creates both security and director escalations
+PASS high incident closure remains blocked until Security acknowledgement
+PASS Security account acknowledges its own escalation target
+PASS incident closes after evidence, conclusion and both acknowledgements
+PASS no unhandled browser errors
+SECURITY MANAGER UX: 7 checks passed.
+
+GF-06: Parcel intake, PIN, exception, evidence và liên kết hồ sơ
+PARCEL UX: 13 checks passed.
+
+GF-07: Billing, invoice, payment, unmatched và credit
+BILLING UX: 10 checks passed.
+PAYMENT UX: 14 checks passed.
+
+GF-08: KPI, drill-down, audit và notifications cùng as_of
+PASS Director sees Executive Dashboard
+PASS Scope banner shows active site
+PASS KPI SLA overdue displays 3
+PASS KPI Maintenance due displays 2
+PASS KPI Cleaning rework displays 1
+PASS KPI Open incidents displays 4
+PASS KPI AR debt displays currency
+PASS Changing cutoff issues exactly one fresh dashboard request
+PASS Inbox and Outbox use the same shared dashboard as_of cutoff
+PASS Drill-down dialog opens on click
+PASS Drill-down displays source records
+PASS Drill-down displays second source record
+PASS Audit Explorer dialog opens from drill-down row
+PASS Audit timeline keeps drill-down resource and cutoff filters
+PASS Escape key closes Audit Explorer
+PASS Escape key closes Drill-down Dialog
+PASS API error displays error alert banner
+PASS Error displays correlationId
+PASS Does NOT silently display mock KPI cards during API error
+PASS Retry successfully recovers dashboard
+PASS Lost dashboard connection shows offline state and no KPI snapshot
+PASS Dashboard offline recovery reloads the API snapshot
+PASS CSKH sees Staff Dashboard
+PASS CSKH does NOT see Executive KPI Dashboard
+PASS No unhandled console errors
+DASHBOARD UX: 25 checks passed.
+PAGE LOG: [vite] connecting...
+PAGE LOG: [vite] connected.
+PAGE LOG: %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold
+REQ FAILED: http://127.0.0.1:3000/api/v1/service-requests?page=1&page_size=20 net::ERR_ABORTED
+REQ FAILED: http://127.0.0.1:3000/api/v1/notifications net::ERR_ABORTED
+REQ FAILED: http://127.0.0.1:3000/api/v1/notifications?include_read=true net::ERR_ABORTED
+PASS CSKH sees Inbox
+PASS CSKH does NOT see Outbox tab
+PASS CSKH sees delivery status badge (Đã gửi)
+PASS CSKH sees delivery status badge (Thất bại)
+PASS Mark as read updates UI without page reload
+PAGE LOG: [vite] connecting...
+PAGE LOG: [vite] connected.
+PAGE LOG: %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold
+REQ FAILED: http://127.0.0.1:3000/api/v1/service-requests?page=1&page_size=20 net::ERR_ABORTED
+REQ FAILED: http://127.0.0.1:3000/api/v1/notifications?as_of=2026-09-25T11%3A34%3A14.592Z net::ERR_ABORTED
+PAGE LOG: Failed to load resource: the server responded with a status of 404 (Not Found)
+PAGE LOG: Failed to load resource: the server responded with a status of 404 (Not Found)
+REQ FAILED: http://127.0.0.1:3000/api/v1/notifications?include_read=true&as_of=2026-09-25T11%3A34%3A14.592Z net::ERR_ABORTED
+PAGE LOG: Failed to load resource: the server responded with a status of 503 (Service Unavailable)
+PASS Director sees Outbox tab
+PASS Outbox loading failure is shown, not rendered as an empty queue
+PASS Outbox retry recovers after its own load failure
+PASS Outbox table displays DEAD_LETTER status
+PASS Retry button is available for failed outbox event
+REQ FAILED: http://127.0.0.1:3000/api/v1/outbox/events/35d5808e-0213-41af-a8dc-b9e0e762a392/retry net::ERR_CONNECTION_RESET
+PAGE LOG: Failed to load resource: net::ERR_CONNECTION_RESET
+PASS Lost connection shows error alert banner and does NOT report false success
+PASS Lost connection triggers offline banner
+PASS Successful retry updates outbox event to PENDING/Processing
+PASS Two retry requests recorded
+PASS Both retry requests retained identical Idempotency-Key (AC-36)
+PASS Idempotency-Key is not empty
+PASS No unhandled console errors
+NOTIFICATION UX: 17 checks passed.
+
+Browser Golden Flow suites use deterministic API fixtures. Database persistence, scope, audit, and state-transition evidence is provided by the isolated PostgreSQL integration suite.

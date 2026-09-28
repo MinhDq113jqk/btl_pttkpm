@@ -1,0 +1,4 @@
+npm error Exit handler never called!
+npm error This is an error with npm itself. Please report this error at:
+npm error   <https://github.com/npm/cli/issues>
+npm error A complete log of this run can be found in: C:\Users\LEGION\btl\_phase3_n1_rehearsal_20260925\greencity-app\npm-cache\_logs\2026-09-25T12_10_00_555Z-debug-0.log

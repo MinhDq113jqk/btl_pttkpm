@@ -1,0 +1,2 @@
+ROBOCOPY_EXIT=1
+N1_ROOT=C:\Users\LEGION\btl\_phase3_n1_rehearsal_20260925

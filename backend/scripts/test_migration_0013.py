@@ -11,13 +11,12 @@ from sqlalchemy.engine import make_url
 
 from app.core.config import Settings
 from app.core.database import Database
-from app.core.security import hash_password
-from app.models.account import Account
 from app.models.building import Building
 from app.models.service import ServiceCategory, ServiceRequest
 from app.models.site import Site
 from app.models.tenant import Tenant
 from app.models.unit import Unit
+from scripts.migration_fixtures import add_legacy_account
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = "greencity"
@@ -93,18 +92,20 @@ def main() -> int:
             session.flush()
             unit = Unit(building_id=building.id, unit_number="R6-0101", floor=1,
                         area_m2=50, status="occupied")
-            account = Account(tenant_id=tenant.id, username=f"resident_{uuid4().hex}",
-                              full_name="Migration resident", hashed_password=hash_password("migration-only"))
+            account_id = add_legacy_account(
+                session, tenant_id=tenant.id, username=f"resident_{uuid4().hex}",
+                full_name="Migration resident",
+            )
             category = ServiceCategory(tenant_id=tenant.id, site_id=site.id, building_id=building.id,
                                        code="R6", name="Resident evidence", sla_minutes=60)
-            session.add_all((unit, account, category))
+            session.add_all((unit, category))
             session.flush()
             service_request = ServiceRequest(
                 tenant_id=tenant.id, site_id=site.id, building_id=building.id, unit_id=unit.id,
                 category_id=category.id, code=f"SR-{uuid4().hex[:12].upper()}",
                 title="Resident migration request", description="Synthetic migration evidence",
                 priority="MEDIUM", status="NEW", sla_started_at=datetime.now(UTC), sla_duration_minutes=60,
-                owner_account_id=account.id, created_by_id=account.id, updated_by_id=account.id,
+                owner_account_id=account_id, created_by_id=account_id, updated_by_id=account_id,
             )
             session.add(service_request)
             session.flush()
@@ -126,7 +127,7 @@ def main() -> int:
             ), {
                 "id": attachment_id, "tenant_id": tenant.id, "site_id": site.id,
                 "building_id": building.id, "service_request_id": service_request.id,
-                "uploaded_by_id": account.id, "original_name": "migration.png",
+                "uploaded_by_id": account_id, "original_name": "migration.png",
                 "storage_key": f"migration/{uuid4().hex}.png", "mime_type": "image/png",
                 "size_bytes": 1, "sha256": "0" * 64,
             })

@@ -49,6 +49,7 @@ from app.schemas.r2 import (
     TriageRequest,
     VersionCommand,
     WorkOrderAccept,
+    WorkOrderAssigneeView,
     WorkOrderAssign,
     WorkOrderClose,
     WorkOrderCreate,
@@ -72,6 +73,7 @@ from app.services.r2 import (
     utc_now,
     validate_image_evidence,
 )
+from app.services.private_storage import verified_private_path, write_private_bytes
 
 router = APIRouter(tags=["R2 service and work orders"])
 
@@ -442,6 +444,58 @@ def get_service_request(request: Request, request_id: UUID,
         return _request_view(record)
 
 
+@router.get("/service-requests/{request_id}/work-orders", response_model=list[WorkOrderView])
+def list_request_work_orders(
+    request: Request,
+    request_id: UUID,
+    current_user: UserContext = Depends(get_current_user_context),
+):
+    with request.app.state.database.get_session() as session:
+        service_request = scoped_service_request(session, current_user, request_id)
+        _assert_request_view(session, current_user, service_request)
+        statement = select(WorkOrder).where(
+            WorkOrder.service_request_id == service_request.id,
+            WorkOrder.tenant_id == current_user.tenant_id,
+            WorkOrder.site_id == current_user.assert_active_site(),
+            WorkOrder.building_id == service_request.building_id,
+        )
+        if "technician" in current_user.roles and not set(current_user.roles).intersection(
+            {"admin", "director", "cskh", "accountant", "technical_lead"},
+        ):
+            statement = statement.where(WorkOrder.assigned_to_id == current_user.account_id)
+        records = session.scalars(statement.order_by(WorkOrder.created_at, WorkOrder.id)).all()
+        return [_work_order_view(session, record) for record in records]
+
+
+@router.get("/service-requests/{request_id}/assignees", response_model=list[WorkOrderAssigneeView])
+def list_service_request_assignees(
+    request: Request,
+    request_id: UUID,
+    purpose: str = Query(..., pattern="^(triage|work_order)$"),
+    current_user: UserContext = Depends(get_current_user_context),
+):
+    with request.app.state.database.get_session() as session:
+        service_request = scoped_service_request(session, current_user, request_id)
+        roles = ("cskh", "technical_lead") if purpose == "triage" else ("technician",)
+        required_actor = "cskh" if purpose == "triage" else "technical_lead"
+        current_user.assert_building_role(service_request.building_id, required_actor)
+        statement = (
+            select(Account.id, Account.full_name, AccountRole.role)
+            .join(AccountRole, AccountRole.account_id == Account.id)
+            .where(
+                Account.tenant_id == current_user.tenant_id,
+                Account.is_active.is_(True),
+                AccountRole.site_id == current_user.assert_active_site(),
+                AccountRole.role.in_(roles),
+            )
+            .order_by(Account.full_name, Account.id, AccountRole.role)
+        )
+        if purpose == "triage":
+            statement = statement.where(AccountRole.building_id == service_request.building_id)
+        records = session.execute(statement).all()
+        return [WorkOrderAssigneeView(id=record.id, full_name=record.full_name, role=record.role) for record in records]
+
+
 @router.post("/service-requests/{request_id}/triage", response_model=ServiceRequestView)
 def triage_service_request(request: Request, request_id: UUID, body: TriageRequest,
                            current_user: UserContext = Depends(get_current_user_context)):
@@ -537,6 +591,61 @@ def get_work_order(request: Request, work_order_id: UUID,
         record = scoped_work_order(session, current_user, work_order_id)
         _assert_work_order_view(current_user, record)
         return _work_order_view(session, record)
+
+
+@router.get("/work-orders/{work_order_id}/assignees", response_model=list[WorkOrderAssigneeView])
+def list_work_order_assignees(
+    request: Request,
+    work_order_id: UUID,
+    current_user: UserContext = Depends(get_current_user_context),
+):
+    with request.app.state.database.get_session() as session:
+        record = scoped_work_order(session, current_user, work_order_id)
+        current_user.assert_building_role(record.building_id, "technical_lead")
+        people = session.execute(
+            select(Account.id, Account.full_name)
+            .join(AccountRole, AccountRole.account_id == Account.id)
+            .where(
+                Account.tenant_id == current_user.tenant_id,
+                Account.is_active.is_(True),
+                AccountRole.site_id == current_user.assert_active_site(),
+                AccountRole.role == "technician",
+            )
+            .order_by(Account.full_name, Account.id)
+        ).all()
+        return [WorkOrderAssigneeView(id=person.id, full_name=person.full_name, role="technician") for person in people]
+
+
+@router.get("/work-orders/{work_order_id}/evidence", response_model=list[AttachmentView])
+def list_work_order_evidence(
+    request: Request,
+    work_order_id: UUID,
+    current_user: UserContext = Depends(get_current_user_context),
+):
+    with request.app.state.database.get_session() as session:
+        record = scoped_work_order(session, current_user, work_order_id)
+        _assert_work_order_view(current_user, record)
+        attachments = session.scalars(select(Attachment).where(
+            Attachment.work_order_id == record.id,
+            Attachment.is_quarantined.is_(False),
+            Attachment.mime_type.in_(("image/png", "image/jpeg")),
+        ).order_by(Attachment.created_at, Attachment.id)).all()
+        return [AttachmentView.model_validate(attachment) for attachment in attachments]
+
+
+@router.get("/work-orders/{work_order_id}/cost-lines", response_model=list[CostLineView])
+def list_work_order_cost_lines(
+    request: Request,
+    work_order_id: UUID,
+    current_user: UserContext = Depends(get_current_user_context),
+):
+    with request.app.state.database.get_session() as session:
+        record = scoped_work_order(session, current_user, work_order_id)
+        _assert_work_order_view(current_user, record)
+        lines = session.scalars(select(CostLine).where(
+            CostLine.work_order_id == record.id,
+        ).order_by(CostLine.created_at, CostLine.id)).all()
+        return [CostLineView.model_validate(line) for line in lines]
 
 
 @router.post("/work-orders/{work_order_id}/assign", response_model=WorkOrderView)
@@ -688,12 +797,7 @@ async def upload_work_order_evidence(
             extension = ".png" if detected_mime == "image/png" else ".jpg"
             storage_key = f"{record.tenant_id}/{record.site_id}/{uuid4().hex}{extension}"
             stored_mime = detected_mime
-        root = request.app.state.settings.private_storage_path.resolve()
-        target = (root / storage_key).resolve()
-        if root not in target.parents:
-            raise AppError("ERR-FILE-REJECTED", "Không thể lưu tệp.", 422)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(content)
+        target = write_private_bytes(request.app.state.settings.private_storage_path, storage_key, content)
         try:
             attachment = Attachment(
                 tenant_id=record.tenant_id,
@@ -779,8 +883,11 @@ def download_attachment(
         _assert_signed_attachment_token(
             request, signed_token, attachment, work_order, current_user,
         )
-        target = (request.app.state.settings.private_storage_path.resolve() / attachment.storage_key).resolve()
-        if not target.is_file() or request.app.state.settings.private_storage_path.resolve() not in target.parents:
+        target = verified_private_path(
+            request.app.state.settings.private_storage_path, attachment.storage_key,
+            attachment.sha256, attachment.size_bytes,
+        )
+        if target is None:
             raise scope_not_found()
         audit(session, current_user, request, event_type="AttachmentDownloaded", action="download",
               resource_type="Attachment", resource_id=attachment.id,

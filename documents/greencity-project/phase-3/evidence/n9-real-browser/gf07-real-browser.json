@@ -1,0 +1,32 @@
+{
+  "flow": "GF-07",
+  "checks": [
+    "GF07 accountant can open the real finance workspace",
+    "GF07 Fee Policy is published through the real backend",
+    "GF07 Accounting Period is opened with a timezone-aware cutoff",
+    "GF07 Billing Run posts and creates a real invoice",
+    "GF07 payment receipt is recorded against the scoped Billing Account",
+    "GF07 payment allocation creates an explicit Overpayment Credit",
+    "GF07 missing Billing Account payment enters the unmatched queue",
+    "GF07 unmatched payment is matched to the correct Billing Account",
+    "GF07 matched payment can be allocated and leaves a controlled credit",
+    "GF07 resident portal shows the newly issued invoice",
+    "GF07 resident billing summary, invoices and payments share one as_of",
+    "GF07 billing commands carry authorization and idempotency keys",
+    "GF07 billing command payloads keep tenant/site/role server-owned",
+    "GF07 browser has no page errors",
+    "GF07 billing APIs have no unexpected failed responses"
+  ],
+  "errors": [],
+  "apiFailures": [],
+  "residentAsOf": [
+    "2026-09-25T17:22:44.553Z",
+    "2026-09-25T17:22:44.553Z",
+    "2026-09-25T17:22:44.553Z"
+  ],
+  "invoice": {
+    "invoice_number": "INV-2026-06-8A0416C7954F",
+    "total_vnd": 942000
+  },
+  "period": "2026-06"
+}

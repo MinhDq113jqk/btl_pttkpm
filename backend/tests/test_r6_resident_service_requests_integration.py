@@ -13,7 +13,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.core.config import Settings
 from app.core.database import Database
-from app.core.security import create_token, hash_password
+from app.core.security import hash_password
 from app.main import create_app
 from app.models.account import Account, AccountRole
 from app.models.person import Person, UnitPersonRelationship
@@ -23,6 +23,7 @@ from app.models.tenant import Tenant
 from app.models.site import Site
 from app.models.building import Building
 from app.models.unit import Unit
+from auth_test_support import mint_session_token
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.skipif(
@@ -182,13 +183,11 @@ def test_resident_service_request_options_are_limited_to_effective_units(residen
     assert case["client"].get(
         "/api/v1/resident/service-request-options", headers=_headers(case, "cskh"),
     ).status_code == 403
-    forged_site = create_token({
-        "sub": str(case["residents"]["resident"][0].id),
-        "tenant_id": str(case["tenant"].id),
-        "roles": ["resident"],
-        "active_site_id": str(case["other_site"].id),
-        "purpose": "session",
-    }, case["settings"].auth_secret())
+    forged_site = mint_session_token(
+        case["database"], case["residents"]["resident"][0].id, case["settings"].auth_secret(),
+        claims={"tenant_id": str(case["tenant"].id), "roles": ["resident"],
+                "active_site_id": str(case["other_site"].id)},
+    )
     assert case["client"].get(
         "/api/v1/resident/service-request-options",
         headers={"Authorization": "Bearer " + forged_site},
@@ -379,13 +378,11 @@ def test_resident_scope_is_rechecked_after_relationship_revocation(resident_requ
         f"/api/v1/resident/service-requests/{request_id}", headers=_headers(case, "revoked"),
     ))
 
-    forged = create_token({
-        "sub": str(case["residents"]["resident"][0].id),
-        "tenant_id": str(uuid4()),
-        "roles": ["admin", "resident"],
-        "active_site_id": str(case["other_site"].id),
-        "purpose": "session",
-    }, case["settings"].auth_secret())
+    forged = mint_session_token(
+        case["database"], case["residents"]["resident"][0].id, case["settings"].auth_secret(),
+        claims={"tenant_id": str(uuid4()), "roles": ["admin", "resident"],
+                "active_site_id": str(case["other_site"].id)},
+    )
     _scope_error(case["client"].get(
         f"/api/v1/resident/service-requests/{request_id}",
         headers={"Authorization": "Bearer " + forged},

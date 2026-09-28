@@ -1,6 +1,6 @@
 import React from 'react';
 import { AlertCircle, ArrowDown, ArrowUp, ArrowUpRight, ChevronLeft, ChevronRight, ListFilter, LoaderCircle, RefreshCw, Search } from 'lucide-react';
-import { normalizeSearch } from '../data/desktopData';
+import { normalizeSearch } from '../data/searchUtils';
 import { SERVICE_REQUEST_STATUSES } from '../data/serviceRequestView';
 
 export const StatusBadge = ({ task }) => <span className={`status-badge status-${task.statusColor}`}>{task.status}</span>;

@@ -2,7 +2,7 @@ from datetime import UTC
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Header, Query, Request
-from sqlalchemy import or_, select
+from sqlalchemy import and_, or_, select
 
 from app.core.exceptions import AppError
 from app.core.policy import UserContext, get_current_user_context, scope_not_found
@@ -86,6 +86,11 @@ def _manager_filters(context: UserContext, model) -> tuple:
     return (model.building_id.in_([grant.building_id for grant in grants]),)
 
 
+def _security_building_ids(context: UserContext) -> tuple[UUID, ...]:
+    return tuple({grant.building_id for grant in context.role_grants
+                  if grant.role == "security" and grant.building_id is not None})
+
+
 def _scoped_shift(session, context: UserContext, shift_id: UUID, *, lock: bool = False) -> SecurityShift:
     statement = select(SecurityShift).where(
         SecurityShift.id == shift_id,
@@ -102,7 +107,7 @@ def _scoped_shift(session, context: UserContext, shift_id: UUID, *, lock: bool =
 def _assert_shift_visible(context: UserContext, shift: SecurityShift) -> None:
     if _is_manager_for(context, shift.building_id):
         return
-    context.assert_role("security")
+    context.assert_building_role(shift.building_id, "security")
     if shift.assigned_to_id != context.account_id:
         raise scope_not_found()
 
@@ -135,7 +140,7 @@ def _account_has_security_grant(session, context: UserContext, account_id: UUID,
         Account.is_active.is_(True),
         AccountRole.role == "security",
         AccountRole.site_id == context.assert_active_site(),
-        or_(AccountRole.building_id.is_(None), AccountRole.building_id == building_id),
+        AccountRole.building_id == building_id,
     ).limit(1)) is not None
 
 
@@ -284,17 +289,15 @@ def _shift_view(session, shift: SecurityShift) -> SecurityShiftView:
 
 def _visible_shifts(session, context: UserContext) -> list[SecurityShift]:
     manager_grants = [grant for grant in context.role_grants if grant.role in MANAGER_ROLES]
-    if manager_grants:
-        statement = select(SecurityShift).where(
-            *context.scope_conditions(SecurityShift),
-            *_manager_filters(context, SecurityShift),
-        )
-    else:
-        context.assert_role("security")
-        statement = select(SecurityShift).where(
-            *context.scope_conditions(SecurityShift),
-            SecurityShift.assigned_to_id == context.account_id,
-        )
+    statement = select(SecurityShift).where(*context.scope_conditions(SecurityShift))
+    if not (manager_grants and any(grant.building_id is None for grant in manager_grants)):
+        manager_buildings = tuple(grant.building_id for grant in manager_grants
+                                  if grant.building_id is not None)
+        statement = statement.where(or_(
+            SecurityShift.building_id.in_(manager_buildings),
+            and_(SecurityShift.building_id.in_(_security_building_ids(context)),
+                 SecurityShift.assigned_to_id == context.account_id),
+        ))
     return session.scalars(statement.order_by(
         SecurityShift.scheduled_start_at.desc(), SecurityShift.id,
     )).all()
@@ -348,7 +351,7 @@ def list_security_assignees(
             Account.is_active.is_(True),
             AccountRole.role == "security",
             AccountRole.site_id == current_user.assert_active_site(),
-            or_(AccountRole.building_id.is_(None), AccountRole.building_id == building_id),
+            AccountRole.building_id == building_id,
         ).distinct().order_by(Account.full_name, Account.id)).all()
         return [SecurityAssigneeView.model_validate(account) for account in accounts]
 
@@ -773,7 +776,9 @@ def acknowledge_incident_escalation(
             escalation = session.get(IncidentEscalation, acknowledgement.incident_escalation_id)
             if escalation is None:
                 raise scope_not_found()
-            return _incident_view(session, _incident_for_window(session, current_user, escalation.security_incident_id))
+            incident = _incident_for_window(session, current_user, escalation.security_incident_id)
+            current_user.assert_building_role(incident.building_id, escalation.target_role)
+            return _incident_view(session, incident)
         incident = _incident_for_window(session, current_user, incident_id)
         escalation = session.scalar(select(IncidentEscalation).where(
             IncidentEscalation.id == escalation_id,
@@ -781,8 +786,7 @@ def acknowledge_incident_escalation(
         ))
         if escalation is None:
             raise scope_not_found()
-        if escalation.target_role not in current_user.roles:
-            raise AppError("ERR-FORBIDDEN", "Chỉ đúng vai trò nhận escalation mới được acknowledgement.", 403)
+        current_user.assert_building_role(incident.building_id, escalation.target_role)
         if session.scalar(select(IncidentEscalationAcknowledgement.id).where(
             IncidentEscalationAcknowledgement.incident_escalation_id == escalation.id,
         )) is not None:
@@ -855,15 +859,36 @@ def get_security_dashboard(request: Request, current_user: UserContext = Depends
     with request.app.state.database.get_session() as session:
         shifts = _visible_shifts(session, current_user)
         shift_ids = [shift.id for shift in shifts]
-        if not shift_ids:
-            return SecurityDashboardView(shifts=[], exceptions=[], incidents=[])
         windows = session.scalars(select(PatrolWindow).where(
             PatrolWindow.security_shift_id.in_(shift_ids),
             PatrolWindow.status == "MISSED",
         ).order_by(PatrolWindow.window_end_at, PatrolWindow.id)).all()
-        incidents = session.scalars(select(SecurityIncident).where(
-            SecurityIncident.patrol_window_id.in_(select(PatrolWindow.id).where(PatrolWindow.security_shift_id.in_(shift_ids))),
-        ).order_by(SecurityIncident.occurred_at.desc(), SecurityIncident.id)).all()
+        security_buildings = _security_building_ids(current_user)
+        guard_shift_ids = [shift.id for shift in shifts
+                           if shift.building_id in security_buildings
+                           and shift.assigned_to_id == current_user.account_id]
+        guard_windows = select(PatrolWindow.id).where(PatrolWindow.security_shift_id.in_(guard_shift_ids))
+        incident_query = select(SecurityIncident).where(*current_user.scope_conditions(SecurityIncident))
+        manager_grants = [grant for grant in current_user.role_grants if grant.role in MANAGER_ROLES]
+        if not (manager_grants and any(grant.building_id is None for grant in manager_grants)):
+            # Guards see incidents from their assigned windows and standalone
+            # incidents they reported, but only with a current building grant.
+            manager_buildings = tuple(grant.building_id for grant in manager_grants
+                                      if grant.building_id is not None)
+            incident_query = incident_query.where(or_(
+                SecurityIncident.building_id.in_(manager_buildings),
+                and_(
+                    SecurityIncident.building_id.in_(security_buildings),
+                    or_(
+                        SecurityIncident.patrol_window_id.in_(guard_windows),
+                        (SecurityIncident.patrol_window_id.is_(None))
+                        & (SecurityIncident.reported_by_id == current_user.account_id),
+                    ),
+                ),
+            ))
+        incidents = session.scalars(incident_query.order_by(
+            SecurityIncident.occurred_at.desc(), SecurityIncident.id,
+        )).all()
         return SecurityDashboardView(
             shifts=[_shift_view(session, shift) for shift in shifts],
             exceptions=[_window_view(session, window) for window in windows],

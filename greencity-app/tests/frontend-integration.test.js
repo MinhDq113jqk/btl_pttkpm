@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { ApiError, createApiClient } from '../src/services/apiClient.js';
-import { canAccessAuditEvents, canAccessCleaning, canAccessExecutiveDashboard, canAccessParcel, canAccessSecurity, canCreateServiceRequests, canManageCleaning, canManageOutbox, canManageSecurity, canViewTab, createAuthenticatedAccount } from '../src/data/authSession.js';
+import { canAccessAuditEvents, canAccessCleaning, canAccessExecutiveDashboard, canAccessParcel, canAccessSecurity, canCreateServiceRequests, canManageCleaning, canManageOutbox, canManageSecurity, canViewTab, createAuthenticatedAccount, getAllowedNav, getStaffTabFromHash } from '../src/data/authSession.js';
 import { mapServiceRequest } from '../src/data/serviceRequestView.js';
 
 const correlationId = '11111111-1111-4111-8111-111111111111';
@@ -12,6 +12,7 @@ const userInfo = (roles = ['cskh']) => ({
   username: 'cskh.integration',
   full_name: 'Nhân viên CSKH',
   roles,
+  must_change_password: false,
   active_site_id: '22222222-2222-4222-8222-222222222222',
   allowed_sites: [{ id: '22222222-2222-4222-8222-222222222222', code: 'CENTRAL', name: 'GreenCity Central' }],
 });
@@ -411,6 +412,46 @@ test('401 clears the in-memory session and notifies the app', async () => {
   assert.equal(unauthorized.correlationId, correlationId);
 });
 
+test('logout revokes the current server session before clearing the in-memory token', async () => {
+  const token = randomUUID();
+  const calls = [];
+  const client = createApiClient({ fetchImpl: async (url, options) => {
+    calls.push({ url, options });
+    if (url.endsWith('/auth/login')) return jsonResponse({ access_token: token });
+    if (url.endsWith('/auth/me')) return jsonResponse(userInfo());
+    if (url.endsWith('/auth/logout')) return new Response(null, { status: 204 });
+    throw new Error(`Unexpected URL: ${url}`);
+  } });
+  await client.authenticate('cskh.integration', 'local-test-password');
+
+  assert.equal(await client.logoutCurrentSession(), true);
+  assert.equal(calls[2].url, '/api/v1/auth/logout');
+  assert.equal(calls[2].options.method, 'POST');
+  assert.equal(calls[2].options.headers.Authorization, `Bearer ${token}`);
+  assert.equal(client.hasSession(), false);
+});
+
+test('password change sends only current/new password and clears the revoked token', async () => {
+  const token = randomUUID();
+  const calls = [];
+  const client = createApiClient({ fetchImpl: async (url, options) => {
+    calls.push({ url, options });
+    if (url.endsWith('/auth/login')) return jsonResponse({ access_token: token });
+    if (url.endsWith('/auth/me')) return jsonResponse(userInfo());
+    if (url.endsWith('/auth/change-password')) return new Response(null, { status: 204 });
+    throw new Error(`Unexpected URL: ${url}`);
+  } });
+  await client.authenticate('cskh.integration', 'local-test-password');
+
+  await client.changePassword('local-test-password', 'new-local-password-long');
+  assert.equal(calls[2].url, '/api/v1/auth/change-password');
+  assert.deepEqual(JSON.parse(calls[2].options.body), {
+    current_password: 'local-test-password', new_password: 'new-local-password-long',
+  });
+  assert.equal(calls[2].options.headers.Authorization, `Bearer ${token}`);
+  assert.equal(client.hasSession(), false);
+});
+
 test('site switch sends only site_id, installs the new token, then trusts /auth/me', async () => {
   const oldToken = randomUUID();
   const newToken = randomUUID();
@@ -670,11 +711,12 @@ test('notifications API client lists notifications and marks read with schema as
   });
 
   await client.authenticate('cskh.integration', 'password');
-  const list = await client.listNotifications({ includeRead: true });
+  const cutoff = '2026-09-15T02:00:00.000Z';
+  const list = await client.listNotifications({ includeRead: true, asOf: cutoff });
   assert.equal(list.items.length, 1);
   assert.equal(list.items[0].id, notifId);
   assert.equal(list.items[0].delivery_status, 'PUBLISHED');
-  assert.equal(calls[2].url, 'https://api.example.test/api/v1/notifications?include_read=true');
+  assert.equal(calls[2].url, `https://api.example.test/api/v1/notifications?include_read=true&as_of=${encodeURIComponent(cutoff)}`);
   assert.equal(calls[2].options.headers.Authorization, `Bearer ${issuedToken}`);
 
   const marked = await client.markNotificationRead(notifId);
@@ -718,10 +760,11 @@ test('outbox API client lists events and retries with Idempotency-Key (AC-22, AC
   });
 
   await client.authenticate('director.integration', 'password');
-  const events = await client.listOutboxEvents({ deliveryStatus: 'DEAD_LETTER' });
+  const cutoff = '2026-09-15T02:00:00.000Z';
+  const events = await client.listOutboxEvents({ deliveryStatus: 'DEAD_LETTER', asOf: cutoff });
   assert.equal(events.items.length, 1);
   assert.equal(events.items[0].delivery_status, 'DEAD_LETTER');
-  assert.equal(calls[2].url, 'https://api.example.test/api/v1/outbox/events?delivery_status=DEAD_LETTER&limit=50');
+  assert.equal(calls[2].url, `https://api.example.test/api/v1/outbox/events?delivery_status=DEAD_LETTER&as_of=${encodeURIComponent(cutoff)}&limit=50`);
 
   const retried = await client.retryOutboxEvent(eventId, { idempotencyKey: 'retry-intent-001' });
   assert.equal(retried.delivery_status, 'PENDING');
@@ -1062,7 +1105,7 @@ test('resident API client keeps scope identifiers server-owned and reuses one as
     },
   });
 
-  const me = await client.authenticate('resident_west', 'Password@123');
+  const me = await client.authenticate('resident_west', 'test-only-password');
   assert.equal(createAuthenticatedAccount(me).isResident, true);
   await client.getResidentServiceRequestOptions({ tenant_id: randomUUID(), role: 'admin' });
   await client.listResidentServiceRequests({ building_id: randomUUID(), role: 'admin' });
@@ -1084,4 +1127,97 @@ test('resident API client keeps scope identifiers server-owned and reuses one as
   assert.ok(residentCalls.every(call => call.options.headers.Authorization === `Bearer ${token}`));
   const invalidClient = createApiClient({ fetchImpl: async () => jsonResponse({ items: [] }) });
   await assert.rejects(invalidClient.getResidentBillingSummary(asOf), error => error instanceof ApiError && error.code === 'ERR-INVALID-RESPONSE');
+});
+
+test('role menus expose only implemented staff pages and unsupported legacy tabs stay hidden', () => {
+  const expectedMenus = new Map([
+    ['admin', ['overview', 'tasks', 'cleaning', 'security', 'parcels', 'finance', 'residents', 'imports', 'notifications']],
+    ['director', ['overview', 'tasks', 'cleaning', 'security', 'parcels', 'finance', 'residents', 'notifications']],
+    ['accountant', ['overview', 'tasks', 'finance', 'residents', 'notifications']],
+    ['cskh', ['overview', 'tasks', 'parcels', 'residents', 'imports', 'notifications']],
+    ['technical_lead', ['overview', 'tasks', 'maintenance', 'residents', 'notifications']],
+    ['technician', ['overview', 'tasks', 'maintenance', 'notifications']],
+    ['cleaning', ['overview', 'cleaning', 'notifications']],
+    ['security', ['overview', 'security', 'parcels', 'residents', 'notifications']],
+    ['resident', ['overview', 'notifications']],
+  ]);
+
+  for (const [role, expected] of expectedMenus) {
+    const account = createAuthenticatedAccount(userInfo([role]));
+    assert.deepEqual(account.menu, expected, `${role} menu policy`);
+    assert.deepEqual(getAllowedNav(account).map(item => item.id).sort(), [...expected].sort(), `${role} rendered staff menu`);
+  }
+
+  const staleAccount = { menu: ['overview', 'tasks', 'technical', 'reports', 'media', 'amenities', 'projects', 'settings', 'refund-form', 'notifications'] };
+  assert.deepEqual(getAllowedNav(staleAccount).map(item => item.id).sort(), ['overview', 'tasks', 'notifications'].sort());
+  for (const tab of ['technical', 'reports', 'media', 'amenities', 'projects', 'settings', 'refund-form']) {
+    assert.equal(canViewTab(staleAccount, tab), false, `${tab} must stay unavailable even in stale session data`);
+  }
+
+  assert.equal(getStaffTabFromHash('#/overview'), 'overview');
+  assert.equal(getStaffTabFromHash('#/finance'), 'finance');
+  assert.equal(getStaffTabFromHash('#/imports'), 'imports');
+  assert.equal(canViewTab(createAuthenticatedAccount(userInfo(['cskh'])), 'imports'), true);
+  assert.equal(canViewTab(createAuthenticatedAccount(userInfo(['technical_lead'])), 'imports'), false);
+  for (const hash of ['#/technical', '#/reports', '#/media', '#/amenities', '#/projects', '#/settings', '#/refund-form', '#/unknown']) {
+    assert.equal(getStaffTabFromHash(hash), 'overview', `${hash} must normalize to the implemented Overview route`);
+  }
+  assert.equal(canViewTab(createAuthenticatedAccount(userInfo(['cskh'])), getStaffTabFromHash('#/finance')), false,
+    'a supported page hash does not grant access to a role without permission');
+});
+
+test('Unit CSV import/export client keeps scope server-owned and reuses signed downloads', async () => {
+  const token = randomUUID();
+  const runId = randomUUID();
+  const calls = [];
+  let run = {
+    id: runId, mode: 'PARTIAL', status: 'UPLOADED', source_filename: 'units.csv', source_mime_type: 'text/csv',
+    source_size_bytes: 32, source_sha256: 'a'.repeat(64), source_is_quarantined: false, total_rows: 1,
+    valid_rows: 1, warning_rows: 0, error_rows: 0, skipped_rows: 0, applied_rows: 0,
+    error_file_available: false, failure_code: null, previewed_at: null, applied_at: null, failed_at: null, version: 1,
+  };
+  const client = createApiClient({
+    baseUrl: '/api/v1',
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      if (url.endsWith('/auth/login')) return jsonResponse({ access_token: token });
+      if (url.endsWith('/auth/me')) return jsonResponse(userInfo(['cskh']));
+      if (url.endsWith('/import-runs/template')) return new Response('unit_number,floor,area_m2,status\n', {
+        status: 200, headers: { 'Content-Type': 'text/csv', 'Content-Disposition': 'attachment; filename="unit-import-template.csv"' },
+      });
+      if (url.includes('/units/export?')) return new Response('unit_number,floor,area_m2,status\nA-1,1,50,occupied\n', {
+        status: 200, headers: { 'Content-Type': 'text/csv', 'Content-Disposition': 'attachment; filename="unit-export.csv"' },
+      });
+      if (url.includes('/error-file/signed-link')) return jsonResponse({ url: `/api/v1/import-runs/${runId}/error-file?signed_token=private`, expires_at: '2026-10-01T00:00:00Z' });
+      if (url.includes('/error-file?signed_token=')) return new Response('row_number,code\n2,invalid\n', { status: 200, headers: { 'Content-Type': 'text/csv', 'Content-Disposition': 'attachment; filename="units-errors.csv"' } });
+      if (url.includes('/rows?')) return jsonResponse({ items: [{ row_number: 2, status: 'ERROR', issues: [{ code: 'INVALID_FLOOR', column: 'floor', message: 'Tầng không hợp lệ.' }] }], page: 1, page_size: 100, total: 1 });
+      if (url.endsWith('/preview')) run = { ...run, status: 'PREVIEWED', previewed_at: '2026-09-30T01:00:00Z', error_file_available: true, version: 2 };
+      if (url.endsWith('/apply')) run = { ...run, status: 'APPLIED', applied_at: '2026-09-30T01:05:00Z', applied_rows: 1, version: 3 };
+      if (url.endsWith('/import-runs') || url.includes('/import-runs?')) run = { ...run, source_filename: options.headers['X-File-Name'] };
+      if (url.includes('/import-runs/')) return jsonResponse(run);
+      return jsonResponse(run, 201);
+    },
+  });
+  await client.authenticate('cskh.test', `test-${randomUUID()}`);
+  const file = { name: 'units.csv', type: 'text/csv', arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer };
+  const uploaded = await client.uploadUnitCsvImport(file, { buildingCode: 'B1', mode: 'ALL_OR_NOTHING', idempotencyKey: 'upload-key' });
+  assert.equal(uploaded.id, runId);
+  await client.previewUnitCsvImport(runId, 1, { unit_number: 'unit_number', floor: 'floor', area_m2: 'area_m2', status: 'status' }, { idempotencyKey: 'preview-key' });
+  await client.listUnitCsvImportRows(runId);
+  const applied = await client.applyUnitCsvImport(runId, 2, { idempotencyKey: 'apply-key' });
+  assert.equal(applied.status, 'APPLIED');
+  const template = await client.downloadUnitImportTemplate();
+  const exported = await client.exportUnitsCsv('B1');
+  const errors = await client.downloadUnitCsvImportErrors(runId);
+  assert.equal(template.filename, 'unit-import-template.csv');
+  assert.equal(exported.filename, 'unit-export.csv');
+  assert.equal(errors.filename, 'units-errors.csv');
+  assert.equal(await errors.blob.text(), 'row_number,code\n2,invalid\n');
+  const uploadCall = calls.find(call => call.url.includes('/import-runs?'));
+  assert.equal(uploadCall.options.headers['Idempotency-Key'], 'upload-key');
+  assert.equal(uploadCall.options.headers['X-File-Name'], 'units.csv');
+  assert.match(uploadCall.url, /building_code=B1&mode=ALL_OR_NOTHING/);
+  assert.doesNotMatch(uploadCall.url, /tenant_id|site_id|building_id|role=/);
+  const signedDownload = calls.find(call => call.url.includes('signed_token=private'));
+  assert.equal(signedDownload.options.headers.Authorization, `Bearer ${token}`);
 });

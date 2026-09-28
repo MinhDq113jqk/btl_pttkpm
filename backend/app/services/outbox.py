@@ -99,6 +99,10 @@ def enqueue_notification(
             "template_snapshot": template_snapshot,
         },
     }
+    # Capture one application-side UTC instant for both projections. Using the
+    # database transaction timestamp independently can make a just-enqueued
+    # event cross an API as_of cutoff when the local clocks differ slightly.
+    created_at = _utc_now()
     event = DomainEvent(
         tenant_id=context.tenant_id,
         site_id=site_id,
@@ -108,6 +112,8 @@ def enqueue_notification(
         resource_id=resource_id,
         correlation_id=_correlation_id(request),
         payload=payload,
+        created_at=created_at,
+        next_attempt_at=created_at,
     )
     session.add(event)
     session.flush()
@@ -118,6 +124,7 @@ def enqueue_notification(
         domain_event_id=event.id,
         template_code=template_code,
         template_snapshot=template_snapshot,
+        created_at=created_at,
     ))
     return event
 

@@ -12,8 +12,6 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.config import Settings
 from app.core.database import Database
-from app.core.security import hash_password
-from app.models.account import Account
 from app.models.building import Building
 from app.models.enums import ParcelStatusEnum
 from app.models.parcel import Parcel
@@ -21,6 +19,7 @@ from app.models.person import Person
 from app.models.site import Site
 from app.models.tenant import Tenant
 from app.models.unit import Unit
+from scripts.migration_fixtures import add_legacy_account
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = "greencity"
@@ -128,18 +127,22 @@ def main() -> int:
                             phone_masked="***", email_masked="***@example.invalid")
             foreign_person = Person(tenant_id=foreign_tenant.id, full_name="Foreign recipient",
                                     phone_masked="***", email_masked="***@example.invalid")
-            account = Account(tenant_id=tenant.id, username=f"parcel_{uuid4().hex}",
-                              full_name="Parcel operator", hashed_password=hash_password("migration-only"))
-            foreign_account = Account(tenant_id=foreign_tenant.id, username=f"foreign_{uuid4().hex}",
-                                      full_name="Foreign operator", hashed_password=hash_password("migration-only"))
-            session.add_all((unit, foreign_unit, person, foreign_person, account, foreign_account))
+            account_id = add_legacy_account(
+                session, tenant_id=tenant.id, username=f"parcel_{uuid4().hex}",
+                full_name="Parcel operator",
+            )
+            foreign_account_id = add_legacy_account(
+                session, tenant_id=foreign_tenant.id, username=f"foreign_{uuid4().hex}",
+                full_name="Foreign operator",
+            )
+            session.add_all((unit, foreign_unit, person, foreign_person))
             session.flush()
             valid = Parcel(
                 tenant_id=tenant.id, site_id=site.id, building_id=building.id, unit_id=unit.id,
                 recipient_person_id=person.id, parcel_code="P-001",
                 recipient_name_snapshot="Parcel recipient", recipient_contact_snapshot="***",
                 pin_hash="a" * 60, status=ParcelStatusEnum.RECEIVED.value,
-                received_at=datetime.now(UTC), created_by_id=account.id, updated_by_id=account.id,
+                received_at=datetime.now(UTC), created_by_id=account_id, updated_by_id=account_id,
             )
             session.add(valid)
             session.commit()
@@ -161,7 +164,7 @@ def main() -> int:
                     recipient_person_id=person.id, parcel_code=f"P-{uuid4().hex[:12]}",
                     recipient_name_snapshot="Parcel recipient", pin_hash="a" * 60,
                     status=ParcelStatusEnum.RECEIVED.value, received_at=datetime.now(UTC),
-                    created_by_id=account.id, updated_by_id=account.id,
+                    created_by_id=account_id, updated_by_id=account_id,
                 )
                 values.update(overrides)
                 return Parcel(**values)
@@ -175,7 +178,7 @@ def main() -> int:
                             "0014 allowed HANDED_OVER without handover fields")
             assert_rejected(candidate(recipient_person_id=foreign_person.id),
                             "0014 allowed a recipient from another tenant")
-            assert_rejected(candidate(created_by_id=foreign_account.id),
+            assert_rejected(candidate(created_by_id=foreign_account_id),
                             "0014 allowed an actor from another tenant")
             assert_rejected(candidate(parcel_code="P-001"),
                             "0014 allowed duplicate parcel code inside a site")

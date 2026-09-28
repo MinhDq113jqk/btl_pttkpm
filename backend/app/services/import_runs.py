@@ -39,6 +39,7 @@ from app.schemas.import_run import (
     ImportRunView,
     UnitCsvMapping,
 )
+from app.services.private_storage import private_storage_target, write_private_bytes
 
 
 IMPORT_RUN_ROLES = ("admin", "cskh")
@@ -389,17 +390,17 @@ def _update_persisted_rows(session: Session, run: ImportRun, results: list[RowRe
 
 
 def _storage_target(storage_root: Path, storage_key: str) -> Path:
-    root = storage_root.resolve()
-    target = (root / storage_key).resolve()
-    if root not in target.parents:
+    try:
+        return private_storage_target(storage_root, storage_key)
+    except ValueError:
         raise AppError("ERR-FILE-REJECTED", "Không thể lưu tệp.", 422)
-    return target
 
 
 def _write_private(storage_root: Path, storage_key: str, content: bytes) -> None:
-    target = _storage_target(storage_root, storage_key)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(content)
+    try:
+        write_private_bytes(storage_root, storage_key, content)
+    except ValueError:
+        raise AppError("ERR-FILE-REJECTED", "Không thể lưu tệp.", 422) from None
 
 
 def remove_private_file(storage_root: Path, storage_key: str | None) -> None:
