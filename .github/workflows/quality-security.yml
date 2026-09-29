@@ -101,6 +101,45 @@ jobs:
         working-directory: greencity-app
         run: npm run test:assistant:security
 
+  real-backend-browser:
+    name: P1 real-backend Golden Flow
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout clean source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/requirements.lock.txt
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: greencity-app/package-lock.json
+      - name: Install locked dependencies
+        run: |
+          python -m pip install --requirement backend/requirements.lock.txt
+          npm ci --prefix greencity-app
+      - name: Install disposable PostgreSQL tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql libpq-dev openssl
+      - name: Run disposable real-backend browser rehearsal
+        env:
+          PHASE3_REAL_BROWSER: '1'
+        run: |
+          PG_BIN="$(pg_config --bindir)"
+          test -x "$PG_BIN/initdb"
+          python backend/scripts/phase3_real_backend_browser.py \
+            --pg-bin "$PG_BIN" \
+            --openssl "$(command -v openssl)" \
+            --node "$(command -v node)" \
+            --evidence-dir "$RUNNER_TEMP/greencity-real-browser"
+
   dependency-audit:
     name: Dependency audit
     runs-on: ubuntu-latest
