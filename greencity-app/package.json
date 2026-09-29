@@ -24,7 +24,8 @@
     "test:work-orders": "node tests/work-order-ux.cjs",
     "test:maintenance": "node tests/maintenance-ux.cjs",
     "test:golden-flows": "node tests/golden-flows.cjs",
-    "check:links": "node scripts/check-markdown-links.mjs"
+    "check:links": "node scripts/check-markdown-links.mjs",
+    "check:source": "node scripts/check-source-hygiene.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.475.0",
