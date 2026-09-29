@@ -55,8 +55,38 @@ def _port_is_open(port: int) -> bool:
         return False
 
 
-def run_pg_ctl(command, env, label, *, port: int, expect_open: bool) -> None:
-    """Start/stop a local cluster without waiting on inherited Windows handles."""
+def _print_safe_log_tail(log_path: Path | None, env: dict[str, str], *, lines: int = 80) -> None:
+    """Print a bounded, redacted PostgreSQL log tail for CI diagnostics."""
+    if log_path is None or not log_path.is_file():
+        print("PostgreSQL diagnostic log is unavailable.", flush=True)
+        return
+    try:
+        content = log_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        print("PostgreSQL diagnostic log could not be read.", flush=True)
+        return
+
+    sensitive_values = {
+        env.get("DATABASE_URL"),
+        env.get("SECRET_KEY"),
+        env.get("DEMO_SEED_CREDENTIALS_JSON"),
+        env.get("ROTATED_DEMO_CREDENTIALS_JSON"),
+    }
+    safe_content = content
+    for value in sensitive_values:
+        if value:
+            safe_content = safe_content.replace(value, "[REDACTED]")
+
+    tail = safe_content.splitlines()[-lines:]
+    print("--- PostgreSQL diagnostic log tail ---", flush=True)
+    for line in tail:
+        print(line, flush=True)
+    print("--- end PostgreSQL diagnostic log tail ---", flush=True)
+
+
+def run_pg_ctl(command, env, label, *, port: int, expect_open: bool,
+               timeout_seconds: int = 60, diagnostic_log: Path | None = None) -> None:
+    """Start/stop a local cluster and verify the dedicated loopback port."""
     print(f"{label}: running", flush=True)
     process = subprocess.Popen(
         command,
@@ -67,23 +97,31 @@ def run_pg_ctl(command, env, label, *, port: int, expect_open: bool) -> None:
         stderr=subprocess.DEVNULL,
         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
     )
-    deadline = time.monotonic() + 30
+    deadline = time.monotonic() + timeout_seconds
     try:
         while time.monotonic() < deadline:
             if _port_is_open(port) is expect_open:
                 print(f"{label}: PASS")
                 return
-            # On Windows, pg_ctl can report a non-zero launcher result while
-            # its restricted-token child continues starting or stopping the
-            # actual server.  The dedicated loopback port is authoritative;
-            # failing immediately here makes a healthy disposable cluster
-            # look unavailable.
+
+            # On POSIX an exited pg_ctl launcher before the requested state is
+            # reached normally means PostgreSQL rejected startup/shutdown. Fail
+            # fast and expose the redacted server log instead of waiting for an
+            # opaque timeout. Windows keeps the historical behavior because a
+            # restricted-token child may continue after its launcher exits.
+            if os.name != "nt" and process.poll() is not None:
+                break
             time.sleep(0.1)
-        raise RuntimeError(f"{label} timed out; details suppressed")
+
+        _print_safe_log_tail(diagnostic_log, env)
+        return_code = process.poll()
+        if return_code is None:
+            raise RuntimeError(f"{label} timed out after {timeout_seconds}s; details above")
+        raise RuntimeError(f"{label} launcher exited {return_code} before expected state; details above")
     finally:
-        # `pg_ctl -w` can retain a wrapper handle in non-interactive Windows
-        # hosts even after postgres is ready.  It is only a launcher; the
-        # server is identified and stopped later by this exact data directory.
+        # pg_ctl can retain a wrapper handle in non-interactive Windows hosts
+        # even after postgres is ready. It is only a launcher; the server is
+        # identified and stopped later by this exact data directory.
         if process.poll() is None:
             process.terminate()
             try:
@@ -125,6 +163,7 @@ def main():
     env["PRIVATE_STORAGE_PATH"] = str(workspace / "private-evidence")
     started = False
     success = False
+    server_log = workspace / "server.log"
     try:
         password = secrets.token_urlsafe(32)
         password_file = workspace / "password.txt"
@@ -142,6 +181,10 @@ def main():
         run([str(args.openssl), "req", "-x509", "-newkey", "rsa:2048", "-nodes",
              "-keyout", str(key), "-out", str(cert), "-days", "1", "-subj", "/CN=localhost",
              "-addext", "subjectAltName=DNS:localhost,IP:127.0.0.1"], env, "Test TLS certificate")
+        # PostgreSQL rejects an SSL private key that is group/world readable on
+        # POSIX. Make the requirement explicit rather than relying on runner umask.
+        if os.name != "nt":
+            key.chmod(0o600)
         with socket.socket() as listener:
             listener.bind(("127.0.0.1", 0))
             port = listener.getsockname()[1]
@@ -150,9 +193,11 @@ def main():
                          f"ssl_cert_file='{cert.as_posix()}'\nssl_key_file='{key.as_posix()}'\n")
         # `run_pg_ctl` starts just this disposable cluster and verifies its port.
         started = True  # A failed startup may still have launched the child server.
-        server_log_arg = os.path.relpath(workspace / "server.log", ROOT)
-        run_pg_ctl([str(binaries["pg_ctl"]), "-D", data_arg, "-l", server_log_arg, "start"],
-                   env, "Test PostgreSQL startup", port=port, expect_open=True)
+        server_log_arg = os.path.relpath(server_log, ROOT)
+        run_pg_ctl([str(binaries["pg_ctl"]), "-D", data_arg, "-l", server_log_arg,
+                    "-w", "-t", "60", "start"],
+                   env, "Test PostgreSQL startup", port=port, expect_open=True,
+                   timeout_seconds=65, diagnostic_log=server_log)
         env["DATABASE_URL"] = f"postgresql://test_migrator:{password}@127.0.0.1:{port}/postgres"
         env["DATABASE_SSL_ROOT_CERT"] = str(cert)
         env["GREENCITY_ISOLATED_MIGRATION_PATH_TESTS"] = "1"
@@ -216,14 +261,17 @@ def main():
         stopped = not started
         if started:
             try:
-                run_pg_ctl([str(binaries["pg_ctl"]), "-D", data_arg, "stop"],
-                           env, "Test PostgreSQL shutdown", port=port, expect_open=False)
+                run_pg_ctl([str(binaries["pg_ctl"]), "-D", data_arg, "-w", "-t", "60", "stop"],
+                           env, "Test PostgreSQL shutdown", port=port, expect_open=False,
+                           timeout_seconds=65, diagnostic_log=server_log)
                 stopped = True
             except Exception:
                 print("Test cluster shutdown failed; temporary files retained for local cleanup.")
                 success = False
-        if stopped and workspace.is_relative_to(runtime_root.resolve()) and workspace != runtime_root.resolve():
+        if success and stopped and workspace.is_relative_to(runtime_root.resolve()) and workspace != runtime_root.resolve():
             shutil.rmtree(workspace)
+        elif not success:
+            print(f"Failed isolated workspace retained at: {workspace}")
     return 0 if success else 1
 
 
