@@ -142,27 +142,36 @@ seed lần hai, schema-drift check và toàn bộ PostgreSQL regression. Cluster
 runner tạo được shutdown sau khi hoàn tất; không trỏ lệnh này vào database cần
 giữ dữ liệu.
 
-### 8. Kiểm link, frontend regression, build và UX
+### 8. Kiểm source, link, frontend regression, build và UX
 
 Từ `greencity-app/` sau `npm ci`:
 
 ~~~powershell
 npm run check:links
+npm run check:source
 npm test
 npm run build
 ~~~
 
-Ba UX suite P1 cần frontend đang chạy ở `http://127.0.0.1:3000/` hoặc URL đặt
+`check:source` chặn việc đưa lại prototype cũ, debug call, secret literal hoặc
+URL tuyệt đối hard-code vào source runtime. Đây là source hygiene gate; nó không
+thay thế secret scan toàn repository trong CI.
+
+Các UX suite cần frontend đang chạy ở `http://127.0.0.1:3000/` hoặc URL đặt
 trong `UX_BASE_URL`:
 
 ~~~powershell
 npm run test:ux
 npm run test:assistant
 npm run test:imports
+npm run test:golden-flows
 ~~~
 
-Các suite này dùng API fixture ở browser để kiểm giao diện, auth UX và import UX;
-chúng không thay thế real-backend rehearsal bên dưới.
+`test:golden-flows` gom các browser suite GF-01..08 cho staff, resident,
+Work Order, maintenance, cleaning, security, parcel, billing/payment,
+dashboard/audit và notification. Các suite dùng API fixture ở browser để kiểm
+UX, error/retry và contract; chúng không thay thế real-backend rehearsal bên
+dưới.
 
 ### 9. Import synthetic pack + browser Golden Flow trên backend thật
 
@@ -189,8 +198,8 @@ try {
 
 PASS cuối phải có `REAL_BACKEND_BROWSER_REHEARSAL: PASS`. Runner preflight và
 import synthetic pack, thực hiện GF-01/GF-02 trên browser/backend thật, restart
-backend rồi verify dữ liệu import/readback. Evidence local nằm dưới `.local/`
-và không thuộc gói nộp.
+backend rồi verify dữ liệu import/readback GF-03..08. Evidence local nằm dưới
+`.local/` và không thuộc gói nộp.
 
 ### 10. Cách reset an toàn
 
@@ -200,9 +209,17 @@ sạch, hãy bỏ cluster/database disposable của lần trước và chạy l�
 lý, tạo database trống mới rồi chạy `scripts.migrate upgrade head` thay vì xóa
 bảng bằng SQL tay.
 
+## Walkthrough demo theo vai trò
+
+Trước buổi bảo vệ, dùng
+[DEMO_WALKTHROUGH.md](documents/greencity-project/DEMO_WALKTHROUGH.md) để đi lần
+lượt GF-01..08. Tài liệu chỉ mô tả vai trò, thao tác và kết quả mong đợi; không
+chứa mật khẩu hay credential demo. Credential được provision riêng ngoài Git.
+
 ## Tài liệu hoàn tất bài nộp
 
 - [Kế hoạch hoàn tất code](documents/greencity-project/FINAL_CODE_SUBMISSION_PLAN.md).
 - [20 task hoàn tất code](documents/greencity-project/FINAL_CODE_SUBMISSION_20_TASKS.md).
 - [Checklist kiểm thử cuối](documents/greencity-project/FINAL_SUBMISSION_CHECKLIST.md).
+- [Walkthrough demo theo vai trò](documents/greencity-project/DEMO_WALKTHROUGH.md).
 - [Tài liệu dự án](documents/greencity-project/).
