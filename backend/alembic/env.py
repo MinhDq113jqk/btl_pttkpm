@@ -28,7 +28,11 @@ if context.is_offline_mode():
         context.execute('CREATE SCHEMA IF NOT EXISTS "greencity"')
         context.run_migrations()
 else:
-    database = Database(Settings())
+    # Runtime connections intentionally use search_path=greencity, but Alembic
+    # must see GreenCity as a non-default schema. Otherwise PostgreSQL reflection
+    # reports the connection's default schema as `None`, our schema filter drops
+    # it, and `alembic check` incorrectly proposes recreating the whole database.
+    database = Database(Settings(), search_path="public")
     try:
         with database.engine.connect() as connection:
             migration_role = os.getenv("MIGRATION_ROLE", "").strip()
