@@ -303,9 +303,9 @@ def _visible_shifts(session, context: UserContext) -> list[SecurityShift]:
     )).all()
 
 
-def _incident_for_window(session, context: UserContext, window_id: UUID, *, lock: bool = False) -> SecurityIncident:
+def _visible_incident(session, context: UserContext, incident_id: UUID, *, lock: bool = False) -> SecurityIncident:
     statement = select(SecurityIncident).where(
-        SecurityIncident.id == window_id,
+        SecurityIncident.id == incident_id,
         *context.scope_conditions(SecurityIncident),
     )
     if lock:
@@ -314,9 +314,14 @@ def _incident_for_window(session, context: UserContext, window_id: UUID, *, lock
     if incident is None:
         raise scope_not_found()
     if incident.patrol_window_id is None:
+        if not _is_manager_for(context, incident.building_id):
+            if (incident.reported_by_id != context.account_id
+                    or incident.building_id not in _security_building_ids(context)):
+                raise scope_not_found()
+        return incident
+    window, shift = _scoped_window(session, context, incident.patrol_window_id, lock=lock)
+    if incident.building_id != window.building_id or incident.building_id != shift.building_id:
         raise scope_not_found()
-    _, shift = _scoped_window(session, context, incident.patrol_window_id, lock=lock)
-    _assert_shift_visible(context, shift)
     return incident
 
 
@@ -675,7 +680,7 @@ def create_security_incident(
         replay = idempotency_replay(session, current_user, operation="security-incident.create",
                                     key=idempotency_key, payload=payload)
         if replay:
-            incident = _incident_for_window(session, current_user, replay.resource_id)
+            incident = _visible_incident(session, current_user, replay.resource_id)
             return _incident_view(session, incident)
         window, shift = _scoped_window(session, current_user, body.patrol_window_id)
         _assert_shift_operator(current_user, shift)
@@ -734,8 +739,8 @@ def create_security_incident_evidence(
             evidence = session.get(SecurityIncidentEvidence, replay.resource_id)
             if evidence is None:
                 raise scope_not_found()
-            return _incident_view(session, _incident_for_window(session, current_user, evidence.security_incident_id))
-        incident = _incident_for_window(session, current_user, incident_id)
+            return _incident_view(session, _visible_incident(session, current_user, evidence.security_incident_id))
+        incident = _visible_incident(session, current_user, incident_id)
         evidence = SecurityIncidentEvidence(
             security_incident_id=incident.id,
             recorded_by_id=current_user.account_id,
@@ -776,10 +781,10 @@ def acknowledge_incident_escalation(
             escalation = session.get(IncidentEscalation, acknowledgement.incident_escalation_id)
             if escalation is None:
                 raise scope_not_found()
-            incident = _incident_for_window(session, current_user, escalation.security_incident_id)
+            incident = _visible_incident(session, current_user, escalation.security_incident_id)
             current_user.assert_building_role(incident.building_id, escalation.target_role)
             return _incident_view(session, incident)
-        incident = _incident_for_window(session, current_user, incident_id)
+        incident = _visible_incident(session, current_user, incident_id)
         escalation = session.scalar(select(IncidentEscalation).where(
             IncidentEscalation.id == escalation_id,
             IncidentEscalation.security_incident_id == incident.id,
@@ -817,7 +822,7 @@ def transition_security_incident(
     current_user: UserContext = Depends(get_current_user_context),
 ):
     with request.app.state.database.get_session() as session:
-        incident = _incident_for_window(session, current_user, incident_id, lock=True)
+        incident = _visible_incident(session, current_user, incident_id, lock=True)
         require_version(incident.version, body.expected_version)
         if body.status not in INCIDENT_TRANSITIONS[incident.status]:
             raise AppError("ERR-STATE-TRANSITION", "Chuyển trạng thái sự cố không hợp lệ.", 409)

@@ -82,7 +82,11 @@ class Settings(BaseSettings):
         if set(query) - {"sslmode", "sslrootcert", "connect_timeout"}:
             raise ValueError("Unsupported DATABASE_URL connection option")
         mode = query.get("sslmode", "require")
-        if mode not in {"require", "verify-ca", "verify-full"}:
+        is_local_dev = self.app_env == "development" and url.host in {"localhost", "127.0.0.1", "::1"}
+        allowed_modes = {"require", "verify-ca", "verify-full"}
+        if is_local_dev:
+            allowed_modes.add("disable")
+        if mode not in allowed_modes:
             raise ValueError("PostgreSQL TLS is mandatory")
         if self.database_ssl_root_cert:
             mode = "verify-full"

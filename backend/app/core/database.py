@@ -12,7 +12,7 @@ class Database:
         self.engine = create_engine(
             settings.sqlalchemy_url(), pool_size=5, max_overflow=10,
             pool_pre_ping=True, pool_timeout=10, echo=False, hide_parameters=True,
-            connect_args={"options": "-c timezone=UTC -c statement_timeout=10000"},
+            connect_args={"options": "-c timezone=UTC -c statement_timeout=10000 -c search_path=greencity"},
         )
         self.sessions = sessionmaker(bind=self.engine, expire_on_commit=False)
 

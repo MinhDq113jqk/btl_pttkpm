@@ -9,7 +9,7 @@ from sqlalchemy.exc import DBAPIError
 
 from app.models.account import Account, AccountRole
 from app.models.building import Building
-from app.models.operations import PatrolPoint, SecurityIncident, SecurityShift, SecurityShiftHandoff
+from app.models.operations import IncidentEscalation, PatrolPoint, SecurityIncident, SecurityShift, SecurityShiftHandoff
 from test_r2_integration import r2_case, with_key
 from auth_test_support import mint_session_token
 
@@ -108,6 +108,128 @@ def test_security_dashboard_shows_scoped_standalone_incidents(security_case):
     assert foreign_code not in {item["code"] for item in director.json()["incidents"]}
     assert local_code in {item["code"] for item in reporter.json()["incidents"]}
     assert local_code not in {item["code"] for item in other_guard.json()["incidents"]}
+
+
+def test_imported_standalone_incident_lifecycle_and_building_scope(security_case):
+    case = security_case
+    site = case["sites"][0]
+    reporter = case["guards"]["guard_a"]
+    with case["database"].get_session() as session:
+        other_building = Building(site_id=site.id, code=f"R3-INC-{uuid4().hex[:8]}", name="Synthetic other building")
+        session.add(other_building)
+        session.flush()
+        own = SecurityIncident(
+            tenant_id=case["tenant"].id, site_id=site.id, building_id=case["buildings"][0].id,
+            patrol_window_id=None, code=f"R3-IMPORTED-{uuid4().hex[:8]}",
+            incident_type="SECURITY", severity="HIGH", status="NEW",
+            title="Synthetic imported incident", description="Synthetic incident",
+            occurred_at=datetime.now(UTC), reported_by_id=reporter.id,
+        )
+        foreign = SecurityIncident(
+            tenant_id=case["tenant"].id, site_id=site.id, building_id=other_building.id,
+            patrol_window_id=None, code=f"R3-FOREIGN-{uuid4().hex[:8]}",
+            incident_type="SECURITY", severity="HIGH", status="NEW",
+            title="Synthetic foreign incident", description="Synthetic incident",
+            occurred_at=datetime.now(UTC), reported_by_id=reporter.id,
+        )
+        session.add_all([own, foreign])
+        session.flush()
+        for incident in (own, foreign):
+            session.add_all(IncidentEscalation(
+                security_incident_id=incident.id, target_role=role,
+                escalated_by_id=reporter.id, reason="Synthetic imported escalation",
+            ) for role in ("security", "director"))
+        session.commit()
+
+    reporter_headers = case["auth"]["guard_a"]
+    other_guard_headers = case["auth"]["guard_b"]
+    own_id = str(own.id)
+    foreign_id = str(foreign.id)
+    with case["database"].get_session() as session:
+        foreign_security_ack_id = session.scalar(select(IncidentEscalation.id).where(
+            IncidentEscalation.security_incident_id == foreign.id,
+            IncidentEscalation.target_role == "security",
+        ))
+    dashboard = case["client"].get("/api/v1/security/dashboard", headers=reporter_headers)
+    assert dashboard.status_code == 200, dashboard.text
+    own_view = next(item for item in dashboard.json()["incidents"] if item["id"] == own_id)
+    assert foreign_id not in {item["id"] for item in dashboard.json()["incidents"]}
+    security_ack = next(item for item in own_view["escalations"] if item["target_role"] == "security")
+    director_ack = next(item for item in own_view["escalations"] if item["target_role"] == "director")
+
+    blocked = [
+        case["client"].post(
+            f"/api/v1/security/incidents/{own_id}/evidence",
+            headers=other_guard_headers | {"Idempotency-Key": f"r3-other-evidence-{uuid4().hex}"},
+            json={"evidence_type": "NOTE", "description": "Synthetic note"},
+        ),
+        case["client"].post(
+            f"/api/v1/security/incidents/{own_id}/transition",
+            headers=other_guard_headers,
+            json={"expected_version": 1, "status": "TRIAGED"},
+        ),
+        case["client"].post(
+            f"/api/v1/security/incidents/{foreign_id}/evidence",
+            headers=reporter_headers | {"Idempotency-Key": f"r3-foreign-evidence-{uuid4().hex}"},
+            json={"evidence_type": "NOTE", "description": "Synthetic note"},
+        ),
+        case["client"].post(
+            f"/api/v1/security/incidents/{foreign_id}/transition",
+            headers=reporter_headers,
+            json={"expected_version": 1, "status": "TRIAGED"},
+        ),
+        case["client"].post(
+            f"/api/v1/security/incidents/{foreign_id}/escalations/{foreign_security_ack_id}/acknowledgements",
+            headers=reporter_headers | {"Idempotency-Key": f"r3-foreign-ack-{uuid4().hex}"},
+            json={"note": "Synthetic acknowledgement"},
+        ),
+    ]
+    for response in blocked:
+        assert response.status_code == 404, response.text
+        assert response.json()["error"]["code"] == "ERR-SCOPE-NOTFOUND"
+
+    denied_role = case["client"].post(
+        f"/api/v1/security/incidents/{own_id}/escalations/{director_ack['id']}/acknowledgements",
+        headers=reporter_headers | {"Idempotency-Key": f"r3-wrong-role-{uuid4().hex}"},
+        json={"note": "Synthetic acknowledgement"},
+    )
+    assert denied_role.status_code == 403
+
+    evidence_headers = reporter_headers | {"Idempotency-Key": f"r3-imported-evidence-{uuid4().hex}"}
+    evidence = case["client"].post(
+        f"/api/v1/security/incidents/{own_id}/evidence", headers=evidence_headers,
+        json={"evidence_type": "REPORT", "description": "Synthetic imported evidence"},
+    )
+    assert evidence.status_code == 201, evidence.text
+    replay = case["client"].post(
+        f"/api/v1/security/incidents/{own_id}/evidence", headers=evidence_headers,
+        json={"evidence_type": "REPORT", "description": "Synthetic imported evidence"},
+    )
+    assert replay.status_code == 201 and len(replay.json()["evidence"]) == 1
+
+    for escalation, headers in ((security_ack, reporter_headers), (director_ack, case["auth"]["director"])):
+        ack_headers = headers | {"Idempotency-Key": f"r3-imported-ack-{uuid4().hex}"}
+        acknowledged = case["client"].post(
+            f"/api/v1/security/incidents/{own_id}/escalations/{escalation['id']}/acknowledgements",
+            headers=ack_headers, json={"note": "Synthetic acknowledgement"},
+        )
+        assert acknowledged.status_code == 201, acknowledged.text
+        replay = case["client"].post(
+            f"/api/v1/security/incidents/{own_id}/escalations/{escalation['id']}/acknowledgements",
+            headers=ack_headers, json={"note": "Synthetic acknowledgement"},
+        )
+        assert replay.status_code == 201, replay.text
+
+    incident = evidence.json()
+    for status in ("TRIAGED", "IN_PROGRESS", "RESOLVED"):
+        transitioned = _transition(case, incident, "guard_a", status,
+                                   conclusion="Synthetic resolution" if status == "RESOLVED" else None)
+        assert transitioned.status_code == 200, transitioned.text
+        incident = transitioned.json()
+    closed = _transition(case, incident, "director", "CLOSED")
+    assert closed.status_code == 200, closed.text
+    assert closed.json()["patrol_window_id"] is None
+    assert closed.json()["status"] == "CLOSED"
 
 
 def test_revoked_building_grant_hides_assigned_security_resources(security_case):
@@ -234,6 +356,15 @@ def test_revoked_building_grant_hides_assigned_security_resources(security_case)
             f"/api/v1/security/incidents/{incident_codes['b1']['linked'][1]}/transition",
             headers=headers, json={"expected_version": 1, "status": "TRIAGED"},
         ),
+        case["client"].post(
+            f"/api/v1/security/incidents/{incident_codes['b1']['standalone'][1]}/evidence",
+            headers=headers | {"Idempotency-Key": f"security-revoked-standalone-{uuid4().hex}"},
+            json={"evidence_type": "NOTE", "description": "Synthetic evidence"},
+        ),
+        case["client"].post(
+            f"/api/v1/security/incidents/{incident_codes['b1']['standalone'][1]}/transition",
+            headers=headers, json={"expected_version": 1, "status": "TRIAGED"},
+        ),
     ]
     for response in blocked_requests:
         assert response.status_code == 404, response.text
@@ -245,6 +376,11 @@ def test_revoked_building_grant_hides_assigned_security_resources(security_case)
         headers=headers, json={"expected_version": 1, "status": "TRIAGED"},
     )
     assert allowed.status_code == 200, allowed.text
+    allowed_standalone = case["client"].post(
+        f"/api/v1/security/incidents/{incident_codes['b2']['standalone'][1]}/transition",
+        headers=headers, json={"expected_version": 1, "status": "TRIAGED"},
+    )
+    assert allowed_standalone.status_code == 200, allowed_standalone.text
 
 
 def test_mixed_manager_security_grants_and_site_only_security_fail_closed(security_case):
@@ -354,6 +490,24 @@ def test_mixed_manager_security_grants_and_site_only_security_fail_closed(securi
     assert {codes["own_b1"], codes["manager_b2"]} <= visible_codes
     assert codes["other_b1"] not in visible_codes
     assert codes["site_only"] not in visible_codes
+    with case["database"].get_session() as session:
+        manager_incident_id = session.scalar(select(SecurityIncident.id).where(
+            SecurityIncident.code == codes["manager_b2"],
+        ))
+        other_incident_id = session.scalar(select(SecurityIncident.id).where(
+            SecurityIncident.code == codes["other_b1"],
+        ))
+    manager_transition = case["client"].post(
+        f"/api/v1/security/incidents/{manager_incident_id}/transition",
+        headers=mixed_headers, json={"expected_version": 1, "status": "TRIAGED"},
+    )
+    assert manager_transition.status_code == 200, manager_transition.text
+    other_transition = case["client"].post(
+        f"/api/v1/security/incidents/{other_incident_id}/transition",
+        headers=mixed_headers, json={"expected_version": 1, "status": "TRIAGED"},
+    )
+    assert other_transition.status_code == 404
+    assert other_transition.json()["error"]["code"] == "ERR-SCOPE-NOTFOUND"
 
     for route in ("/api/v1/security/shifts", "/api/v1/security/dashboard"):
         response = case["client"].get(route, headers=site_only_headers)

@@ -21,7 +21,7 @@ import { BillingDesktopView } from './components/BillingDesktopView';
 import { ResidentPortalView } from './components/ResidentPortalView';
 import { navItems } from './data/navigation';
 import { ASSISTANT_STORAGE_KEY, clearAssistantHistoryForAccount } from './data/assistantStore';
-import { canViewTab, createAuthenticatedAccount, getAllowedNav, getSessionNotifications, getStaffTabFromHash } from './data/authSession';
+import { canViewTab, createAuthenticatedAccount, getAllowedNav, getStaffTabFromHash } from './data/authSession';
 import { mapServiceRequest } from './data/serviceRequestView';
 import { createApiClient } from './services/apiClient';
 import { requestAssistantReply } from './services/greenAssistant';

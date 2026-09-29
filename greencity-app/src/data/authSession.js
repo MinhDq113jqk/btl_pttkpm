@@ -143,11 +143,3 @@ export const getAllowedNav = account => navItems.filter(item => (
   STAFF_WORKSPACE_TABS.has(item.id) && account?.menu?.includes(item.id)
 ));
 export const canViewTab = (account, tab) => STAFF_WORKSPACE_TABS.has(tab) && Boolean(account?.menu?.includes(tab));
-
-export const getSessionNotifications = account => [{
-  id: 'authenticated-session',
-  title: 'Phiên đăng nhập đã được xác minh',
-  detail: `Menu hiện tại được tạo từ vai trò do /auth/me trả về cho ${account.name}.`,
-  time: 'Phiên hiện tại',
-  unread: true,
-}];
