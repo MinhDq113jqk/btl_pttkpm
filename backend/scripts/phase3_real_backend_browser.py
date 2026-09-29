@@ -104,18 +104,20 @@ def _terminate(process: subprocess.Popen[bytes] | None) -> None:
         process.wait(timeout=5)
 
 
-def _pg_start(pg_bin: Path, data: Path, log_path: Path, port: int, cwd: Path) -> subprocess.Popen[bytes]:
+def _pg_start(pg_ctl: Path, data: Path, log_path: Path, port: int, cwd: Path) -> subprocess.Popen[bytes]:
     relative_data = os.path.relpath(data, cwd)
     process = subprocess.Popen(
-        [str(pg_bin / "pg_ctl.exe"), "-D", relative_data, "-l", os.path.relpath(log_path, cwd),
-         "-o", f"-p {port}", "start"],
+        [str(pg_ctl), "-D", relative_data, "-l", os.path.relpath(log_path, cwd),
+         "-w", "-t", "60", "start"],
         cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
     )
-    deadline = time.monotonic() + 35
+    deadline = time.monotonic() + 65
     while time.monotonic() < deadline:
         if _open(port):
             return process
+        if os.name != "nt" and process.poll() is not None:
+            break
         time.sleep(0.15)
     _terminate(process)
     raise RuntimeError("PostgreSQL did not become ready; see evidence log")
@@ -273,11 +275,18 @@ def main() -> int:
     parser.add_argument("--openssl", type=Path, required=True)
     parser.add_argument("--evidence-dir", type=Path, required=True)
     args = parser.parse_args()
-    if not (args.pg_bin / "initdb.exe").is_file() or not (args.pg_bin / "pg_ctl.exe").is_file():
+    extension = ".exe" if os.name == "nt" else ""
+    initdb = args.pg_bin / f"initdb{extension}"
+    pg_ctl = args.pg_bin / f"pg_ctl{extension}"
+    if not initdb.is_file() or not pg_ctl.is_file():
         print("PostgreSQL initdb/pg_ctl executables are required.")
         return 2
     if not args.python.is_file() or not args.openssl.is_file():
-        print("The requested Python executable is not available.")
+        print("The requested Python/OpenSSL executable is not available.")
+        return 2
+    node = args.node if args.node.is_absolute() else Path(shutil.which(str(args.node)) or "")
+    if not node.is_file():
+        print("The requested Node.js executable is not available.")
         return 2
 
     evidence = args.evidence_dir.resolve()
@@ -317,7 +326,7 @@ def main() -> int:
         data_arg = os.path.relpath(data, BACKEND)
         password_arg = os.path.relpath(password_file, BACKEND)
         pg_init_log = evidence / "postgres-init.log"
-        _run([str(args.pg_bin / "initdb.exe"), "-D", data_arg, "-U", "test_migrator",
+        _run([str(initdb), "-D", data_arg, "-U", "test_migrator",
               "--auth=scram-sha-256", "--encoding=UTF8", "--locale=C", "--pwfile", password_arg],
              cwd=BACKEND, env=env, label="PostgreSQL init", log_path=pg_init_log)
         pg_port = _free_port()
@@ -327,13 +336,20 @@ def main() -> int:
               "-addext", "subjectAltName=DNS:localhost,IP:127.0.0.1"],
              cwd=BACKEND, env=env, label="PostgreSQL TLS certificate",
              log_path=evidence / "postgres-tls.log")
+        if os.name != "nt":
+            key.chmod(0o600)
         with (data / "postgresql.conf").open("a", encoding="utf-8") as config:
             config.write(
                 f"\nlisten_addresses='127.0.0.1'\nport={pg_port}\nssl=on\n"
                 f"ssl_cert_file='{cert.as_posix()}'\nssl_key_file='{key.as_posix()}'\n"
             )
+            if os.name != "nt":
+                # Hosted Linux runners do not own /var/run/postgresql. This
+                # disposable cluster only needs loopback TCP, so do not create
+                # a system Unix-domain socket.
+                config.write("unix_socket_directories=''\n")
         pg_log = workspace / "postgres.log"
-        pg_process = _pg_start(args.pg_bin, data, pg_log, pg_port, BACKEND)
+        pg_process = _pg_start(pg_ctl, data, pg_log, pg_port, BACKEND)
         database_url = f"postgresql://test_migrator:{db_password}@127.0.0.1:{pg_port}/postgres?sslmode=require"
         _wait_database(database_url, args.python, BACKEND, env)
         frontend_port = _free_port()
@@ -394,14 +410,13 @@ def main() -> int:
             stderr=subprocess.STDOUT, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         _wait_http(f"http://127.0.0.1:{backend_port}/api/v1/health", backend_process)
-        node = str(args.node)
         vite = FRONTEND / "node_modules" / "vite" / "bin" / "vite.js"
         frontend_env = app_env | {
             "VITE_DEV_API_PROXY_TARGET": f"http://127.0.0.1:{backend_port}",
         }
         frontend_log_stream = (evidence / "frontend.log").open("w", encoding="utf-8")
         frontend_process = subprocess.Popen(
-            [node, str(vite), "--configLoader", "runner", "--host", "127.0.0.1", "--port", str(frontend_port)],
+            [str(node), str(vite), "--configLoader", "runner", "--host", "127.0.0.1", "--port", str(frontend_port)],
             cwd=FRONTEND, env=frontend_env, stdout=frontend_log_stream,
             stderr=subprocess.STDOUT, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
@@ -413,7 +428,7 @@ def main() -> int:
             "REAL_BROWSER_EVIDENCE_DIR": str(evidence),
         }
         browser_result = subprocess.run(
-            [node, str(FRONTEND / "tests" / "real-backend-golden-flow.cjs")],
+            [str(node), str(FRONTEND / "tests" / "real-backend-golden-flow.cjs")],
             cwd=FRONTEND, env=runner_env, stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", timeout=300,
         )
@@ -445,7 +460,7 @@ def main() -> int:
             "REAL_BROWSER_SYNTHETIC_RESIDENT_LINKS_FILE": str(SYNTHETIC_RESIDENT_LINKS),
         }
         readback_result = subprocess.run(
-            [node, str(FRONTEND / "tests" / "real-backend-imported-readback.cjs")],
+            [str(node), str(FRONTEND / "tests" / "real-backend-imported-readback.cjs")],
             cwd=FRONTEND, env=readback_env, stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", timeout=300,
         )
@@ -465,9 +480,9 @@ def main() -> int:
         _terminate(backend_process)
         if pg_process is not None:
             try:
-                subprocess.run([str(args.pg_bin / "pg_ctl.exe"), "-D", os.path.relpath(data, BACKEND), "stop"],
+                subprocess.run([str(pg_ctl), "-D", os.path.relpath(data, BACKEND), "-w", "-t", "60", "stop"],
                                cwd=BACKEND, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                               timeout=30, check=False)
+                               timeout=65, check=False)
             except Exception:
                 pass
         pg_log = workspace / "postgres.log"
