@@ -45,7 +45,7 @@ jobs:
   frontend-quality:
     name: Frontend tests and build
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout clean source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -58,12 +58,45 @@ jobs:
       - name: Install locked frontend dependencies
         working-directory: greencity-app
         run: npm ci
+      - name: Check Markdown links
+        working-directory: greencity-app
+        run: npm run check:links
       - name: Run frontend regression
         working-directory: greencity-app
         run: npm test
       - name: Build frontend
         working-directory: greencity-app
         run: npm run build
+      - name: Run supplemental UX suites
+        working-directory: greencity-app
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run dev -- --host 127.0.0.1 > "$RUNNER_TEMP/greencity-vite.log" 2>&1 &
+          vite_pid=$!
+          cleanup() {
+            kill "$vite_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          ready=0
+          for _ in $(seq 1 60); do
+            if curl --fail --silent --show-error http://127.0.0.1:3000/ >/dev/null; then
+              ready=1
+              break
+            fi
+            if ! kill -0 "$vite_pid" 2>/dev/null; then
+              cat "$RUNNER_TEMP/greencity-vite.log"
+              exit 1
+            fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then
+            cat "$RUNNER_TEMP/greencity-vite.log"
+            exit 1
+          fi
+          npm run test:ux
+          npm run test:assistant
+          npm run test:imports
       - name: Check assistant bundle boundary
         working-directory: greencity-app
         run: npm run test:assistant:security
