@@ -113,8 +113,11 @@ def test_r6_hot_path_indexes_exist_in_postgresql_after_migration():
         )
         with database.get_session() as session:
             for index_name in index_names:
-                assert session.scalar(text("SELECT to_regclass(:name)"), {
+                # `regclass` text rendering omits the schema when that schema is
+                # visible in search_path. Test existence directly instead of
+                # comparing PostgreSQL's display representation.
+                assert session.scalar(text("SELECT to_regclass(:name) IS NOT NULL"), {
                     "name": f"greencity.{index_name}",
-                }) == f"greencity.{index_name}"
+                }) is True
     finally:
         database.close()
