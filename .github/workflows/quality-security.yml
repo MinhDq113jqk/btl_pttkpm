@@ -45,7 +45,7 @@ jobs:
   frontend-quality:
     name: Frontend tests and build
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Checkout clean source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -100,6 +100,7 @@ jobs:
           npm run test:ux
           npm run test:assistant
           npm run test:imports
+          npm run test:golden-flows
       - name: Check assistant bundle boundary
         working-directory: greencity-app
         run: npm run test:assistant:security
