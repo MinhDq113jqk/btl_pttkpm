@@ -25,16 +25,11 @@ DEMO_ACCOUNT_USERNAMES = (
 
 def run(command, env, label, *, show_output=False):
     print(f"{label}: running", flush=True)
-    # Background postgres can inherit pipe handles on Windows. Infrastructure
-    # commands use DEVNULL so communicate() cannot wait on the server's pipes.
-    # The full database suite now includes the submission replay; allow it to
-    # finish on slower Windows hosts while retaining a finite hang guard.
     timeout = 420 if command[:3] == [sys.executable, "-m", "pytest"] else 120
     result = subprocess.run(command, cwd=ROOT, env=env,
                             stdout=subprocess.PIPE if show_output else subprocess.DEVNULL,
                             stderr=subprocess.STDOUT if show_output else subprocess.DEVNULL,
                             text=True, encoding="utf-8", errors="replace", timeout=timeout)
-    # Infrastructure errors can contain connection details: never echo them.
     if show_output:
         output = result.stdout
         for variable in ("DATABASE_URL", "SECRET_KEY", "DEMO_SEED_CREDENTIALS_JSON",
@@ -56,7 +51,6 @@ def _port_is_open(port: int) -> bool:
 
 
 def _print_safe_log_tail(log_path: Path | None, env: dict[str, str], *, lines: int = 80) -> None:
-    """Print a bounded, redacted PostgreSQL log tail for CI diagnostics."""
     if log_path is None or not log_path.is_file():
         print("PostgreSQL diagnostic log is unavailable.", flush=True)
         return
@@ -86,7 +80,6 @@ def _print_safe_log_tail(log_path: Path | None, env: dict[str, str], *, lines: i
 
 def run_pg_ctl(command, env, label, *, port: int, expect_open: bool,
                timeout_seconds: int = 60, diagnostic_log: Path | None = None) -> None:
-    """Start/stop a local cluster and verify the dedicated loopback port."""
     print(f"{label}: running", flush=True)
     process = subprocess.Popen(
         command,
@@ -103,12 +96,6 @@ def run_pg_ctl(command, env, label, *, port: int, expect_open: bool,
             if _port_is_open(port) is expect_open:
                 print(f"{label}: PASS")
                 return
-
-            # On POSIX an exited pg_ctl launcher before the requested state is
-            # reached normally means PostgreSQL rejected startup/shutdown. Fail
-            # fast and expose the redacted server log instead of waiting for an
-            # opaque timeout. Windows keeps the historical behavior because a
-            # restricted-token child may continue after its launcher exits.
             if os.name != "nt" and process.poll() is not None:
                 break
             time.sleep(0.1)
@@ -119,9 +106,6 @@ def run_pg_ctl(command, env, label, *, port: int, expect_open: bool,
             raise RuntimeError(f"{label} timed out after {timeout_seconds}s; details above")
         raise RuntimeError(f"{label} launcher exited {return_code} before expected state; details above")
     finally:
-        # pg_ctl can retain a wrapper handle in non-interactive Windows hosts
-        # even after postgres is ready. It is only a launcher; the server is
-        # identified and stopped later by this exact data directory.
         if process.poll() is None:
             process.terminate()
             try:
@@ -140,7 +124,6 @@ def main():
     if not all(path.is_file() for path in [*binaries.values(), args.openssl]):
         parser.error("PostgreSQL initdb/pg_ctl and openssl executables are required")
 
-    # Never inherit connection/service configuration or an external test target.
     env = {key: value for key, value in os.environ.items()
            if not key.upper().startswith(("PG", "DATABASE_", "RUN_DB_", "GREENCITY_ISOLATED_"))}
     demo_credentials = {
@@ -168,10 +151,6 @@ def main():
         password = secrets.token_urlsafe(32)
         password_file = workspace / "password.txt"
         password_file.write_text(password + "\n", encoding="utf-8")
-        # PostgreSQL's Windows restricted-token re-exec misparses an absolute
-        # --pwfile path containing a drive colon under non-interactive hosts.
-        # The runner's cwd is ROOT, so a relative path keeps the secret file
-        # inside the generated workspace without weakening SCRAM setup.
         data_arg = os.path.relpath(data, ROOT)
         password_file_arg = os.path.relpath(password_file, ROOT)
         run([str(binaries["initdb"]), "-D", data_arg, "-U", "test_migrator",
@@ -181,8 +160,6 @@ def main():
         run([str(args.openssl), "req", "-x509", "-newkey", "rsa:2048", "-nodes",
              "-keyout", str(key), "-out", str(cert), "-days", "1", "-subj", "/CN=localhost",
              "-addext", "subjectAltName=DNS:localhost,IP:127.0.0.1"], env, "Test TLS certificate")
-        # PostgreSQL rejects an SSL private key that is group/world readable on
-        # POSIX. Make the requirement explicit rather than relying on runner umask.
         if os.name != "nt":
             key.chmod(0o600)
         with socket.socket() as listener:
@@ -190,9 +167,9 @@ def main():
             port = listener.getsockname()[1]
         with (data / "postgresql.conf").open("a", encoding="utf-8") as config:
             config.write(f"\nlisten_addresses='127.0.0.1'\nport={port}\nssl=on\n"
-                         f"ssl_cert_file='{cert.as_posix()}'\nssl_key_file='{key.as_posix()}'\n")
-        # `run_pg_ctl` starts just this disposable cluster and verifies its port.
-        started = True  # A failed startup may still have launched the child server.
+                         f"ssl_cert_file='{cert.as_posix()}'\nssl_key_file='{key.as_posix()}'\n"
+                         "unix_socket_directories=''\n")
+        started = True
         server_log_arg = os.path.relpath(server_log, ROOT)
         run_pg_ctl([str(binaries["pg_ctl"]), "-D", data_arg, "-l", server_log_arg,
                     "-w", "-t", "60", "start"],
@@ -201,38 +178,24 @@ def main():
         env["DATABASE_URL"] = f"postgresql://test_migrator:{password}@127.0.0.1:{port}/postgres"
         env["DATABASE_SSL_ROOT_CERT"] = str(cert)
         env["GREENCITY_ISOLATED_MIGRATION_PATH_TESTS"] = "1"
-        run([sys.executable, "-m", "scripts.test_migration_0005"], env, "AC-03 migration paths",
-            show_output=True)
-        run([sys.executable, "-m", "scripts.test_migration_0007"], env, "R3 migration paths",
-            show_output=True)
-        run([sys.executable, "-m", "scripts.test_migration_0008"], env, "R4 migration paths",
-            show_output=True)
-        run([sys.executable, "-m", "scripts.test_migration_0009"], env, "R4 Task 2 migration paths",
-            show_output=True)
-        run([sys.executable, "-m", "scripts.test_migration_0010"], env, "R4 Task 3 migration paths",
-            show_output=True)
-        run([sys.executable, "-m", "scripts.test_migration_0011"], env, "R5 outbox migration paths",
-            show_output=True)
-        run([sys.executable, "-m", "scripts.test_migration_0012"], env,
-            "R6 resident identity migration paths", show_output=True)
-        run([sys.executable, "-m", "scripts.test_migration_0013"], env,
-            "R6 resident request evidence migration paths", show_output=True)
-        run([sys.executable, "-m", "scripts.test_migration_0014"], env,
-            "V1 parcel foundation migration paths", show_output=True)
-        run([sys.executable, "-m", "scripts.test_migration_0015"], env,
-            "V1 parcel case/evidence migration paths", show_output=True)
-        run([sys.executable, "-m", "scripts.test_migration_0016"], env,
-            "Auth-session and forced-password migration paths", show_output=True)
-        run([sys.executable, "-m", "scripts.test_migration_0017"], env,
-            "Login-throttle migration paths", show_output=True)
-        run([sys.executable, "-m", "scripts.test_migration_0018"], env,
-            "Submission import migration paths", show_output=True)
+        run([sys.executable, "-m", "scripts.test_migration_0005"], env, "AC-03 migration paths", show_output=True)
+        run([sys.executable, "-m", "scripts.test_migration_0007"], env, "R3 migration paths", show_output=True)
+        run([sys.executable, "-m", "scripts.test_migration_0008"], env, "R4 migration paths", show_output=True)
+        run([sys.executable, "-m", "scripts.test_migration_0009"], env, "R4 Task 2 migration paths", show_output=True)
+        run([sys.executable, "-m", "scripts.test_migration_0010"], env, "R4 Task 3 migration paths", show_output=True)
+        run([sys.executable, "-m", "scripts.test_migration_0011"], env, "R5 outbox migration paths", show_output=True)
+        run([sys.executable, "-m", "scripts.test_migration_0012"], env, "R6 resident identity migration paths", show_output=True)
+        run([sys.executable, "-m", "scripts.test_migration_0013"], env, "R6 resident request evidence migration paths", show_output=True)
+        run([sys.executable, "-m", "scripts.test_migration_0014"], env, "V1 parcel foundation migration paths", show_output=True)
+        run([sys.executable, "-m", "scripts.test_migration_0015"], env, "V1 parcel case/evidence migration paths", show_output=True)
+        run([sys.executable, "-m", "scripts.test_migration_0016"], env, "Auth-session and forced-password migration paths", show_output=True)
+        run([sys.executable, "-m", "scripts.test_migration_0017"], env, "Login-throttle migration paths", show_output=True)
+        run([sys.executable, "-m", "scripts.test_migration_0018"], env, "Submission import migration paths", show_output=True)
         run([sys.executable, "-m", "scripts.migrate", "upgrade", "head"], env, "Empty DB migration")
         run([sys.executable, "-m", "scripts.migrate", "upgrade", "head"], env, "Migration repeat")
         env["GREENCITY_ISOLATED_SECURITY_TESTS"] = "1"
         run([sys.executable, "-m", "scripts.test_submission_pack_isolated"], env,
             "Synthetic submission pack on clean database", show_output=True)
-        # Fixtures for legacy regression tests are created only in this new cluster.
         run([sys.executable, "-m", "scripts.seed"], env, "Demo seed")
         run([sys.executable, "-m", "scripts.seed"], env, "Seed repeat")
         run([sys.executable, "-m", "scripts.migrate", "check"], env,
@@ -252,12 +215,10 @@ def main():
             "Isolated PostgreSQL regression", show_output=True)
         success = True
     except Exception as exc:
-        # Messages above are deliberately non-sensitive; no driver/subprocess tracebacks.
         print(f"Isolated verification failed ({type(exc).__name__}); no shared database was used.")
         if type(exc) is RuntimeError:
-            print(str(exc))  # Only our labelled, redacted messages above.
+            print(str(exc))
     finally:
-        # pg_ctl stop uses the exact cluster initialized by this invocation.
         stopped = not started
         if started:
             try:
