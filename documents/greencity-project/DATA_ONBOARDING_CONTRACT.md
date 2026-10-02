@@ -8,7 +8,7 @@
 | Trường | Giá trị |
 |---|---|
 | Contract version | `fcs05-r3` (schema contract FCS-03, resolved mapping và incident enum) |
-| Machine contract status | `OWNER_APPROVED_SOURCE_CORRECTION_PENDING` |
+| Machine contract status | `LOCAL_PREFLIGHT_PASS_AND_DB_COUNT_RECORDED` |
 | Trạng thái thực thi FCS-03 | DONE — 12 schema, disposition và tài liệu được kiểm cùng `WORKBOOK_CONTRACTS` |
 | Machine-readable source | [backend/app/services/submission_data_contract.py](../../backend/app/services/submission_data_contract.py) |
 | Source of truth | documents/greencity-project/excel-data |
@@ -20,8 +20,17 @@
 | Contract fingerprint | `4d749f7377335c49a6b3159e0d1e12bfb5480cd95f158bca2fe7f52a5ce16147` |
 
 User/Owner đã phê duyệt FCS-01 ngày 2026-09-27; `open_decisions=0` trong contract.
-Raw source vẫn có sáu `FUTURE_TERMINAL_EVENT` phải sửa tại nguồn trước khi replay.
+Tại cutoff `2026-10-01T16:59:59Z`, raw source preflight PASS với 0
+`FUTURE_TERMINAL_EVENT`; 36 `FUTURE_SCHEDULE` warning là lịch dự kiến không chặn.
 Không đưa raw cell value, PII, credential, PIN hoặc checksum đầy đủ vào tài liệu này.
+
+### Đối chiếu database cục bộ — Task 1
+
+Truy vấn `READ ONLY` ngày 2026-10-01 trên `green_city` ghi nhận 61 base table
+(không tính `alembic_version`), 38 table có dữ liệu và 272 bản ghi tổng cộng.
+Đây là metadata aggregate không chứa PII; không chứng minh nguồn của từng bản
+ghi, không thay thế apply/verify trên database sạch và không là Final Submission
+Gate.
 
 ## 2. Quy ước chung
 
@@ -401,7 +410,7 @@ Header là tên cột và thứ tự canonical. Required là bắt buộc ở pr
 | FCS-01:TIMEZONE | Timezone site và provenance | Tất cả datetime | DONE — User/Owner duyệt `Asia/Ho_Chi_Minh` ngày 2026-09-27 |
 | FCS-04:AREA_PRECISION | Unit.area_m2 đi vào cột Float | Sai số diện tích/billing | DONE — quantize `0.01` trước storage boundary |
 | FCS-04:OWNERSHIP_ZERO | Ratio 0 của non-owner | Tính quyền sở hữu | DONE — chuẩn hóa `0 → NULL` và kiểm relationship |
-| FCS-04:FUTURE_TIME | Timestamp tương lai | Replay state machine | Rule DONE; raw có 6 terminal event chờ User/Owner sửa theo sự kiện thật |
+| FCS-04:FUTURE_TIME | Timestamp tương lai | Replay state machine | Rule DONE; current source preflight có 0 terminal candidate, còn lịch dự kiến được cảnh báo riêng |
 | FCS-05 (13 quyết định) | Category/SLA, WO source, maintenance, cleaning, patrol, incident, parcel và finance canonical keys | Mapping/preflight/replay | DONE — mapping `fcs05-r2`, `open=0`; incident enum nằm trong contract `fcs05-r3` |
 | FCS-10 reference representation | Metadata reference/replay | Reference/replay | Domain command đã triển khai; DB readback vẫn cần approved pack |
 | Canonical input | File 10 `fee_policy_code` và file 11 `period_key` | Invoice/payment mapping | DONE — derive fail-closed; không join theo tên hoặc số tiền |
@@ -442,7 +451,7 @@ module không mở session và không ghi database.
 | Money/quantity | Parse bằng `Decimal(str(value))`; ROUND_HALF_UP; VND quantum `1`; quantity quantum `0.0001`; ownership quantum `0.0001`. | Không dùng float cho phép tính canonical. |
 | Ownership | Owner phải có ratio `(0, 1]`; non-owner có ratio `0` được canonicalize thành `NULL`, ratio khác 0 bị từ chối. | Khớp constraint `ownership_ratio_semantics`. |
 | Datetime/date | Gắn timezone site đã duyệt `Asia/Ho_Chi_Minh` cho giá trị naive, sau đó lưu UTC; giá trị có timezone được đổi sang cùng site timezone trước khi chuyển UTC. | User/Owner đã duyệt timezone ngày 2026-09-27. |
-| Future time | Giá trị sau mốc `2026-09-26 23:59:59` theo timezone site được phân loại `scheduled_future`; truyền `terminal_event=True` sẽ trả lỗi `FUTURE_TERMINAL_EVENT`. | Inventory hiện tại: `163` date/datetime, `121` future; `6/6` terminal candidates bị chặn. |
+| Future time | Giá trị sau cutoff được phân loại `scheduled_future`; truyền `terminal_event=True` sẽ trả lỗi `FUTURE_TERMINAL_EVENT`. | Source preflight tại `2026-10-01T16:59:59Z`: `42` future, `0` terminal candidate, `36` `FUTURE_SCHEDULE` warning; checksum verified. |
 | Area | Chính sách FCS-04: `Decimal` quantize `0.01`, rồi chuyển sang Float ở boundary hiện tại (`FLOAT_QUANTIZED_0_01`). | Nếu đổi schema sang Numeric, chỉ thay adapter storage; không đổi canonical rule. |
 | External key | 12 spec định danh dùng scope code + source reference; payload version `ek1`, deterministic, không chứa field PII. | Bao phủ work, employee, unit, resident, asset, cleaning, patrol, incident, fee policy, invoice, payment, parcel. |
 
@@ -469,9 +478,9 @@ $python = "backend\.venv\Scripts\python.exe"
 & $python -m py_compile "backend\app\services\submission_data_normalization.py"
 ```
 
-Kết quả đã xác nhận: `FCS04_NORMALIZATION=PASS` và future terminal guard chặn đủ
-`6/6` candidate. FCS-04 đã đóng rule chuẩn hóa; sáu giá trị nguồn cần sửa thuộc
-preflight FCS-07.
+Kết quả đã xác nhận: `FCS04_NORMALIZATION=PASS`; guard vẫn từ chối terminal event
+tương lai. Source-specific preflight hiện PASS với 0 terminal candidate; kết quả
+này cần chạy lại trên candidate cuối trước khi đóng Final Submission Gate.
 
 ## 9. Evidence FCS-05 đến FCS-12
 
@@ -485,12 +494,16 @@ Tóm tắt kiểm chứng hiện tại:
 |---|---|
 | FCS-05 | `FCS05_MAPPING=PASS`, version `fcs05-r2`, `open=0`; 13 mapping decision và hai canonical derivation đã khóa fail-closed. |
 | FCS-06 | `FCS06_READER=PASS`, 12 workbook/101 dòng; targeted suite `8 passed` với giới hạn kích thước, formula, hidden sheet và header tampering. Reader giữ external-link metadata để từ chối liên kết ngoài. |
-| FCS-07 | `101/101 decided`, `0 orphan`, `database_write=false`; raw hiện bị chặn bởi 6 `FUTURE_TERMINAL_EVENT` và 78 `FUTURE_SCHEDULE`. |
-| FCS-08 | Alembic `0018 (head)`; migration/repeat/drift và isolated PostgreSQL regression đã pass ở snapshot trước (`307 passed, 1 skipped, 2 warnings`); lượt mới đang kiểm lại. |
-| FCS-09 | Master loader dry-run pass, `database_write=false`; apply/verify dữ liệu thật còn chờ approved pack và credential file ngoài repo. |
+| FCS-07 | Source preflight tại `2026-10-01T16:59:59Z`: `101/101 decided`, `0 orphan`, checksum verified, `42` future, `0` terminal candidate, `36` `FUTURE_SCHEDULE` warning; dry-run không ghi database. |
+| FCS-08 | Alembic `0018 (head)`; snapshot lịch sử ngày 2026-09-27 có `307 passed, 1 skipped, 2 warnings`. Task 2 rerun trên PostgreSQL disposable ngày 2026-10-01: migration/repeat/drift, seed repeat, synthetic rehearsal, full regression `379 passed, 1 skipped` và shutdown đều PASS; chưa là candidate cuối. |
+| FCS-09 | Master loader raw dry-run Task 2 PASS (`stage=all`, 12 workbook/101 dòng, `database_write=false`); synthetic clean-DB dry-run/apply/verify/retry PASS. Task 1 chỉ ghi DB local bằng READ ONLY: 38 table có dữ liệu/272 bản ghi. Các aggregate này không thay thế apply/verify/package evidence của candidate cuối. |
 | FCS-10 | Reference loader mở rộng category/maintenance/finance và cleaning/security/parcel initial-state; dry-run pass, `database_write=false`; reference count/apply trên DB sạch chưa chạy. |
 | FCS-11 | Contract và loader đã resolve scope/role/reference cho file 06, 07, 08, 12; terminal source state chỉ dành cho replay; chưa có DB readback. |
-| FCS-12 | Replay service có state transition, actor/scope, correlation, audit/domain event và idempotency; raw replay bị `PREFLIGHT_BLOCKED`, CLOSED cần evidence binary. |
+| FCS-12 | Replay service có state transition, actor/scope, correlation, audit/domain event và idempotency; source preflight hiện không bị terminal-time block, nhưng CLOSED vẫn cần evidence binary và replay phải được chứng minh trên candidate cuối. |
+
+Các mục chưa có reference count/apply/DB readback ở FCS-10..12 áp dụng cho
+approved raw pack và API readback sau restart. Chúng không phủ định synthetic
+clean-DB rehearsal của Task 2, vốn chỉ là evidence local.
 
 Raw `excel-data` vẫn chỉ đọc cục bộ. Không dùng kết quả dry-run hoặc migration
 rehearsal để tuyên bố dữ liệu thật đã được nạp vào database.

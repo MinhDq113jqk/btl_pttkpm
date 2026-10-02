@@ -684,9 +684,10 @@ def _replay_patrol_row(
     if shift is None:
         raise OperationalReplayError("SECURITY_SHIFT_REFERENCE_TARGET_MISSING")
     point_code = _required(row.get("patrol_point_code"), "PATROL_POINT_REQUIRED")
+    # Patrol points are keyed by site/code.  The resolved window keeps the
+    # building-specific scope through its security shift and own building ID.
     point = session.scalar(select(PatrolPoint).where(
         PatrolPoint.site_id == site.id,
-        PatrolPoint.building_id == building.id,
         PatrolPoint.code == point_code,
     ))
     if point is None:

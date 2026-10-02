@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 
 from app.core.security import hash_password
 from app.models.account import Account, AccountRole
+from app.models.building import Building
 from app.models.operations import (
     IncidentEscalation,
     IncidentEscalationAcknowledgement,
@@ -45,6 +46,13 @@ def test_fcs14_patrol_incident_and_parcel_replay_are_idempotent(monkeypatch, r2_
         tenant.code = tenant.code or f"R2-TENANT-{uuid4().hex[:8]}"
         site = session.get(type(case["sites"][0]), case["sites"][0].id)
         building = session.get(type(case["buildings"][0]), case["buildings"][0].id)
+        point_owner_building = Building(
+            site_id=site.id,
+            code=f"FCS14-POINT-{uuid4().hex[:8]}",
+            name="FCS14 point owner",
+        )
+        session.add(point_owner_building)
+        session.flush()
         director = session.get(type(case["accounts"]["director"]), case["accounts"]["director"].id)
         guard = Account(
             tenant_id=tenant.id,
@@ -69,7 +77,9 @@ def test_fcs14_patrol_incident_and_parcel_replay_are_idempotent(monkeypatch, r2_
         point = PatrolPoint(
             tenant_id=tenant.id,
             site_id=site.id,
-            building_id=building.id,
+            # The loader creates a site-scoped point once, then later source
+            # rows may reuse it for a different building's own patrol window.
+            building_id=point_owner_building.id,
             code="FCS14-P1",
             name="FCS14 point",
             created_by_id=director.id,

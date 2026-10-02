@@ -25,7 +25,8 @@ Repository `btl_pttkpm` công bố bundle tài liệu dưới
 - **`DATA_PROVENANCE.md`**: Hồ sơ nguồn `excel-data`, phân loại local-only và
   năm quyết định User/Owner còn chờ phê duyệt trước khi tích hợp dữ liệu thật.
 - **`DATA_SOURCE_MANIFEST.json`**: Inventory metadata-only của 12 workbook,
-  gồm hash, cấu trúc sheet và số dòng; không chứa giá trị ô hoặc header gốc.
+  gồm hash, cấu trúc sheet và số dòng; chỉ giữ local, không thuộc Git hoặc gói
+  nộp. Không chứa giá trị ô hoặc header gốc.
 - **`FINAL_SUBMISSION_CHECKLIST.md`**: Danh sách test và Final Submission Gate
   phải chạy trên cùng package candidate trước khi nộp.
 - **`V3-00_TRACEABILITY_MATRIX.md`**: Ma trận menu → UI → API → database → test và bằng chứng triển khai local.

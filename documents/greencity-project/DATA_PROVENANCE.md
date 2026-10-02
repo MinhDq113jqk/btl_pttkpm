@@ -1,12 +1,12 @@
 # Hồ sơ nguồn dữ liệu — GreenCity
 
-- **Phiên bản:** 1.0
-- **Trạng thái:** `OWNER_APPROVED_WITH_SOURCE_CORRECTION_PENDING`
+- **Phiên bản:** 1.1
+- **Trạng thái:** `LOCAL_SOURCE_PREFLIGHT_PASS_AND_DB_COUNT_RECORDED`
 - **Phạm vi:** chuẩn bị và kiểm chứng cục bộ cho bài nộp mã nguồn GreenCity.
 - **Vai trò quyết định:** `User/Owner`.
 - **Vai trò quản lý tài liệu:** `Codex`.
 - **Mã tham chiếu phê duyệt:** `OWNER-CHAT-2026-09-27` (xác nhận trong cuộc trao đổi hiện tại).
-- **Lần xem xét gần nhất:** `2026-09-27`.
+- **Lần xem xét gần nhất:** `2026-10-01`.
 
 ## 1. Nhận diện và phân loại nguồn
 
@@ -33,9 +33,11 @@ Quyền dùng dữ liệu thật có điều kiện đã được duyệt, nhưn
 nguyên số tiền/số lượng và chỉ dịch ngày theo quy tắc cố định. Vì vậy output
 tạo từ raw được gắn `LOCAL_VALIDATION_ONLY`, không được đưa vào gói
 nộp hoặc chia sẻ. Regex scan và preflight không chứng minh đã khử khả năng tái
-nhận diện. Gói demo duy nhất là bộ tổng hợp. Preflight ngày 2026-09-28 phát hiện
-30 `FUTURE_HISTORICAL_EVENT` và 5 `FUTURE_TERMINAL_EVENT` trong raw; User/Owner
-sẽ sửa các mốc theo sự kiện thật.
+nhận diện. Gói demo duy nhất là bộ tổng hợp. Preflight source tại cutoff
+`2026-10-01T16:59:59Z` đã PASS: 12 workbook/101 dòng, checksum verified,
+`0` orphan, `42` timestamp tương lai, `0` terminal candidate và `36`
+`FUTURE_SCHEDULE` warning không chặn. Kết quả này chỉ là bằng chứng local,
+không thay thế gate package cuối.
 
 ## 3. Retention và hủy dữ liệu
 
@@ -48,8 +50,9 @@ sẽ sửa các mốc theo sự kiện thật.
 | Bằng chứng hủy | Ghi nhận checklist sau khi việc chấm bài kết thúc; chưa thể tuyên bố đã hủy trước sự kiện đó | `User/Owner` chịu trách nhiệm |
 | Vai trò chịu trách nhiệm thực hiện | `User/Owner` | Đã xác nhận |
 
-Gói ẩn danh đã nộp cho giáo viên không thuộc nhóm "bản sao tạm local"; raw gốc
-chỉ ở máy User/Owner và không đi vào Git/package.
+Gói ẩn danh nếu được nộp cho giáo viên không thuộc nhóm "bản sao tạm local";
+raw gốc chỉ ở máy User/Owner và không đi vào Git/package. Trạng thái nộp hiện
+thời vẫn phải xem tại `FINAL_SUBMISSION_CHECKLIST.md`.
 
 ## 4. Quyết định timezone
 
@@ -57,7 +60,7 @@ chỉ ở máy User/Owner và không đi vào Git/package.
 |---|---|---|
 | Timezone site | `Asia/Ho_Chi_Minh` | User/Owner xác nhận 2026-09-27 |
 | Quy tắc lưu trữ | Diễn giải thời gian nguồn theo timezone site đã duyệt, sau đó lưu timestamp ở UTC | Đã duyệt |
-| Timestamp tương lai | 35 mốc sự kiện lịch sử/kết thúc còn chặn import tại lần kiểm 2026-09-28; User/Owner sẽ sửa theo sự kiện thật | Đang chờ sửa nguồn |
+| Timestamp tương lai | Preflight tại cutoff `2026-10-01T16:59:59Z` phân loại 42 timestamp tương lai; 0 terminal candidate và 36 lịch dự kiến warning không chặn | Đã đối chiếu local; cần đánh giá lại trên candidate cuối |
 
 ## 5. Bản ghi phê duyệt bắt buộc
 
@@ -69,11 +72,18 @@ chỉ ở máy User/Owner và không đi vào Git/package.
 | DP-04 | Retention, backup và hủy dữ liệu tạm local | `User/Owner` | `OWNER-CHAT-2026-09-27` | `2026-09-27` | Sau khi chấm bài |
 | DP-05 | Timezone site cuối cùng | `User/Owner` | `OWNER-CHAT-2026-09-27` | `2026-09-27` | Trước lần import cuối |
 
-FCS-01 đã có quyết định của User/Owner cho DP-01..DP-05. Bản dữ liệu thật chỉ
-được replay sau khi User/Owner sửa các timestamp sự kiện sai và preflight PASS;
-quyết định phê duyệt không thay thế kiểm tra kỹ thuật này.
+FCS-01 đã có quyết định của User/Owner cho DP-01..DP-05. Source preflight hiện
+PASS, nhưng quyết định phê duyệt và số liệu database local không thay thế kiểm
+tra kỹ thuật, package scan hoặc clean-clone trên candidate cuối.
 
-## 6. Cam kết không chứa dữ liệu nhạy cảm
+## 6. Đối chiếu database cục bộ
+
+Lần đối chiếu `READ ONLY` ngày 2026-10-01 trên database `green_city` chỉ ghi
+metadata aggregate: 61 base table (không tính `alembic_version`), 38 table có
+dữ liệu và 272 bản ghi tổng cộng. Không đọc hoặc ghi giá trị dòng, không xác
+nhận provenance từng bản ghi, và không chứng minh gói nộp hoặc môi trường sạch.
+
+## 7. Cam kết không chứa dữ liệu nhạy cảm
 
 Tài liệu này không chứa giá trị ô thô, tên, email, số điện thoại, thông tin đăng
 nhập, secret, PIN, nội dung workbook, checksum, tên từng workbook, số dòng, số

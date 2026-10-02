@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import shutil
 import json
 import sys
+from uuid import uuid4
 
 import pytest
 
@@ -119,6 +120,76 @@ def test_loader_resolves_raw_manifest_format_without_reading_raw_data(tmp_path):
 def test_loader_normalizes_source_datetime_to_utc():
     value = datetime.fromisoformat("2026-09-27T09:00:00+07:00")
     assert loader._utc(value, field="created_at") == datetime(2026, 9, 27, 2, tzinfo=UTC)
+
+
+def test_security_shift_reference_payload_is_stable_across_patrol_statuses(monkeypatch):
+    """A shift reference must not depend on any individual patrol window state."""
+
+    start = datetime(2026, 9, 27, 2, tzinfo=UTC)
+    source_rows = {
+        "03_toa_nha_can_ho.xlsx": [
+            {"tenant_code": "T1", "site_code": "SITE-1", "building_code": "BUILDING-1"},
+        ],
+        "07_an_ninh_tuan_tra.xlsx": [
+            {
+                "site_code": "SITE-1", "building_code": "BUILDING-1", "guard_username": "guard-1",
+                "shift_code": "SHIFT-1", "scheduled_start": start,
+                "scheduled_end": start.replace(hour=4), "patrol_point_code": "POINT-1",
+                "window_start": start, "window_end": start.replace(hour=3),
+                "patrol_status": "COMPLETED",
+            },
+            {
+                "site_code": "SITE-1", "building_code": "BUILDING-1", "guard_username": "guard-1",
+                "shift_code": "SHIFT-1", "scheduled_start": start,
+                "scheduled_end": start.replace(hour=4), "patrol_point_code": "POINT-2",
+                "window_start": start.replace(hour=3), "window_end": start.replace(hour=4),
+                "patrol_status": "MISSED",
+            },
+        ],
+    }
+    tenant = SimpleNamespace(id=uuid4())
+    site = SimpleNamespace(id=uuid4(), code="SITE-1")
+    building = SimpleNamespace(id=uuid4(), code="BUILDING-1")
+    guard = SimpleNamespace(id=uuid4())
+    captured = []
+
+    class Session:
+        def __init__(self):
+            self.shift = None
+
+        def query(self, _model):
+            return SimpleNamespace(count=lambda: 0)
+
+        def scalar(self, statement):
+            entity = statement.column_descriptions[0].get("entity")
+            return self.shift if getattr(entity, "__name__", "") == "SecurityShift" else None
+
+        def add(self, value):
+            if type(value).__name__ == "SecurityShift":
+                value.id = uuid4()
+                self.shift = value
+
+        def flush(self):
+            pass
+
+    monkeypatch.setattr(loader, "_rows", lambda _pack, file_name: source_rows.get(file_name, []))
+    monkeypatch.setattr(loader, "_reference_site_building", lambda *_args: (tenant, site, building))
+    monkeypatch.setattr(loader, "_reference_account_with_role", lambda *_args, **_kwargs: guard)
+    monkeypatch.setattr(
+        loader,
+        "upsert_external_reference",
+        lambda _session, _run, **kwargs: captured.append(kwargs),
+    )
+
+    session = Session()
+    loader.load_references(session, object(), SimpleNamespace())
+
+    assert len(captured) == 2
+    assert {reference["target_id"] for reference in captured} == {session.shift.id}
+    assert [reference["payload"] for reference in captured] == [
+        {"shift_code": "SHIFT-1"},
+        {"shift_code": "SHIFT-1"},
+    ]
 
 
 def test_replay_helper_includes_service_requests_before_other_domains(monkeypatch):

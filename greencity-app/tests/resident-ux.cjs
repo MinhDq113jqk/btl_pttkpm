@@ -95,6 +95,8 @@ const requestView = body => ({
     await form.getByRole('button', { name: 'Gửi yêu cầu', exact: true }).click();
     const validationSummary = form.getByRole('alert').filter({ hasText: 'Kiểm tra lại thông tin yêu cầu' });
     await validationSummary.waitFor();
+    // The component focuses the newly rendered summary on the next animation frame.
+    await page.waitForFunction(() => document.activeElement?.classList.contains('resident-validation-summary'));
     check('invalid resident form focuses a linked error summary and marks fields', await page.evaluate(() => document.activeElement?.classList.contains('resident-validation-summary'))
       && await validationSummary.getByRole('link').count() === 4
       && await form.getByLabel('Căn hộ').getAttribute('aria-invalid') === 'true');

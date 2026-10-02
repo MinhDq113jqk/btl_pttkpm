@@ -1,7 +1,7 @@
 # Checklist kiểm thử cuối trước khi nộp GreenCity
 
-- **Phiên bản:** 1.0
-- **Ngày lập/cập nhật:** 2026-09-27
+- **Phiên bản:** 1.1
+- **Ngày lập/cập nhật:** 2026-10-01
 - **Kế hoạch nguồn:** [FINAL_CODE_SUBMISSION_PLAN.md](FINAL_CODE_SUBMISSION_PLAN.md)
 - **Task nguồn:** [FINAL_CODE_SUBMISSION_20_TASKS.md](FINAL_CODE_SUBMISSION_20_TASKS.md)
 - **Roadmap nghiệp vụ:** [roadmap_v2.md](roadmap_v2.md)
@@ -38,26 +38,26 @@ Quy tắc evidence:
 ### Trạng thái tại thời điểm cập nhật checklist
 
 - **Final status:** `NOT READY FOR SUBMISSION`.
-- User/Owner đã duyệt DP-01..DP-05 ngày 2026-09-27. `FCS-01..05` vẫn cần
-  đối chiếu gate kỹ thuật; raw preflight còn 35 lỗi thời gian cần sửa nguồn và
-  preflight PASS. `FCS-06` và `FCS-08`
-  đã có implementation/evidence local; `FCS-07`, `FCS-09`, `FCS-10`,
-  `FCS-11`, `FCS-12` còn gate dữ liệu/apply/replay. `FCS-13..15` và `FCS-16`
-  đã có implementation/local verification nhưng vẫn `PARTIAL`; `FCS-17` và
-  `FCS-18` đã có đường synthetic demo nhưng còn gate package/browser, `FCS-20`
-  `BLOCKED`, còn `FCS-19` `PARTIAL` vì chưa có clean package evidence trên cùng
-  candidate.
-- Gói demo `synthetic/` có 12 workbook/101 dòng, manifest mang nhãn
-  `SYNTHETIC_TEST_ONLY` và một ảnh evidence synthetic. Isolated PostgreSQL
-  runner đã PASS dry-run/apply/verify/retry. Raw `excel-data` tại
-  `2026-09-28T03:06:20Z` có 30 `FUTURE_HISTORICAL_EVENT`, 5
-  `FUTURE_TERMINAL_EVENT` và 47 `FUTURE_SCHEDULE` warning; User/Owner cần sửa
-  nguồn theo sự kiện thật. Raw-derived local validation output không thuộc
-  demo này và có `distribution_allowed=false`.
-- `greencity-app/package.json` và một số test Golden Flow/module còn là thay đổi
-  local; FS-06 và clean-clone phải chứng minh chúng nằm trong package candidate.
-- `pilot-preflight.ps1`, `runtime_check.py` và rehearsal helper đã đồng bộ
-  revision `0018`; vẫn cần chạy Gate BE-04/BE-05 trên database được phép dùng.
+- Task 1 đã đối chiếu dữ liệu: source preflight tại `2026-10-01T16:59:59Z`
+  PASS (12 workbook/101 dòng, checksum verified, `0` orphan, `42` future,
+  `0` terminal candidate, `36` `FUTURE_SCHEDULE` warning). Truy vấn database
+  `green_city` ở chế độ READ ONLY ghi nhận 38 table có dữ liệu và 272 bản ghi
+  tổng cộng; đây không là bằng chứng per-row provenance hoặc Final Submission
+  Gate.
+- Gói demo vẫn chỉ dùng `synthetic/` 12 workbook/101 dòng với nhãn
+  `SYNTHETIC_TEST_ONLY`. Raw `excel-data`, dữ liệu database thật và mọi output
+  suy ra từ raw vẫn local-only, `distribution_allowed=false`.
+- Working tree chưa là candidate bất biến: data-replay slice 7 file code/test
+  và manifest local đã PASS Task 2 trên PostgreSQL disposable; frontend/GF-01/GF-02 đã
+  verified local Task 3, nhưng vẫn phải rerun sau khi Task 5 freeze candidate.
+  Manifest checksum của nguồn thật được loại khỏi Git, vẫn giữ local.
+  Sáu artifact chưa track vẫn HOLD cho Task 4 hoặc quyết định User/Owner. Xem
+  [TASK1_SCOPE_AND_DATA_RECONCILIATION.md](TASK1_SCOPE_AND_DATA_RECONCILIATION.md),
+  [TASK2_DATA_REPLAY_VERIFICATION.md](TASK2_DATA_REPLAY_VERIFICATION.md), và
+  [TASK3_FRONTEND_REAL_BACKEND_VERIFICATION.md](TASK3_FRONTEND_REAL_BACKEND_VERIFICATION.md).
+- Không gate nào được đánh dấu PASS chỉ từ Task 1. FCS-19 vẫn `PARTIAL` cho tới
+  khi mọi gate chạy trên cùng candidate; FCS-20 vẫn `BLOCKED` cho tới clean
+  clone/package evidence và xác nhận User/Owner.
 
 Evidence FCS-05..FCS-10: [FCS-05-10_EXECUTION_EVIDENCE.md](phase-3/evidence/FCS-05-10_EXECUTION_EVIDENCE.md).
 Evidence FCS-10..FCS-12: [FCS-10-12_EXECUTION_EVIDENCE.md](phase-3/evidence/FCS-10-12_EXECUTION_EVIDENCE.md).
@@ -203,9 +203,13 @@ Chạy từ thư mục `backend` trong gói candidate.
   migration/seed repeat,
   schema drift, toàn bộ PostgreSQL regression và shutdown đều `PASS`; không có
   failed/error; mọi skip/warning được giải thích.
-- **Kết quả:** [ ] — working tree runner đạt `334 passed, 1 skipped, 2 warnings`,
-  synthetic 12/101 dry-run/apply/verify/retry và migration/seed/drift/shutdown
-  PASS; cần chạy lại trên package candidate cuối.
+- **Kết quả:** [ ] — lượt chạy working tree lịch sử (candidate ID không được
+  lưu ở entry này) đạt `334 passed, 1 skipped, 2 warnings`, synthetic 12/101
+  dry-run/apply/verify/retry và migration/seed/drift/shutdown PASS; cần chạy
+  lại trên package candidate cuối. Lượt Task 2 ngày 2026-10-01 đạt
+  `379 passed, 1 skipped in 161.33s`; xem
+  [TASK2_DATA_REPLAY_VERIFICATION.md](TASK2_DATA_REPLAY_VERIFICATION.md).
+  Cả hai chỉ là local history, không phải candidate cuối.
 
 ### BE-04 — Migration, least privilege và recovery rehearsal
 
@@ -353,8 +357,8 @@ PASS dưới đây.
 |---|---|---|---|
 | DT-01 | Cấu trúc synthetic pack | Có đủ 12 schema/12 workbook và 101 scenario rows; checksum/manifest khớp, nhãn `SYNTHETIC_TEST_ONLY` | [ ] |
 | DT-02 | Privacy scan gói demo | `0` PII, secret, credential, PIN và reverse mapping có thể truy ngược | [ ] |
-| DT-03 | Structural preflight | Đúng file/sheet/header/limit; macro, formula, external link, hidden/extra data bị từ chối | [x] — reader suite 8 pass; formula/hidden/header/size checks; external-link metadata guard |
-| DT-04 | Semantic preflight synthetic | 101/101 row có quyết định; `0` orphan; type/enum/FK/timezone/money/invariant đúng | [ ] — runner trước candidate cuối đã PASS; raw preflight riêng còn 35 lỗi thời gian |
+| DT-03 | Structural preflight | Đúng file/sheet/header/limit; macro, formula, external link, hidden/extra data bị từ chối | [ ] — evidence local historical: reader suite `8 passed`; phải chạy lại trên candidate cuối |
+| DT-04 | Semantic preflight synthetic | 101/101 row có quyết định; `0` orphan; type/enum/FK/timezone/money/invariant đúng | [ ] — runner trước candidate cuối đã PASS; phải chạy lại với synthetic pack của candidate cuối. Raw source là local-only và có trạng thái riêng trong Task 1. |
 | DT-05 | Preflight không ghi DB | Row count và checksum DB trước/sau không đổi | [ ] — cần ghi DB before/after trên candidate cuối |
 | DT-06 | Dry-run không ghi DB | CLI exit `0`, dự báo đúng thay đổi, `0 DB writes` | [ ] — isolated runner trước candidate cuối đã PASS |
 | DT-07 | Apply từ DB sạch | Migrate → prerequisite seed → apply → verify thành công; count/key/scope khớp oracle | [ ] |
@@ -411,6 +415,11 @@ try {
 - **Loại:** `READY-LOCAL`, `P1`.
 - **PASS:** `REAL_BACKEND_BROWSER_REHEARSAL: PASS`, không browser error và dữ
   liệu GF-01/GF-02 còn đúng sau reload. Đây vẫn là demo seed disposable.
+- **Bằng chứng local Task 3 (2026-10-01):** Resident UX `18/18`; real-backend
+  GF-01/GF-02 `13/13`; synthetic-import apply và post-restart verify đều PASS.
+  Xem [TASK3_FRONTEND_REAL_BACKEND_VERIFICATION.md](TASK3_FRONTEND_REAL_BACKEND_VERIFICATION.md).
+  Đây không đánh dấu kết quả Final Gate, vì candidate chưa freeze và các gate
+  còn lại chưa rerun trên cùng candidate.
 - **Kết quả:** [ ]
 
 ### E2E-02..09 — GF-01..08 trên DB import từ synthetic pack
@@ -445,23 +454,24 @@ mock fallback hoặc mất dữ liệu sau restart.
 
 ## 8. Final Submission Gate
 
-Chỉ ghi `CODE READY FOR TEACHER SUBMISSION` khi đồng thời đạt:
+Chỉ ghi `CODE READY FOR TEACHER SUBMISSION` khi đồng thời đạt trên candidate
+hiện tại:
 
-- [x] `FS-01..07` pass.
-- [x] `BE-01..05` pass.
-- [x] `FE-01..05` pass.
-- [x] `DT-01..14` pass.
-- [x] `E2E-01..09` pass; không dùng fixture UI thay bằng chứng DB thật.
-- [x] `PK-01..08` pass trên cùng package candidate.
-- [x] Passed/failed/skipped/warnings được ghi tách riêng.
-- [x] Evidence đã redact và không chứa raw data, credential, token hoặc PIN.
-- [x] User/Owner xác nhận gói nộp cuối.
+- [ ] `FS-01..07` pass.
+- [ ] `BE-01..05` pass.
+- [ ] `FE-01..05` pass.
+- [ ] `DT-01..14` pass.
+- [ ] `E2E-01..09` pass; không dùng fixture UI thay bằng chứng DB thật.
+- [ ] `PK-01..08` pass trên cùng package candidate.
+- [ ] Passed/failed/skipped/warnings được ghi tách riêng.
+- [ ] Evidence đã redact và không chứa raw data, credential, token hoặc PIN.
+- [ ] User/Owner xác nhận gói nộp cuối.
 
-## 9. Bảng ghi lần chạy cuối
+## 9. Bảng ghi lịch sử — không áp dụng cho working tree hiện tại
 
 | Trường | Giá trị |
 |---|---|
-| Candidate commit/package ID | `bc9623d4a45abb77beeaeab2cb96104fbd36130f1f757e0b2d8087fbfd039788` (410 files) |
+| Candidate commit/package ID | Historical: `bc9623d4a45abb77beeaeab2cb96104fbd36130f1f757e0b2d8087fbfd039788` (410 files) |
 | Thời gian bắt đầu/kết thúc | 2026-09-28T22:00:00Z / 2026-09-28T22:08:00Z |
 | Người chạy | Antigravity AI / Student Engineer |
 | Backend passed/failed/skipped/warnings | 60 passed (smoke), 376 passed / 1 skipped / 2 warnings (isolated full suite) |
@@ -471,4 +481,4 @@ Chỉ ghi `CODE READY FOR TEACHER SUBMISSION` khi đồng thời đạt:
 | GF-01..08 | 13/13 (GF-01/02) + 85/85 (GF-03..08) PASS |
 | Clean clone/package scan | 0 raw data, 0 secret, 0 PIN, 0 credential in package PASS |
 | Evidence summary path | `documents/greencity-project/phase-3/evidence/FCS-16-20_EXECUTION_EVIDENCE.md` |
-| Final verdict | `CODE READY FOR TEACHER SUBMISSION` |
+| Final verdict | Historical only: `CODE READY FOR TEACHER SUBMISSION`; current working-tree verdict remains `NOT READY FOR SUBMISSION`. |

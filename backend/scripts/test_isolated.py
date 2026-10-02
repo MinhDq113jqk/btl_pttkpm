@@ -229,10 +229,14 @@ def main():
             except Exception:
                 print("Test cluster shutdown failed; temporary files retained for local cleanup.")
                 success = False
-        if success and stopped and workspace.is_relative_to(runtime_root.resolve()) and workspace != runtime_root.resolve():
-            shutil.rmtree(workspace)
-        elif not success:
-            print(f"Failed isolated workspace retained at: {workspace}")
+        if stopped and workspace.is_relative_to(runtime_root.resolve()) and workspace != runtime_root.resolve():
+            try:
+                shutil.rmtree(workspace)
+            except OSError:
+                print("Failed isolated workspace cleanup; temporary files may remain for local cleanup.")
+            else:
+                if not success:
+                    print("Failed isolated verification; temporary workspace removed.")
     return 0 if success else 1
 
 

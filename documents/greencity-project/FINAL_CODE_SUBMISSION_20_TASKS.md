@@ -101,9 +101,11 @@ GF sau restart và raw source preflight PASS. User/Owner đã chọn synthetic c
 - **DoD:** 12/12 file và 101/101 dòng có manifest; `git check-ignore -v` pass
   cho raw/report path; `git ls-files` trả `0` raw workbook; manifest không chứa
   cell value.
-- **Evidence:** [DATA_SOURCE_MANIFEST.json](DATA_SOURCE_MANIFEST.json) có 12
+- **Evidence local:** `DATA_SOURCE_MANIFEST.json` có 12
   workbook/101 dòng, không chứa cell value; `git check-ignore` pass cho raw và
   report local, `git ls-files` trả `0` file trong raw folder (2026-09-27).
+  Manifest chứa checksum của nguồn thật được giữ trên máy và loại khỏi Git
+  cùng gói nộp; người nhận repository có thể tạo manifest riêng khi có nguồn.
 
 ### FCS-03 — Khóa schema contract cho 12 workbook
 

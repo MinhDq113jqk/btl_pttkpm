@@ -741,7 +741,7 @@ def load_references(session, pack: SubmissionPack, run) -> dict[str, int]:
         window_end = _utc(row.get("window_end"), field="window_end")
         if end <= start or window_end <= window_start or window_start < start or window_end > end:
             raise SubmissionImportError("SECURITY_WINDOW_INVALID")
-        patrol_status = normalize_enum(row.get("patrol_status"), ("SCHEDULED", "COMPLETED", "MISSED", "CANCELLED"), field="patrol_status", output_case="preserve")
+        normalize_enum(row.get("patrol_status"), ("SCHEDULED", "COMPLETED", "MISSED", "CANCELLED"), field="patrol_status", output_case="preserve")
         event_type = _text(row.get("event_type"))
         if event_type:
             normalize_enum(event_type, ("CHECK_IN", "CHECK_OUT", "NOTE"), field="patrol_event_type", output_case="preserve")
@@ -822,7 +822,7 @@ def load_references(session, pack: SubmissionPack, run) -> dict[str, int]:
         upsert_external_reference(
             session, run, tenant_id=tenant.id, source="security", entity_type="SecurityShift",
             source_key=shift_ref_key, target_id=shift.id,
-            payload={"shift_code": shift_code, "source_status": patrol_status},
+            payload={"shift_code": shift_code},
         )
         counts["security_shifts"] += 1
         counts["patrol_points"] += 1

@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Callable, Mapping
 from uuid import UUID, uuid5
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.models.account import Account, AccountRole
@@ -93,9 +93,9 @@ def _unique_role_account(
         Account.tenant_id == tenant_id,
         Account.is_active.is_(True),
         AccountRole.site_id == site_id,
-        AccountRole.building_id == building_id,
+        or_(AccountRole.building_id == building_id, AccountRole.building_id.is_(None)),
         AccountRole.role == role,
-    ).order_by(Account.id)).all()
+    ).distinct().order_by(Account.id)).all()
     if len(rows) != 1:
         raise SubmissionReplayError(error_code)
     return rows[0]

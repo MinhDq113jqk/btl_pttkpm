@@ -52,6 +52,9 @@ deploy/secrets/*
 documents/greencity-project/excel-data/
 documents/greencity-project/data_that/
 
+# Source checksums are local metadata for restricted real workbooks.
+documents/greencity-project/DATA_SOURCE_MANIFEST.json
+
 # Outputs derived from restricted raw data stay local, including failed staging.
 **/local_validation_pack/
 **/local_validation_manifest.json
