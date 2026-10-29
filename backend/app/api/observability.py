@@ -1,3 +1,4 @@
+from app.services.sad_completion import sla_deadline
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -24,7 +25,7 @@ from app.schemas.r5 import (
     OutboxEventListResponse,
     OutboxEventView,
 )
-from app.services.r2 import audit, calculate_sla_deadline
+from app.services.r2 import audit
 
 
 router = APIRouter(tags=["R5 control and audit"])
@@ -77,7 +78,7 @@ def _dashboard_requests(session, context: UserContext, as_of: datetime) -> list[
     # The lifecycle timestamps, rather than the current status, make a request
     # resolved after the cutoff visible in a historical snapshot.
     return [record for record in records if (
-        calculate_sla_deadline(record.sla_started_at, record.sla_duration_minutes) <= as_of
+        sla_deadline(record, as_of=as_of) <= as_of
         and (record.resolved_at is None or record.resolved_at > as_of)
         and (record.closed_at is None or record.closed_at > as_of)
     )]
@@ -170,7 +171,7 @@ def get_dashboard_drill_down(
                 metric=metric, resource_type="ServiceRequest", resource_id=record.id,
                 building_id=record.building_id, reference=record.code, title=record.title,
                 status=record.status,
-                occurred_at=calculate_sla_deadline(record.sla_started_at, record.sla_duration_minutes),
+                occurred_at=sla_deadline(record, as_of=as_of),
             ) for record in _dashboard_requests(session, current_user, as_of)]
         elif metric == "maintenance_due":
             items = [DashboardDrillDownItem(

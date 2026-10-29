@@ -23,7 +23,7 @@ class ReadinessResponse(BaseModel):
     schema_revision: str
 
 
-EXPECTED_SCHEMA_REVISION = "0018"
+EXPECTED_SCHEMA_REVISION = "0026"
 
 
 @router.get("/health", response_model=HealthResponse)

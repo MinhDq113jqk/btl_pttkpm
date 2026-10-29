@@ -1,7 +1,7 @@
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, ForeignKeyConstraint, Index, Integer, JSON, String, Text, UniqueConstraint, Uuid
+from sqlalchemy import CheckConstraint, Date, DateTime, ForeignKey, ForeignKeyConstraint, Index, Integer, JSON, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, IdentityTimestampMixin
@@ -19,7 +19,7 @@ class Asset(IdentityTimestampMixin, Base):
     __table_args__ = scope_args() + (
         ForeignKeyConstraint(["unit_id", "building_id"], ["greencity.units.id", "greencity.units.building_id"], ondelete="RESTRICT"),
         UniqueConstraint("site_id", "code", name="uq_assets_site_code"),
-        CheckConstraint("status IN ('ACTIVE','INACTIVE','RETIRED')", name="assets_status"),
+        CheckConstraint("status IN ('ACTIVE','INACTIVE','RETIRED','DISPOSED')", name="assets_status"),
         Index("ix_assets_scope_status", "tenant_id", "site_id", "status"),
         Index("ix_assets_unit_id", "unit_id"),
     )
@@ -31,6 +31,10 @@ class Asset(IdentityTimestampMixin, Base):
     code: Mapped[str] = mapped_column(String(50), nullable=False)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    serial: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    location: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    warranty_until: Mapped[date | None] = mapped_column(Date, nullable=True)
+    inspection_due_on: Mapped[date | None] = mapped_column(Date, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="ACTIVE")
     created_by_id: Mapped[UUID] = mapped_column(ForeignKey("greencity.accounts.id", ondelete="RESTRICT"), nullable=False)
     updated_by_id: Mapped[UUID] = mapped_column(ForeignKey("greencity.accounts.id", ondelete="RESTRICT"), nullable=False)

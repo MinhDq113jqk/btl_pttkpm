@@ -1,10 +1,16 @@
+import { PropertyWorkflowPanel } from './PropertyWorkflowPanel';
+import { ReceivablePanel } from './FinancialControlPanel';
+import { GroundedAssistantPanel } from './SadExtensionPanels';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowUpRight, Bell, Building2, CalendarClock, CheckCircle2, CircleAlert,
   FileImage, Home, LoaderCircle, LogOut, Paperclip, ReceiptText, RefreshCw,
   Send, ShieldCheck, WalletCards, X,
 } from 'lucide-react';
+import { NotificationAcknowledgement } from './NotificationAcknowledgement';
 import { GreenCityLogo } from './GreenCityLogo';
+import { ResidentProfilePanel, DossiersPanel, VehiclesPanel, BookingsPanel, RequestConversation, State, usePortalData } from './PortalPanels';
+import { ServicesPanel, PaymentsPanel, DepositsPanel, DocumentsPanel, ContentPanel, SettingsPanel } from './PortalExtraPanels';
 
 const STATUS_LABELS = {
   NEW: 'Mới tiếp nhận',
@@ -57,7 +63,7 @@ function ResidentRequestsPanel({
   account, options, optionsError, requestState, selectedRequestId, setSelectedRequestId,
   detail, showCreate, setShowCreate, form, setForm, createErrors, setCreateErrors, createErrorSummaryRef, busy, feedback, setFeedback,
   onCreate, onUpdate, editForm, setEditForm, evidenceFile, setEvidenceFile, onUploadEvidence,
-  onRetry,
+  onRetry, client,
 }) {
   const categories = useMemo(() => {
     const unit = options.units.find(item => item.id === form.unit_id);
@@ -114,6 +120,7 @@ function ResidentRequestsPanel({
           <div className="resident-detail-heading"><div><p className="resident-eyebrow">{detail.item.code}</p><h2>{detail.item.title}</h2><p>{detail.item.unit_id} · Cập nhật {formatTime(detail.item.updated_at)}</p></div><RequestStatus status={detail.item.status} /></div>
           <dl className="resident-detail-facts"><div><dt>Ưu tiên</dt><dd>{PRIORITY_LABELS[detail.item.priority] || detail.item.priority}</dd></div><div><dt>Hạn SLA</dt><dd>{formatTime(detail.item.sla_deadline)}</dd></div><div><dt>Ngày tạo</dt><dd>{formatTime(detail.item.created_at)}</dd></div><div><dt>Phiên bản</dt><dd>{detail.item.version}</dd></div></dl>
           <p className="resident-description">{detail.item.description}</p>
+          <RequestConversation client={client} requestId={detail.item.id} onChange={onRetry} />
           {editable && <form className="resident-edit-form" onSubmit={onUpdate}><h3>Chỉnh sửa khi đang tiếp nhận</h3><label>Tiêu đề<input value={editForm.title} onChange={event => setEditForm(previous => ({ ...previous, title: event.target.value }))} minLength={3} maxLength={200} /></label><label>Ưu tiên<select value={editForm.priority} onChange={event => setEditForm(previous => ({ ...previous, priority: event.target.value }))}><option value="LOW">{PRIORITY_LABELS.LOW}</option><option value="MEDIUM">{PRIORITY_LABELS.MEDIUM}</option><option value="HIGH">{PRIORITY_LABELS.HIGH}</option><option value="URGENT">{PRIORITY_LABELS.URGENT}</option></select></label><label>Mô tả<textarea rows={3} value={editForm.description} onChange={event => setEditForm(previous => ({ ...previous, description: event.target.value }))} minLength={3} maxLength={4000} /></label><button className="button-secondary" type="submit" disabled={busy === 'update'}>{busy === 'update' ? 'Đang lưu…' : 'Lưu thay đổi'}</button></form>}
           <section className="resident-subsection"><h3><CalendarClock size={16} aria-hidden="true" />Lịch sử xử lý</h3>{detail.timeline.length === 0 ? <p className="resident-muted">Chưa có sự kiện hiển thị.</p> : <ol className="resident-timeline">{detail.timeline.map(event => <li key={event.id}><span className="resident-timeline-dot" /><div><strong>{event.event_type}</strong><span>{formatTime(event.created_at)} · {event.action}</span>{event.after_status && <small>{STATUS_LABELS[event.after_status] || event.after_status}{event.after_priority ? ` · ${PRIORITY_LABELS[event.after_priority] || event.after_priority}` : ''}</small>}</div></li>)}</ol>}</section>
           <section className="resident-subsection"><div className="resident-subsection-heading"><h3><Paperclip size={16} aria-hidden="true" />Ảnh bằng chứng</h3><span>{detail.evidence.length}</span></div>{detail.evidence.length > 0 && <ul className="resident-evidence-list">{detail.evidence.map(item => <li key={item.id}><FileImage size={17} aria-hidden="true" /><div><strong>{item.original_name}</strong><span>{Math.max(1, Math.round(item.size_bytes / 1024))} KB · {formatTime(item.created_at)}</span></div></li>)}</ul>}{editable && <div className="resident-upload-row"><label className="resident-file-input"><Paperclip size={16} aria-hidden="true" /><span>{evidenceFile?.name || 'Chọn ảnh PNG/JPEG'}</span><input type="file" accept="image/png,image/jpeg" onChange={event => setEvidenceFile(event.target.files?.[0] || null)} /></label><button type="button" className="button-secondary" onClick={onUploadEvidence} disabled={!evidenceFile || busy === 'evidence'}>{busy === 'evidence' ? 'Đang tải…' : 'Tải ảnh lên'}</button></div>}</section>
@@ -141,17 +148,23 @@ function ResidentBillingPanel({ billingState, onRetry, asOf }) {
   </div>;
 }
 
-function ResidentNotificationsPanel({ notificationState, showRead, setShowRead, onMarkRead, onRetry }) {
+function ResidentNotificationsPanel({ client, notificationState, showRead, setShowRead, onMarkRead, onRetry }) {
   return <div className="resident-page">
     <div className="resident-page-heading"><div><p className="resident-eyebrow">Kết nối với Ban quản lý</p><h1>Thông báo</h1><p>Thông tin gửi tới đúng tài khoản và site hiện hành; mã đối chiếu giúp tra cứu khi cần hỗ trợ.</p></div><label className="resident-toggle"><input type="checkbox" checked={showRead} onChange={event => setShowRead(event.target.checked)} />Hiện đã đọc</label></div>
     {notificationState.error && <ResidentError title="Không tải được hộp thư" error={notificationState.error} onRetry={onRetry} />}
     {notificationState.loading && <div className="resident-loading" role="status"><LoaderCircle className="request-spinner" size={20} aria-hidden="true" />Đang tải thông báo…</div>}
-    {!notificationState.loading && !notificationState.error && <section className="surface resident-notification-card" aria-label="Hộp thư cư dân"><div className="resident-card-heading"><div><h2>{showRead ? 'Tất cả thông báo' : 'Chưa đọc'}</h2><p>{notificationState.unreadCount} thông báo chưa đọc</p></div><Bell size={20} aria-hidden="true" /></div>{notificationState.items.length === 0 ? <div className="resident-empty"><Bell size={28} aria-hidden="true" /><h3>Hộp thư đang trống</h3><p>Thông báo mới sẽ xuất hiện tại đây.</p></div> : <div className="resident-notification-list">{notificationState.items.map(item => { const title = item.template_snapshot?.title || item.template_code; const body = item.template_snapshot?.body || item.template_snapshot?.detail || ''; return <article key={item.id} className={`resident-notification ${item.read_at ? 'is-read' : 'is-unread'}`}><div className="resident-notification-icon"><Bell size={17} aria-hidden="true" /></div><div className="resident-notification-copy"><div><strong>{title}</strong>{!item.read_at && <span className="resident-unread-dot" aria-label="Chưa đọc" />}</div><p>{body}</p><small>{formatTime(item.created_at)} · Mã đối chiếu {item.correlation_id}</small></div>{!item.read_at && <button type="button" className="button-text" onClick={() => onMarkRead(item)}>Đánh dấu đã đọc</button>}</article>; })}</div>}</section>}
+    {!notificationState.loading && !notificationState.error && <section className="surface resident-notification-card" aria-label="Hộp thư cư dân"><div className="resident-card-heading"><div><h2>{showRead ? 'Tất cả thông báo' : 'Chưa đọc'}</h2><p>{notificationState.unreadCount} thông báo chưa đọc</p></div><Bell size={20} aria-hidden="true" /></div>{notificationState.items.length === 0 ? <div className="resident-empty"><Bell size={28} aria-hidden="true" /><h3>Hộp thư đang trống</h3><p>Thông báo mới sẽ xuất hiện tại đây.</p></div> : <div className="resident-notification-list">{notificationState.items.map(item => { const title = item.template_snapshot?.title || item.template_code; const body = item.template_snapshot?.body || item.template_snapshot?.detail || ''; return <article key={item.id} className={`resident-notification ${item.read_at ? 'is-read' : 'is-unread'}`}><div className="resident-notification-icon"><Bell size={17} aria-hidden="true" /></div><div className="resident-notification-copy"><div><strong>{title}</strong>{!item.read_at && <span className="resident-unread-dot" aria-label="Chưa đọc" />}</div><p>{body}</p>{item.template_snapshot?.requires_ack && <NotificationAcknowledgement client={client} row={item} onDone={onRetry} />}<small>{formatTime(item.created_at)} · Mã đối chiếu {item.correlation_id}</small></div>{!item.read_at && <button type="button" className="button-text" onClick={() => onMarkRead(item)}>Đánh dấu đã đọc</button>}</article>; })}</div>}</section>}
   </div>;
 }
 
-export function ResidentPortalView({ account, client, onLogout, onSwitchSite, isSwitchingSite = false, siteSwitchError }) {
-  const [activeSection, setActiveSection] = useState('requests');
+export function ResidentPortalView({ onChangePassword, passwordChangeError, onLogoutAll, account, client, onLogout, onSwitchSite, isSwitchingSite = false, siteSwitchError }) {
+  const [activeSection, setActiveSection] = useState(window.location.hash === '#/resident-payment' ? 'payments' : 'profile');
+  const [unitId, setUnitId] = useState('');
+  const profile = usePortalData(client, '/profile', unitId ? { unit_id: unitId } : {});
+  const selectedUnit = unitId ? profile.data?.units?.find(u => u.id === unitId) : profile.data?.units?.[0];
+  const permissions = selectedUnit?.permissions || [];
+  const permitted = permission => permissions.includes(permission);
+  useEffect(() => { if (!unitId && profile.data?.selected_unit_id) setUnitId(profile.data.selected_unit_id); }, [profile.data, unitId]);
   const [showCreate, setShowCreate] = useState(false);
   const [selectedRequestId, setSelectedRequestId] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -170,7 +183,7 @@ export function ResidentPortalView({ account, client, onLogout, onSwitchSite, is
   const [editForm, setEditForm] = useState({ title: '', description: '', priority: 'MEDIUM' });
   const [evidenceFile, setEvidenceFile] = useState(null);
   const intentKeys = useRef(new Map());
-  const asOf = useMemo(() => new Date().toISOString(), []);
+  const asOf = useMemo(() => new Date().toISOString(), [refreshKey]);
   const makeIntent = name => {
     if (!intentKeys.current.has(name)) intentKeys.current.set(name, idempotencyKey(name));
     return intentKeys.current.get(name);
@@ -189,35 +202,37 @@ export function ResidentPortalView({ account, client, onLogout, onSwitchSite, is
 
   useEffect(() => {
     const controller = new AbortController();
-    setRequestState(previous => ({ ...previous, loading: true, error: null }));
-    client.listResidentServiceRequests({ page: 1, page_size: 50, signal: controller.signal }).then(result => {
+    setRequestState({ items: [], total: 0, loading: true, error: null });
+    if (!unitId || !permitted('requests')) { setRequestState({ items: [], total: 0, loading: false }); return () => controller.abort(); }
+    client.listResidentServiceRequests({ unitId, page: 1, page_size: 50, signal: controller.signal }).then(result => {
       setRequestState({ items: result.items, total: result.total, loading: false, error: null });
       if (selectedRequestId && !result.items.some(item => item.id === selectedRequestId)) setSelectedRequestId(null);
     }).catch(error => {
       if (error?.name !== 'AbortError') setRequestState(previous => ({ ...previous, loading: false, error }));
     });
     return () => controller.abort();
-  }, [client, refreshKey, selectedRequestId]);
+  }, [client, refreshKey, selectedRequestId, unitId, permissions.join()]);
 
   useEffect(() => {
     const controller = new AbortController();
-    setBillingState(previous => ({ ...previous, loading: true, error: null }));
+    setBillingState({ summary: null, invoices: [], payments: [], loading: true, error: null });
+    if (!unitId || !permitted('finance')) { setBillingState({ summary: null, invoices: [], payments: [], loading: false }); return () => controller.abort(); }
     Promise.all([
-      client.getResidentBillingSummary(asOf, { signal: controller.signal }),
-      client.listResidentBillingInvoices(asOf, { signal: controller.signal }),
-      client.listResidentBillingPayments(asOf, { signal: controller.signal }),
+      client.getResidentBillingSummary(asOf, { unitId, signal: controller.signal }),
+      client.listResidentBillingInvoices(asOf, { unitId, signal: controller.signal }),
+      client.listResidentBillingPayments(asOf, { unitId, signal: controller.signal }),
     ]).then(([summary, invoices, payments]) => setBillingState({ summary, invoices: invoices.items, payments: payments.items, loading: false, error: null }))
       .catch(error => { if (error?.name !== 'AbortError') setBillingState(previous => ({ ...previous, loading: false, error })); });
     return () => controller.abort();
-  }, [asOf, client, refreshKey]);
+  }, [asOf, client, refreshKey, unitId, permissions.join()]);
 
   useEffect(() => {
     const controller = new AbortController();
-    setNotificationState(previous => ({ ...previous, loading: true, error: null }));
-    client.listResidentNotifications({ includeRead: showRead, page: 1, page_size: 50, signal: controller.signal }).then(result => setNotificationState({ items: result.items, unreadCount: result.unread_count, loading: false, error: null }))
+    setNotificationState({ items: [], unreadCount: 0, loading: true, error: null });
+    client.listResidentNotifications({ unitId: unitId || undefined, includeRead: showRead, page: 1, page_size: 50, signal: controller.signal }).then(result => setNotificationState({ items: result.items, unreadCount: result.unread_count, loading: false, error: null }))
       .catch(error => { if (error?.name !== 'AbortError') setNotificationState(previous => ({ ...previous, loading: false, error })); });
     return () => controller.abort();
-  }, [client, refreshKey, showRead]);
+  }, [client, refreshKey, showRead, unitId]);
 
   useEffect(() => {
     if (!selectedRequestId) {
@@ -225,7 +240,7 @@ export function ResidentPortalView({ account, client, onLogout, onSwitchSite, is
       return undefined;
     }
     const controller = new AbortController();
-    setDetail(previous => ({ ...previous, loading: true, error: null }));
+    setDetail({ item: null, timeline: [], evidence: [], loading: true, error: null });
     Promise.all([
       client.getResidentServiceRequest(selectedRequestId, { signal: controller.signal }),
       client.getResidentServiceRequestTimeline(selectedRequestId, { signal: controller.signal }),
@@ -235,7 +250,7 @@ export function ResidentPortalView({ account, client, onLogout, onSwitchSite, is
       setEditForm({ title: item.title, description: item.description, priority: item.priority });
     }).catch(error => { if (error?.name !== 'AbortError') setDetail(previous => ({ ...previous, loading: false, error })); });
     return () => controller.abort();
-  }, [client, refreshKey, selectedRequestId]);
+  }, [client, refreshKey, selectedRequestId, unitId, permissions.join()]);
 
   const createRequest = async event => {
     event.preventDefault();
@@ -294,14 +309,31 @@ export function ResidentPortalView({ account, client, onLogout, onSwitchSite, is
   };
 
   const sections = [
+    { id: 'profile', label: 'Hồ sơ & căn hộ', icon: Home },
+    ...(permitted('profile') ? [{ id: 'property', label: 'Hợp đồng & lịch sử', icon: Home }, { id: 'dossiers', label: 'Hồ sơ đăng ký', icon: Paperclip }] : []),
+    ...(permitted('parking') ? [{ id: 'vehicles', label: 'Xe & thẻ', icon: WalletCards }] : []),
+    ...(permitted('booking') ? [{ id: 'bookings', label: 'Đặt tiện ích', icon: CalendarClock }] : []),
+    ...(permitted('finance') ? [{ id: 'services', label: 'Dịch vụ bổ sung', icon: Home }, { id: 'payments', label: 'Thanh toán', icon: ReceiptText }, { id: 'deposits', label: 'Hồ sơ cọc', icon: WalletCards }] : []),
+    ...(permitted('documents') ? [{ id: 'documents', label: 'Tài liệu', icon: Paperclip }, { id: 'content', label: 'Cẩm nang & lịch', icon: CalendarClock }] : []),
+    { id: 'assistant', label: 'Trợ lý & CSKH', icon: Home },
+    { id: 'settings', label: 'Tài khoản', icon: ShieldCheck },
     { id: 'requests', label: 'Yêu cầu dịch vụ', icon: Home, count: requestState.total },
     { id: 'billing', label: 'Công nợ & hóa đơn', icon: ReceiptText },
     { id: 'notifications', label: 'Thông báo', icon: Bell, count: notificationState.unreadCount },
   ];
+  const corePermission = activeSection === 'requests' ? 'requests' : activeSection === 'billing' ? 'finance' : null;
+  const coreUnavailable = corePermission && !permitted(corePermission);
+  const accessNotice = <section className="surface resident-access-notice" aria-label="Xác minh quyền sử dụng căn hộ">
+    <h2>{profile.loading ? 'Đang xác minh căn hộ' : profile.error ? 'Chưa tải được thông tin căn hộ' : unitId ? 'Cần xác nhận quyền sử dụng' : 'Chưa có căn hộ có hiệu lực'}</h2>
+    <p role="status">{profile.loading ? 'Đang xác minh quyền truy cập căn hộ…' : profile.error ? 'Chưa xác minh được quyền truy cập. Bạn có thể tải lại thông tin căn hộ.' : unitId ? 'Căn hộ này chưa cấp quyền sử dụng chức năng đang chọn.' : 'Ban quản lý cần xác nhận căn hộ trước khi bạn gửi yêu cầu dịch vụ hoặc xem công nợ.'}</p>
+    {!profile.loading && <p>Liên hệ Ban quản lý để kiểm tra quan hệ cư trú hoặc quyền được ủy quyền. Bạn vẫn có thể mở Trợ lý & CSKH để xem hướng dẫn.</p>}
+    <div className="portal-actions"><button type="button" className="button-secondary" disabled={profile.loading} onClick={() => { profile.refresh(); retryAll(); }}><RefreshCw size={16} aria-hidden="true" />Tải lại thông tin căn hộ</button><button type="button" className="button-secondary" onClick={() => setActiveSection('assistant')}>Mở Trợ lý & CSKH</button></div>
+  </section>;
 
   return <div className="resident-shell">
     <header className="resident-header"><div className="resident-brand"><GreenCityLogo /><span className="resident-brand-divider" /><div><strong>Cổng cư dân</strong><span>Self‑Service</span></div></div><div className="resident-header-scope"><Building2 size={17} aria-hidden="true" /><label htmlFor="resident-site-select">Site hiện hành</label><select id="resident-site-select" value={account.activeSiteId || ''} disabled={isSwitchingSite || account.allowedSites.length < 2} onChange={event => onSwitchSite?.(event.target.value)}>{account.allowedSites.map(site => <option key={site.id} value={site.id}>{site.name}</option>)}</select>{siteSwitchError && <small role="alert">{errorText(siteSwitchError)}</small>}</div><div className="resident-header-user"><div><strong>{account.name}</strong><span>{account.site}</span></div><button type="button" className="resident-logout" onClick={onLogout}><LogOut size={16} aria-hidden="true" />Đăng xuất</button></div></header>
-    <div className="resident-body"><aside className="resident-nav" aria-label="Điều hướng cổng cư dân"><p className="resident-nav-caption">Không gian cá nhân</p>{sections.map(section => { const Icon = section.icon; return <button key={section.id} type="button" role="tab" aria-selected={activeSection === section.id} className={activeSection === section.id ? 'is-active' : ''} onClick={() => setActiveSection(section.id)}><Icon size={18} aria-hidden="true" /><span>{section.label}</span>{section.count > 0 && <b>{section.count}</b>}</button>; })}<div className="resident-nav-note"><ShieldCheck size={18} aria-hidden="true" /><p><strong>Dữ liệu riêng tư</strong>Danh tính và căn hộ được đối chiếu ở máy chủ cho mỗi request.</p></div></aside><main className="resident-main" role="tabpanel" tabIndex={-1}>{activeSection === 'requests' && <ResidentRequestsPanel account={account} options={options} optionsError={optionsError} requestState={requestState} selectedRequestId={selectedRequestId} setSelectedRequestId={setSelectedRequestId} detail={detail} showCreate={showCreate} setShowCreate={setShowCreate} form={form} setForm={setForm} createErrors={createErrors} setCreateErrors={setCreateErrors} createErrorSummaryRef={createErrorSummaryRef} busy={busy} feedback={feedback} setFeedback={setFeedback} onCreate={createRequest} onUpdate={updateRequest} editForm={editForm} setEditForm={setEditForm} evidenceFile={evidenceFile} setEvidenceFile={setEvidenceFile} onUploadEvidence={uploadEvidence} onRetry={retryAll} />}{activeSection === 'billing' && <ResidentBillingPanel billingState={billingState} asOf={asOf} onRetry={retryAll} />}{activeSection === 'notifications' && <ResidentNotificationsPanel notificationState={notificationState} showRead={showRead} setShowRead={setShowRead} onMarkRead={markRead} onRetry={retryAll} />}</main></div>
+<div className="portal-unit-selector"><label>Căn hộ đang xem<select value={unitId} disabled={profile.loading} onChange={event => { setUnitId(event.target.value); setActiveSection("profile"); setSelectedRequestId(null); setShowCreate(false); setFeedback(null); setForm({ unit_id: event.target.value, category_id: "", title: "", description: "", priority: "MEDIUM" }); }}>{profile.data?.units?.map(u => <option key={u.id} value={u.id}>{u.unit_number} · {u.building_name}</option>)}</select></label><State state={profile} /></div>
+    <div className="resident-body"><aside className="resident-nav" aria-label="Điều hướng cổng cư dân"><p className="resident-nav-caption">Không gian cá nhân</p>{sections.map(section => { const Icon = section.icon; return <button key={section.id} type="button" role="tab" aria-selected={activeSection === section.id} className={activeSection === section.id ? 'is-active' : ''} onClick={() => setActiveSection(section.id)}><Icon size={18} aria-hidden="true" /><span>{section.label}</span>{section.count > 0 && <b>{section.count}</b>}</button>; })}<div className="resident-nav-note"><ShieldCheck size={18} aria-hidden="true" /><p><strong>Dữ liệu riêng tư</strong>Danh tính và căn hộ được đối chiếu ở máy chủ cho mỗi request.</p></div></aside><main className="resident-main" role="tabpanel" tabIndex={-1}><div key={`${unitId}:${activeSection}`}>{coreUnavailable && accessNotice}{activeSection === 'assistant' && <GroundedAssistantPanel client={client} unitId={unitId} roles={account.roles} />}{activeSection === 'profile' && <ResidentProfilePanel profile={profile.data} unitId={unitId} onOpenDossiers={permitted("profile") ? () => setActiveSection("dossiers") : undefined} />}{activeSection === 'settings' && <><State state={{ error: passwordChangeError }} /><SettingsPanel client={client} onChangePassword={onChangePassword} onLogoutAll={onLogoutAll} /></>}{unitId && <>{activeSection === 'property' && permitted('profile') && <PropertyWorkflowPanel client={client} unitId={unitId} profile={profile.data} />}{activeSection === 'dossiers' && permitted('profile') && <DossiersPanel client={client} unitId={unitId} profile={profile.data} />}{activeSection === 'vehicles' && permitted('parking') && <VehiclesPanel client={client} unitId={unitId} />}{activeSection === 'bookings' && permitted('booking') && <BookingsPanel client={client} unitId={unitId} />}{activeSection === 'services' && permitted('finance') && <ServicesPanel client={client} unitId={unitId} />}{activeSection === 'payments' && permitted('finance') && <PaymentsPanel client={client} unitId={unitId} />}{activeSection === 'deposits' && permitted('finance') && <DepositsPanel client={client} unitId={unitId} />}{activeSection === 'documents' && permitted('documents') && <DocumentsPanel client={client} unitId={unitId} />}{activeSection === 'content' && permitted('documents') && <ContentPanel client={client} unitId={unitId} />}</>}{activeSection === 'requests' && permitted('requests') && <ResidentRequestsPanel client={client} account={account} options={{ ...options, units: options.units.filter(u => u.id === unitId) }} optionsError={optionsError} requestState={requestState} selectedRequestId={selectedRequestId} setSelectedRequestId={setSelectedRequestId} detail={detail} showCreate={showCreate} setShowCreate={setShowCreate} form={form} setForm={setForm} createErrors={createErrors} setCreateErrors={setCreateErrors} createErrorSummaryRef={createErrorSummaryRef} busy={busy} feedback={feedback} setFeedback={setFeedback} onCreate={createRequest} onUpdate={updateRequest} editForm={editForm} setEditForm={setEditForm} evidenceFile={evidenceFile} setEvidenceFile={setEvidenceFile} onUploadEvidence={uploadEvidence} onRetry={retryAll} />}{activeSection === 'billing' && permitted('finance') && <><ResidentBillingPanel billingState={billingState} asOf={asOf} onRetry={retryAll} /><ReceivablePanel client={client} unitId={unitId} /></>}{activeSection === 'notifications' && <ResidentNotificationsPanel client={client} notificationState={notificationState} showRead={showRead} setShowRead={setShowRead} onMarkRead={markRead} onRetry={retryAll} />}</div></main></div>
     <footer className="resident-footer"><span>GreenCity · Phiên cư dân đã xác minh</span><span>Scope: {account.scope}</span></footer>
   </div>;
 }

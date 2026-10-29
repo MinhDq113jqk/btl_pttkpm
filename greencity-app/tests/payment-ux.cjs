@@ -42,6 +42,9 @@ const paymentView = (body, { unmatchedPayment = false } = {}) => ({ id: randomUU
     if (url.pathname.endsWith('/auth/login')) return respond({ access_token: token });
     if (url.pathname.endsWith('/auth/me')) return respond(user);
     if (url.pathname.endsWith('/service-requests') && request.method() === 'GET') return respond({ items: [], page: 1, page_size: 20, total: 0 });
+    if (url.pathname.endsWith('/portal/finance/options')) return respond({ periods: [period], accounts: [billingAccount], payments, invoices, credits, deposits: [], staff_accounts: [] });
+    if (url.pathname.endsWith('/portal/finance/reviews') || url.pathname.endsWith('/portal/finance/commands')) return respond({ items: [] });
+    if (url.pathname.endsWith('/portal/options')) return respond({ units: [], buildings: [] });
     if (url.pathname.endsWith('/billing/accounts') && request.method() === 'GET') return respond({ items: [billingAccount] });
     if (url.pathname.endsWith('/billing/fee-policies') && request.method() === 'GET') return respond({ items: [] });
     if (url.pathname.endsWith('/billing/periods') && request.method() === 'GET') return respond({ items: [period] });
@@ -72,19 +75,6 @@ const paymentView = (body, { unmatchedPayment = false } = {}) => ({ id: randomUU
       payments = payments.map(entry => entry.id === matched.id ? matched : entry);
       return respond(matched);
     }
-    const allocationPath = url.pathname.match(/\/billing\/payments\/([^/]+)\/allocate$/);
-    if (allocationPath && request.method() === 'POST') {
-      const payment = payments.find(entry => entry.id === allocationPath[1]);
-      const invoice = invoices.find(entry => entry.billing_account_id === payment.billing_account_id && entry.outstanding_vnd > 0);
-      const allocated = Math.min(payment.amount_vnd, invoice?.outstanding_vnd || 0);
-      if (invoice) invoices = invoices.map(entry => entry.id === invoice.id ? { ...entry, outstanding_vnd: entry.outstanding_vnd - allocated, status: entry.outstanding_vnd === allocated ? 'PAID' : 'PARTIALLY_PAID', version: entry.version + 1 } : entry);
-      const excess = payment.amount_vnd - allocated;
-      const credit = excess ? { id: randomUUID(), billing_account_id: payment.billing_account_id, payment_id: payment.id, original_vnd: excess, remaining_vnd: excess, status: 'OPEN', created_at: payment.received_at, version: 1 } : null;
-      if (credit) credits = [...credits, credit];
-      const allocatedPayment = { ...payment, status: credit ? 'OVERPAID' : 'ALLOCATED', version: payment.version + 1 };
-      payments = payments.map(entry => entry.id === payment.id ? allocatedPayment : entry);
-      return respond({ payment: allocatedPayment, allocations: allocated ? [{ id: randomUUID(), payment_id: payment.id, billing_invoice_id: invoice.id, amount_vnd: allocated, created_at: payment.received_at }] : [], overpayment_credit: credit });
-    }
     return respond({ error: { code: 'ERR-NOTFOUND', message: 'Không tìm thấy.', correlation_id: correlationId } }, 404);
   });
   try {
@@ -103,7 +93,8 @@ const paymentView = (body, { unmatchedPayment = false } = {}) => ({ id: randomUU
     await paymentPanel.getByRole('button', { name: 'Ghi nhận payment', exact: true }).click();
     await page.getByText('RCPT-PAY-001', { exact: true }).waitFor();
     await page.getByLabel('Payment đã nhận').getByRole('button', { name: 'Phân bổ', exact: true }).click();
-    await page.getByText('30.000 ₫', { exact: true }).waitFor();
+    await page.getByRole('heading', { name: 'Kiểm soát tài chính', exact: true }).waitFor();
+    assert.equal(invoices[0].outstanding_vnd, 50_000, 'Receiving and opening allocation must not reduce debt');
 
     await paymentPanel.getByLabel('Source/reference').fill('bank-offline-browser-001');
     await paymentPanel.getByLabel('Số biên lai').fill('RCPT-OFFLINE-001');
@@ -128,10 +119,15 @@ const paymentView = (body, { unmatchedPayment = false } = {}) => ({ id: randomUU
     await unmatchedPanel.getByLabel('Match RCPT-MISSING-001').selectOption(accountId);
     await unmatchedPanel.getByRole('button', { name: 'Match', exact: true }).click();
     await page.getByLabel('Payment đã nhận').getByRole('button', { name: 'Phân bổ', exact: true }).last().click();
+    await page.getByRole('button', { name: 'Hồ sơ tài chính', exact: true }).click();
+    const proposal = page.locator('form').filter({ has: page.getByRole('heading', { name: 'Lập đề nghị tài chính', exact: true }) });
+    await proposal.getByLabel('Kỳ kế toán', { exact: true }).selectOption(periodId);
+    await proposal.getByLabel('Đối tượng nguồn', { exact: true }).selectOption(payments[2].id);
+    assert.equal(await proposal.getByLabel(/INV-PAY-01/).count(), 1, 'Matched payment lists the invoice for its account');
     await page.screenshot({ path: path.join(output, 'payment-golden-flow.png'), fullPage: true });
 
     const commands = requests.filter(item => item.path.includes('/billing/') && item.method !== 'GET');
-    assert.deepEqual(commands.map(item => item.method), ['POST', 'POST', 'POST', 'POST', 'POST', 'POST', 'POST']);
+    assert.deepEqual(commands.map(item => item.method), ['POST', 'POST', 'POST', 'POST', 'POST']);
     assert.ok(commands.every(item => item.authorization === `Bearer ${token}`));
     assert.ok(commands.every(item => typeof item.idempotencyKey === 'string' && item.idempotencyKey.length > 0));
     assert.ok(commands.every(item => !/"(?:tenant_id|site_id|role)"/.test(JSON.stringify(item.body))));
@@ -139,10 +135,12 @@ const paymentView = (body, { unmatchedPayment = false } = {}) => ({ id: randomUU
     assert.equal(offlineAttempts.length, 2);
     assert.equal(offlineAttempts[0].idempotencyKey, offlineAttempts[1].idempotencyKey);
     assert.equal(payments.filter(item => item.source_reference === 'bank-offline-browser-001').length, 1);
-    assert.equal(payments.filter(item => item.source_reference === 'bank-missing-browser-001')[0].status, 'ALLOCATED');
+    assert.equal(payments.filter(item => item.source_reference === 'bank-missing-browser-001')[0].status, 'RECEIVED');
     assert.equal(unmatched[0].status, 'RESOLVED');
+    assert.equal(invoices[0].outstanding_vnd, 50_000);
+    assert.equal(requests.filter(item => item.path.endsWith('/allocate')).length, 0, 'Allocation requires a reviewed financial command');
     assert.equal(errors.length, 0);
-    fs.writeFileSync(path.join(output, 'test-results.json'), JSON.stringify({ passed: 14, errors }, null, 2));
-    console.log('PAYMENT UX: 14 checks passed.');
+    fs.writeFileSync(path.join(output, 'test-results.json'), JSON.stringify({ passed: 15, errors }, null, 2));
+    console.log('PAYMENT UX: 15 checks passed.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

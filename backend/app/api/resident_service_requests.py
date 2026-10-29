@@ -1,3 +1,4 @@
+from app.services.sad_completion import capture_sla, sla_deadline
 import hashlib
 from datetime import timedelta
 from pathlib import Path
@@ -37,7 +38,6 @@ from app.services.r2 import (
     ImageEvidenceError,
     MAX_EVIDENCE_BYTES,
     audit,
-    calculate_sla_deadline,
     emit,
     idempotency_replay,
     remember_idempotency,
@@ -56,9 +56,17 @@ EDITABLE_STATUSES = frozenset({"NEW", "WAITING_INFO"})
 def _assert_resident_scope(context: UserContext) -> UUID:
     context.assert_role("resident")
     active_site_id = context.assert_active_site()
-    if context.resident_person_id is None or not context.resident_unit_ids:
+    if context.resident_person_id is None or not context.resident_units_for("requests"):
         raise scope_not_found()
     return active_site_id
+
+
+def _resident_request_ownership(context):
+    from sqlalchemy import and_
+    return or_(ServiceRequest.owner_account_id == context.account_id,
+        ServiceRequest.created_by_id == context.account_id, *(
+            and_(ServiceRequest.unit_id == unit_id, ServiceRequest.owner_account_id == grantor)
+            for unit_id, grantor, permissions in context.resident_delegation_grantors if "requests" in permissions))
 
 
 def _resident_request(
@@ -68,11 +76,8 @@ def _resident_request(
     statement = select(ServiceRequest).where(
         ServiceRequest.id == request_id,
         *context.scope_conditions(ServiceRequest),
-        ServiceRequest.unit_id.in_(context.resident_unit_ids),
-        or_(
-            ServiceRequest.owner_account_id == context.account_id,
-            ServiceRequest.created_by_id == context.account_id,
-        ),
+        ServiceRequest.unit_id.in_(context.resident_units_for("requests")),
+        _resident_request_ownership(context),
     )
     if lock:
         statement = statement.with_for_update()
@@ -86,7 +91,7 @@ def _resident_unit(session: Session, context: UserContext, unit_id: UUID) -> Uni
     active_site_id = _assert_resident_scope(context)
     unit = session.scalar(select(Unit).join(Building, Building.id == Unit.building_id).where(
         Unit.id == unit_id,
-        Unit.id.in_(context.resident_unit_ids),
+        Unit.id.in_(context.resident_units_for("requests")),
         Building.site_id == active_site_id,
     ))
     if unit is None:
@@ -111,7 +116,7 @@ def get_resident_service_request_options(
         ).join(
             Site, Site.id == Building.site_id,
         ).where(
-            Unit.id.in_(current_user.resident_unit_ids),
+            Unit.id.in_(current_user.resident_units_for("requests")),
             Site.id == active_site_id,
             Site.tenant_id == current_user.tenant_id,
         ).order_by(Unit.unit_number, Unit.id)).all()
@@ -157,7 +162,7 @@ def _view(record: ServiceRequest) -> ResidentServiceRequestView:
         description=record.description,
         priority=record.priority,
         status=record.status,
-        sla_deadline=calculate_sla_deadline(record.sla_started_at, record.sla_duration_minutes),
+        sla_deadline=sla_deadline(record),
         sla_breached_at=record.sla_breached_at,
         resolved_at=record.resolved_at,
         closed_at=record.closed_at,
@@ -231,6 +236,7 @@ def _assert_attachment_token(
 @router.get("/resident/service-requests", response_model=ResidentServiceRequestListResponse)
 def list_resident_service_requests(
     request: Request,
+    unit_id: UUID | None = None,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     current_user: UserContext = Depends(get_current_user_context),
@@ -238,12 +244,13 @@ def list_resident_service_requests(
     _assert_resident_scope(current_user)
     conditions = (
         *current_user.scope_conditions(ServiceRequest),
-        ServiceRequest.unit_id.in_(current_user.resident_unit_ids),
-        or_(
-            ServiceRequest.owner_account_id == current_user.account_id,
-            ServiceRequest.created_by_id == current_user.account_id,
-        ),
+        ServiceRequest.unit_id.in_(current_user.resident_units_for("requests")),
+        _resident_request_ownership(current_user),
     )
+    if unit_id is not None:
+        if unit_id not in current_user.resident_units_for("requests"):
+            raise scope_not_found()
+        conditions += (ServiceRequest.unit_id == unit_id,)
     with request.app.state.database.get_session() as session:
         total = session.scalar(select(func.count(ServiceRequest.id)).where(*conditions)) or 0
         records = session.scalars(select(ServiceRequest).where(*conditions).order_by(
@@ -298,6 +305,7 @@ def create_resident_service_request(
             created_by_id=current_user.account_id,
             updated_by_id=current_user.account_id,
         )
+        capture_sla(session, record)
         session.add(record)
         session.flush()
         audit(session, current_user, request, event_type="ResidentServiceRequestCreated", action="create",

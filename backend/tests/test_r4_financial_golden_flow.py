@@ -1,5 +1,7 @@
+from billing_review_support import finish_run
 """R4 Task 4 fixed-oracle acceptance flow on the isolated PostgreSQL cluster."""
 from datetime import date
+from decimal import Decimal
 import os
 
 import pytest
@@ -7,6 +9,7 @@ from sqlalchemy import func, select
 
 from app.models.billing import AccountingPeriod, ArLedgerEntry, BillingAccount, BillingInvoice, Payment
 from app.models.unit import Unit
+from app.models.person import Person, UnitPersonRelationship
 from test_r2_integration import r2_case, with_key
 
 
@@ -31,6 +34,12 @@ def _create_account(case, account_number: str, area_m2: float) -> BillingAccount
         )
         session.add(unit)
         session.flush()
+        owner = Person(tenant_id=case['tenant'].id, full_name='Synthetic sole owner',
+                       phone_masked='[SYNTHETIC]', email_masked='[SYNTHETIC]')
+        session.add(owner); session.flush()
+        session.add(UnitPersonRelationship(tenant_id=case['tenant'].id, site_id=case['sites'][0].id,
+            building_id=unit.building_id, unit_id=unit.id, person_id=owner.id,
+            relationship_type='owner', ownership_ratio=Decimal(1), valid_from=date(2020, 1, 1)))
         account = BillingAccount(
             tenant_id=case["tenant"].id,
             site_id=case["sites"][0].id,
@@ -76,7 +85,7 @@ def _run(case, period: dict, version_id: str, run_key: str) -> dict:
         "run_key": run_key,
     })
     assert response.status_code == 201, response.text
-    return response.json()
+    return finish_run(case, response).json()
 
 
 def _invoices_by_period(case) -> dict[str, dict]:
@@ -225,6 +234,7 @@ def test_r4_failed_run_retry_leaves_no_partial_invoice_then_replays(r2_case):
     assert retried.status_code == replayed.status_code == 200
     assert retried.json() == replayed.json()
     assert retried.json()["id"] == failed["id"]
+    retried = finish_run(case, retried)
     assert retried.json()["status"] == "POSTED"
     assert retried.json()["retry_count"] == 1
     with case["database"].get_session() as session:

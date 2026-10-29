@@ -310,7 +310,7 @@ export function GreenAssistant({ accountId, contextKey, requestReply = requestAs
           <MessageCircle size={18} aria-hidden="true" /><span><strong>{item.messages.length ? item.title : item.draft || 'Cuộc trò chuyện mới'}</strong><small>{formatDate(item.updatedAt)} · {item.messages.filter(message => message.role === 'user').length} câu hỏi{item.draft ? ' · Có nháp' : ''}</small></span>{item.messages.some(message => message.status === 'pending') && <LoaderCircle size={16} className="assistant-spinner" aria-label="Đang xử lý" />}
         </button>)}</div>
       </div> : <>
-        <div className="assistant-conversation-label"><span>{conversation.messages.length ? conversation.title : 'Cuộc trò chuyện mới'}</span><span className="assistant-demo-badge">Backend</span></div>
+        <div className="assistant-conversation-label"><span>{conversation.messages.length ? conversation.title : 'Cuộc trò chuyện mới'}</span><span className="assistant-source-badge">Có nguồn tham chiếu</span></div>
         <div className="assistant-log-wrap">
           <div ref={messagesRef} className="assistant-messages" role="log" aria-label="Nội dung trò chuyện" aria-live="polite" aria-relevant="additions text" aria-busy={pending} tabIndex={0} onScroll={event => {
             const list = event.currentTarget;

@@ -1,0 +1,6035 @@
+{
+  "records": {
+    "VENDOR": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "maxLength": 80,
+          "minLength": 3,
+          "title": "Code",
+          "type": "string"
+        },
+        "tax_code": {
+          "maxLength": 40,
+          "minLength": 3,
+          "title": "Tax Code",
+          "type": "string"
+        },
+        "capabilities": {
+          "maxLength": 2000,
+          "minLength": 3,
+          "title": "Capabilities",
+          "type": "string"
+        },
+        "contact": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Contact",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "tax_code",
+        "capabilities",
+        "contact"
+      ],
+      "title": "VendorData",
+      "type": "object"
+    },
+    "PURCHASE": {
+      "additionalProperties": false,
+      "properties": {
+        "budget_id": {
+          "format": "uuid",
+          "title": "Budget Id",
+          "type": "string"
+        },
+        "specification": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Specification",
+          "type": "string"
+        },
+        "quantity": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,14}|(?=[\\d.]{1,19}0*$)\\d{0,14}\\.\\d{0,4}0*$)",
+              "type": "string"
+            }
+          ],
+          "title": "Quantity"
+        },
+        "uom": {
+          "maxLength": 30,
+          "minLength": 1,
+          "title": "Uom",
+          "type": "string"
+        },
+        "estimated_vnd": {
+          "exclusiveMinimum": 0,
+          "maximum": 999999999999,
+          "title": "Estimated Vnd",
+          "type": "integer"
+        },
+        "item_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Item Id"
+        }
+      },
+      "required": [
+        "budget_id",
+        "specification",
+        "quantity",
+        "uom",
+        "estimated_vnd"
+      ],
+      "title": "PurchaseData",
+      "type": "object"
+    },
+    "QUOTATION": {
+      "additionalProperties": false,
+      "properties": {
+        "vendor_id": {
+          "format": "uuid",
+          "title": "Vendor Id",
+          "type": "string"
+        },
+        "amount_vnd": {
+          "exclusiveMinimum": 0,
+          "maximum": 999999999999,
+          "title": "Amount Vnd",
+          "type": "integer"
+        },
+        "quantity": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,14}|(?=[\\d.]{1,19}0*$)\\d{0,14}\\.\\d{0,4}0*$)",
+              "type": "string"
+            }
+          ],
+          "title": "Quantity"
+        },
+        "specification": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Specification",
+          "type": "string"
+        },
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "vendor_id",
+        "amount_vnd",
+        "quantity",
+        "specification",
+        "evidence_reference"
+      ],
+      "title": "QuotationData",
+      "type": "object"
+    },
+    "CONTRACT": {
+      "$defs": {
+        "ContractMilestone": {
+          "additionalProperties": false,
+          "properties": {
+            "code": {
+              "maxLength": 80,
+              "minLength": 2,
+              "title": "Code",
+              "type": "string"
+            },
+            "due_on": {
+              "format": "date",
+              "title": "Due On",
+              "type": "string"
+            },
+            "obligation": {
+              "maxLength": 1000,
+              "minLength": 3,
+              "title": "Obligation",
+              "type": "string"
+            },
+            "amount_vnd": {
+              "maximum": 999999999999,
+              "minimum": 0,
+              "title": "Amount Vnd",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "code",
+            "due_on",
+            "obligation",
+            "amount_vnd"
+          ],
+          "title": "ContractMilestone",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "vendor_id": {
+          "format": "uuid",
+          "title": "Vendor Id",
+          "type": "string"
+        },
+        "reference": {
+          "maxLength": 150,
+          "minLength": 3,
+          "title": "Reference",
+          "type": "string"
+        },
+        "starts_on": {
+          "format": "date",
+          "title": "Starts On",
+          "type": "string"
+        },
+        "ends_on": {
+          "format": "date",
+          "title": "Ends On",
+          "type": "string"
+        },
+        "amount_vnd": {
+          "exclusiveMinimum": 0,
+          "maximum": 999999999999,
+          "title": "Amount Vnd",
+          "type": "integer"
+        },
+        "milestones": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Milestones",
+          "type": "string"
+        },
+        "purchase_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Purchase Id"
+        },
+        "milestone_items": {
+          "items": {
+            "$ref": "#/$defs/ContractMilestone"
+          },
+          "maxItems": 50,
+          "minItems": 1,
+          "title": "Milestone Items",
+          "type": "array"
+        },
+        "allows_partial_payment": {
+          "default": false,
+          "title": "Allows Partial Payment",
+          "type": "boolean"
+        },
+        "partial_payment_reference": {
+          "anyOf": [
+            {
+              "maxLength": 300,
+              "minLength": 3,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Partial Payment Reference"
+        }
+      },
+      "required": [
+        "vendor_id",
+        "reference",
+        "starts_on",
+        "ends_on",
+        "amount_vnd",
+        "milestones",
+        "milestone_items"
+      ],
+      "title": "ContractData",
+      "type": "object"
+    },
+    "CONTRACT_REVISION": {
+      "$defs": {
+        "ContractMilestone": {
+          "additionalProperties": false,
+          "properties": {
+            "code": {
+              "maxLength": 80,
+              "minLength": 2,
+              "title": "Code",
+              "type": "string"
+            },
+            "due_on": {
+              "format": "date",
+              "title": "Due On",
+              "type": "string"
+            },
+            "obligation": {
+              "maxLength": 1000,
+              "minLength": 3,
+              "title": "Obligation",
+              "type": "string"
+            },
+            "amount_vnd": {
+              "maximum": 999999999999,
+              "minimum": 0,
+              "title": "Amount Vnd",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "code",
+            "due_on",
+            "obligation",
+            "amount_vnd"
+          ],
+          "title": "ContractMilestone",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "contract_id": {
+          "format": "uuid",
+          "title": "Contract Id",
+          "type": "string"
+        },
+        "operation": {
+          "enum": [
+            "RENEW",
+            "AMEND",
+            "TERMINATE",
+            "LIQUIDATE"
+          ],
+          "title": "Operation",
+          "type": "string"
+        },
+        "reference": {
+          "maxLength": 150,
+          "minLength": 3,
+          "title": "Reference",
+          "type": "string"
+        },
+        "starts_on": {
+          "format": "date",
+          "title": "Starts On",
+          "type": "string"
+        },
+        "ends_on": {
+          "format": "date",
+          "title": "Ends On",
+          "type": "string"
+        },
+        "amount_vnd": {
+          "exclusiveMinimum": 0,
+          "maximum": 999999999999,
+          "title": "Amount Vnd",
+          "type": "integer"
+        },
+        "milestones": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Milestones",
+          "type": "string"
+        },
+        "milestone_items": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/ContractMilestone"
+              },
+              "maxItems": 50,
+              "minItems": 1,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Milestone Items"
+        },
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "contract_id",
+        "operation",
+        "reference",
+        "starts_on",
+        "ends_on",
+        "amount_vnd",
+        "milestones",
+        "evidence_reference"
+      ],
+      "title": "ContractRevisionData",
+      "type": "object"
+    },
+    "DELIVERY": {
+      "additionalProperties": false,
+      "properties": {
+        "quantity": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,14}|(?=[\\d.]{1,19}0*$)\\d{0,14}\\.\\d{0,4}0*$)",
+              "type": "string"
+            }
+          ],
+          "title": "Quantity"
+        },
+        "reference": {
+          "maxLength": 150,
+          "minLength": 3,
+          "title": "Reference",
+          "type": "string"
+        },
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        },
+        "defects": {
+          "default": "",
+          "maxLength": 2000,
+          "title": "Defects",
+          "type": "string"
+        },
+        "accepted_quantity": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,14}|(?=[\\d.]{1,19}0*$)\\d{0,14}\\.\\d{0,4}0*$)",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Accepted Quantity"
+        },
+        "rejected_quantity": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,14}|(?=[\\d.]{1,19}0*$)\\d{0,14}\\.\\d{0,4}0*$)",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Rejected Quantity"
+        },
+        "missing_quantity": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,14}|(?=[\\d.]{1,19}0*$)\\d{0,14}\\.\\d{0,4}0*$)",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Missing Quantity"
+        },
+        "responsible_account_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Responsible Account Id"
+        },
+        "rectifies_delivery_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rectifies Delivery Id"
+        }
+      },
+      "required": [
+        "quantity",
+        "reference",
+        "evidence_reference"
+      ],
+      "title": "DeliveryData",
+      "type": "object"
+    },
+    "VENDOR_EVALUATION": {
+      "$defs": {
+        "EvaluationCriterion": {
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "maxLength": 100,
+              "minLength": 2,
+              "title": "Name",
+              "type": "string"
+            },
+            "result": {
+              "maxLength": 1000,
+              "minLength": 2,
+              "title": "Result",
+              "type": "string"
+            },
+            "evidence_reference": {
+              "maxLength": 300,
+              "minLength": 3,
+              "title": "Evidence Reference",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "result",
+            "evidence_reference"
+          ],
+          "title": "EvaluationCriterion",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "vendor_id": {
+          "format": "uuid",
+          "title": "Vendor Id",
+          "type": "string"
+        },
+        "contract_id": {
+          "format": "uuid",
+          "title": "Contract Id",
+          "type": "string"
+        },
+        "delivery_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxItems": 100,
+          "minItems": 1,
+          "title": "Delivery Ids",
+          "type": "array"
+        },
+        "criteria": {
+          "items": {
+            "$ref": "#/$defs/EvaluationCriterion"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "title": "Criteria",
+          "type": "array"
+        },
+        "conclusion": {
+          "maxLength": 2000,
+          "minLength": 3,
+          "title": "Conclusion",
+          "type": "string"
+        }
+      },
+      "required": [
+        "vendor_id",
+        "contract_id",
+        "delivery_ids",
+        "criteria",
+        "conclusion"
+      ],
+      "title": "VendorEvaluationData",
+      "type": "object"
+    },
+    "METER_CYCLE": {
+      "additionalProperties": false,
+      "properties": {
+        "starts_on": {
+          "format": "date",
+          "title": "Starts On",
+          "type": "string"
+        },
+        "ends_on": {
+          "format": "date",
+          "title": "Ends On",
+          "type": "string"
+        },
+        "meter_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxItems": 500,
+          "minItems": 1,
+          "title": "Meter Ids",
+          "type": "array"
+        },
+        "route": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Route",
+          "type": "string"
+        }
+      },
+      "required": [
+        "starts_on",
+        "ends_on",
+        "meter_ids",
+        "route"
+      ],
+      "title": "MeterCycleData",
+      "type": "object"
+    },
+    "METER_REPLACEMENT": {
+      "additionalProperties": false,
+      "properties": {
+        "meter_id": {
+          "format": "uuid",
+          "title": "Meter Id",
+          "type": "string"
+        },
+        "changed_on": {
+          "format": "date",
+          "title": "Changed On",
+          "type": "string"
+        },
+        "final_value": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,14}|(?=[\\d.]{1,19}0*$)\\d{0,14}\\.\\d{0,4}0*$)",
+              "type": "string"
+            }
+          ],
+          "title": "Final Value"
+        },
+        "new_code": {
+          "maxLength": 80,
+          "minLength": 2,
+          "title": "New Code",
+          "type": "string"
+        },
+        "new_serial": {
+          "maxLength": 100,
+          "minLength": 2,
+          "title": "New Serial",
+          "type": "string"
+        },
+        "new_baseline": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,14}|(?=[\\d.]{1,19}0*$)\\d{0,14}\\.\\d{0,4}0*$)",
+              "type": "string"
+            }
+          ],
+          "title": "New Baseline"
+        },
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "meter_id",
+        "changed_on",
+        "final_value",
+        "new_code",
+        "new_serial",
+        "new_baseline",
+        "evidence_reference"
+      ],
+      "title": "MeterReplacementData",
+      "type": "object"
+    },
+    "METER_CORRECTION": {
+      "additionalProperties": false,
+      "properties": {
+        "reading_id": {
+          "format": "uuid",
+          "title": "Reading Id",
+          "type": "string"
+        },
+        "corrected_value": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,14}|(?=[\\d.]{1,19}0*$)\\d{0,14}\\.\\d{0,4}0*$)",
+              "type": "string"
+            }
+          ],
+          "title": "Corrected Value"
+        },
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "reading_id",
+        "corrected_value",
+        "evidence_reference"
+      ],
+      "title": "MeterCorrectionData",
+      "type": "object"
+    },
+    "BUDGET_REVISION": {
+      "additionalProperties": false,
+      "properties": {
+        "budget_id": {
+          "format": "uuid",
+          "title": "Budget Id",
+          "type": "string"
+        },
+        "new_limit_vnd": {
+          "exclusiveMinimum": 0,
+          "maximum": 999999999999,
+          "title": "New Limit Vnd",
+          "type": "integer"
+        },
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "budget_id",
+        "new_limit_vnd",
+        "evidence_reference"
+      ],
+      "title": "BudgetRevisionData",
+      "type": "object"
+    },
+    "ADVANCE_SETTLEMENT": {
+      "additionalProperties": false,
+      "properties": {
+        "expense_id": {
+          "format": "uuid",
+          "title": "Expense Id",
+          "type": "string"
+        },
+        "actual_vnd": {
+          "maximum": 999999999999,
+          "minimum": 0,
+          "title": "Actual Vnd",
+          "type": "integer"
+        },
+        "returned_vnd": {
+          "maximum": 999999999999,
+          "minimum": 0,
+          "title": "Returned Vnd",
+          "type": "integer"
+        },
+        "reference": {
+          "maxLength": 150,
+          "minLength": 3,
+          "title": "Reference",
+          "type": "string"
+        },
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "expense_id",
+        "actual_vnd",
+        "returned_vnd",
+        "reference",
+        "evidence_reference"
+      ],
+      "title": "AdvanceSettlementData",
+      "type": "object"
+    },
+    "RULE": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "maxLength": 80,
+          "minLength": 3,
+          "title": "Code",
+          "type": "string"
+        },
+        "revision": {
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "valid_from": {
+          "format": "date",
+          "title": "Valid From",
+          "type": "string"
+        },
+        "valid_to": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Valid To"
+        },
+        "body": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Body",
+          "type": "string"
+        },
+        "confirmed_rule_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Confirmed Rule Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "revision",
+        "valid_from",
+        "body",
+        "confirmed_rule_reference"
+      ],
+      "title": "RuleData",
+      "type": "object"
+    },
+    "VIOLATION": {
+      "additionalProperties": false,
+      "properties": {
+        "rule_id": {
+          "format": "uuid",
+          "title": "Rule Id",
+          "type": "string"
+        },
+        "occurred_on": {
+          "format": "date",
+          "title": "Occurred On",
+          "type": "string"
+        },
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        },
+        "description": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Description",
+          "type": "string"
+        },
+        "subject_account_id": {
+          "format": "uuid",
+          "title": "Subject Account Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "rule_id",
+        "occurred_on",
+        "evidence_reference",
+        "description",
+        "subject_account_id"
+      ],
+      "title": "ViolationData",
+      "type": "object"
+    },
+    "RISK": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "maxLength": 80,
+          "minLength": 2,
+          "title": "Category",
+          "type": "string"
+        },
+        "description": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Description",
+          "type": "string"
+        },
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        },
+        "due_on": {
+          "format": "date",
+          "title": "Due On",
+          "type": "string"
+        },
+        "corrective_action": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Corrective Action",
+          "type": "string"
+        },
+        "severity": {
+          "maxLength": 80,
+          "minLength": 2,
+          "title": "Severity",
+          "type": "string"
+        },
+        "likelihood": {
+          "maxLength": 80,
+          "minLength": 2,
+          "title": "Likelihood",
+          "type": "string"
+        },
+        "policy_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Policy Reference",
+          "type": "string"
+        },
+        "owner_account_id": {
+          "format": "uuid",
+          "title": "Owner Account Id",
+          "type": "string"
+        },
+        "remediation_plan": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Remediation Plan",
+          "type": "string"
+        }
+      },
+      "required": [
+        "category",
+        "description",
+        "evidence_reference",
+        "due_on",
+        "corrective_action",
+        "severity",
+        "likelihood",
+        "policy_reference",
+        "owner_account_id",
+        "remediation_plan"
+      ],
+      "title": "RiskData",
+      "type": "object"
+    },
+    "INSPECTION": {
+      "$defs": {
+        "Finding": {
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "maxLength": 2000,
+              "minLength": 3,
+              "title": "Description",
+              "type": "string"
+            },
+            "owner_account_id": {
+              "format": "uuid",
+              "title": "Owner Account Id",
+              "type": "string"
+            },
+            "due_on": {
+              "format": "date",
+              "title": "Due On",
+              "type": "string"
+            }
+          },
+          "required": [
+            "description",
+            "owner_account_id",
+            "due_on"
+          ],
+          "title": "Finding",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "maxLength": 80,
+          "minLength": 2,
+          "title": "Category",
+          "type": "string"
+        },
+        "description": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Description",
+          "type": "string"
+        },
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        },
+        "due_on": {
+          "format": "date",
+          "title": "Due On",
+          "type": "string"
+        },
+        "corrective_action": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Corrective Action",
+          "type": "string"
+        },
+        "plan_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Plan Id"
+        },
+        "findings": {
+          "items": {
+            "$ref": "#/$defs/Finding"
+          },
+          "maxItems": 50,
+          "title": "Findings",
+          "type": "array"
+        },
+        "performed_at": {
+          "format": "date-time",
+          "title": "Performed At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "category",
+        "description",
+        "evidence_reference",
+        "due_on",
+        "corrective_action",
+        "performed_at"
+      ],
+      "title": "InspectionData",
+      "type": "object"
+    },
+    "INSURANCE": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "maxLength": 80,
+          "minLength": 2,
+          "title": "Category",
+          "type": "string"
+        },
+        "description": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Description",
+          "type": "string"
+        },
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        },
+        "due_on": {
+          "format": "date",
+          "title": "Due On",
+          "type": "string"
+        },
+        "corrective_action": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Corrective Action",
+          "type": "string"
+        }
+      },
+      "required": [
+        "category",
+        "description",
+        "evidence_reference",
+        "due_on",
+        "corrective_action"
+      ],
+      "title": "SafetyData",
+      "type": "object"
+    },
+    "WASTE": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "maxLength": 80,
+          "minLength": 2,
+          "title": "Category",
+          "type": "string"
+        },
+        "description": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Description",
+          "type": "string"
+        },
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        },
+        "due_on": {
+          "format": "date",
+          "title": "Due On",
+          "type": "string"
+        },
+        "corrective_action": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Corrective Action",
+          "type": "string"
+        },
+        "waste_type": {
+          "maxLength": 80,
+          "minLength": 2,
+          "title": "Waste Type",
+          "type": "string"
+        },
+        "quantity": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,14}|(?=[\\d.]{1,19}0*$)\\d{0,14}\\.\\d{0,4}0*$)",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Quantity"
+        },
+        "uom": {
+          "anyOf": [
+            {
+              "maxLength": 30,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uom"
+        },
+        "collection_point": {
+          "maxLength": 200,
+          "minLength": 2,
+          "title": "Collection Point",
+          "type": "string"
+        },
+        "receiving_party": {
+          "maxLength": 200,
+          "minLength": 3,
+          "title": "Receiving Party",
+          "type": "string"
+        },
+        "handover_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Handover Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "category",
+        "description",
+        "evidence_reference",
+        "due_on",
+        "corrective_action",
+        "waste_type",
+        "collection_point",
+        "receiving_party",
+        "handover_reference"
+      ],
+      "title": "WasteData",
+      "type": "object"
+    },
+    "LANDSCAPE": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "maxLength": 80,
+          "minLength": 2,
+          "title": "Category",
+          "type": "string"
+        },
+        "description": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Description",
+          "type": "string"
+        },
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        },
+        "due_on": {
+          "format": "date",
+          "title": "Due On",
+          "type": "string"
+        },
+        "corrective_action": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Corrective Action",
+          "type": "string"
+        },
+        "areas": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 50,
+          "minItems": 1,
+          "title": "Areas",
+          "type": "array"
+        },
+        "starts_at": {
+          "format": "date-time",
+          "title": "Starts At",
+          "type": "string"
+        },
+        "ends_at": {
+          "format": "date-time",
+          "title": "Ends At",
+          "type": "string"
+        },
+        "access_conditions": {
+          "maxLength": 1000,
+          "minLength": 3,
+          "title": "Access Conditions",
+          "type": "string"
+        },
+        "owner_account_id": {
+          "format": "uuid",
+          "title": "Owner Account Id",
+          "type": "string"
+        },
+        "notification_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Notification Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "category",
+        "description",
+        "evidence_reference",
+        "due_on",
+        "corrective_action",
+        "areas",
+        "starts_at",
+        "ends_at",
+        "access_conditions",
+        "owner_account_id",
+        "notification_reference"
+      ],
+      "title": "EnvironmentWorkData",
+      "type": "object"
+    },
+    "PEST": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "maxLength": 80,
+          "minLength": 2,
+          "title": "Category",
+          "type": "string"
+        },
+        "description": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Description",
+          "type": "string"
+        },
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        },
+        "due_on": {
+          "format": "date",
+          "title": "Due On",
+          "type": "string"
+        },
+        "corrective_action": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Corrective Action",
+          "type": "string"
+        },
+        "areas": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 50,
+          "minItems": 1,
+          "title": "Areas",
+          "type": "array"
+        },
+        "starts_at": {
+          "format": "date-time",
+          "title": "Starts At",
+          "type": "string"
+        },
+        "ends_at": {
+          "format": "date-time",
+          "title": "Ends At",
+          "type": "string"
+        },
+        "access_conditions": {
+          "maxLength": 1000,
+          "minLength": 3,
+          "title": "Access Conditions",
+          "type": "string"
+        },
+        "owner_account_id": {
+          "format": "uuid",
+          "title": "Owner Account Id",
+          "type": "string"
+        },
+        "notification_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Notification Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "category",
+        "description",
+        "evidence_reference",
+        "due_on",
+        "corrective_action",
+        "areas",
+        "starts_at",
+        "ends_at",
+        "access_conditions",
+        "owner_account_id",
+        "notification_reference"
+      ],
+      "title": "EnvironmentWorkData",
+      "type": "object"
+    },
+    "ENV_INCIDENT": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "maxLength": 80,
+          "minLength": 2,
+          "title": "Category",
+          "type": "string"
+        },
+        "description": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Description",
+          "type": "string"
+        },
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        },
+        "due_on": {
+          "format": "date",
+          "title": "Due On",
+          "type": "string"
+        },
+        "corrective_action": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Corrective Action",
+          "type": "string"
+        },
+        "areas": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 50,
+          "minItems": 1,
+          "title": "Areas",
+          "type": "array"
+        },
+        "hazardous": {
+          "title": "Hazardous",
+          "type": "boolean"
+        },
+        "security_incident_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Security Incident Id"
+        },
+        "owner_account_id": {
+          "format": "uuid",
+          "title": "Owner Account Id",
+          "type": "string"
+        },
+        "notification_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Notification Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "category",
+        "description",
+        "evidence_reference",
+        "due_on",
+        "corrective_action",
+        "areas",
+        "hazardous",
+        "owner_account_id",
+        "notification_reference"
+      ],
+      "title": "EnvironmentIncidentData",
+      "type": "object"
+    },
+    "VISITOR": {
+      "additionalProperties": false,
+      "properties": {
+        "host_account_id": {
+          "format": "uuid",
+          "title": "Host Account Id",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 200,
+          "minLength": 3,
+          "title": "Name",
+          "type": "string"
+        },
+        "starts_at": {
+          "format": "date-time",
+          "title": "Starts At",
+          "type": "string"
+        },
+        "ends_at": {
+          "format": "date-time",
+          "title": "Ends At",
+          "type": "string"
+        },
+        "purpose": {
+          "maxLength": 2000,
+          "minLength": 3,
+          "title": "Purpose",
+          "type": "string"
+        },
+        "authorization_dossier_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Authorization Dossier Id"
+        },
+        "areas": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "title": "Areas",
+          "type": "array"
+        }
+      },
+      "required": [
+        "host_account_id",
+        "name",
+        "starts_at",
+        "ends_at",
+        "purpose",
+        "areas"
+      ],
+      "title": "VisitorData",
+      "type": "object"
+    },
+    "CONTRACTOR": {
+      "additionalProperties": false,
+      "properties": {
+        "host_account_id": {
+          "format": "uuid",
+          "title": "Host Account Id",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 200,
+          "minLength": 3,
+          "title": "Name",
+          "type": "string"
+        },
+        "starts_at": {
+          "format": "date-time",
+          "title": "Starts At",
+          "type": "string"
+        },
+        "ends_at": {
+          "format": "date-time",
+          "title": "Ends At",
+          "type": "string"
+        },
+        "purpose": {
+          "maxLength": 2000,
+          "minLength": 3,
+          "title": "Purpose",
+          "type": "string"
+        },
+        "authorization_dossier_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Authorization Dossier Id"
+        },
+        "areas": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "title": "Areas",
+          "type": "array"
+        }
+      },
+      "required": [
+        "host_account_id",
+        "name",
+        "starts_at",
+        "ends_at",
+        "purpose",
+        "areas"
+      ],
+      "title": "VisitorData",
+      "type": "object"
+    },
+    "EMERGENCY_PLAN": {
+      "$defs": {
+        "EmergencyContact": {
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "maxLength": 200,
+              "minLength": 2,
+              "title": "Name",
+              "type": "string"
+            },
+            "responsibility": {
+              "maxLength": 300,
+              "minLength": 3,
+              "title": "Responsibility",
+              "type": "string"
+            },
+            "contact": {
+              "maxLength": 200,
+              "minLength": 3,
+              "title": "Contact",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "responsibility",
+            "contact"
+          ],
+          "title": "EmergencyContact",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "maxLength": 80,
+          "minLength": 3,
+          "title": "Code",
+          "type": "string"
+        },
+        "revision": {
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "valid_from": {
+          "format": "date",
+          "title": "Valid From",
+          "type": "string"
+        },
+        "valid_to": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Valid To"
+        },
+        "body": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Body",
+          "type": "string"
+        },
+        "confirmed_rule_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Confirmed Rule Reference",
+          "type": "string"
+        },
+        "contacts": {
+          "items": {
+            "$ref": "#/$defs/EmergencyContact"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "title": "Contacts",
+          "type": "array"
+        },
+        "evacuation_routes": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 50,
+          "minItems": 1,
+          "title": "Evacuation Routes",
+          "type": "array"
+        },
+        "assembly_point": {
+          "maxLength": 200,
+          "minLength": 2,
+          "title": "Assembly Point",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "revision",
+        "valid_from",
+        "body",
+        "confirmed_rule_reference",
+        "contacts",
+        "evacuation_routes",
+        "assembly_point"
+      ],
+      "title": "EmergencyPlanData",
+      "type": "object"
+    },
+    "DRILL": {
+      "$defs": {
+        "Finding": {
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "maxLength": 2000,
+              "minLength": 3,
+              "title": "Description",
+              "type": "string"
+            },
+            "owner_account_id": {
+              "format": "uuid",
+              "title": "Owner Account Id",
+              "type": "string"
+            },
+            "due_on": {
+              "format": "date",
+              "title": "Due On",
+              "type": "string"
+            }
+          },
+          "required": [
+            "description",
+            "owner_account_id",
+            "due_on"
+          ],
+          "title": "Finding",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "maxLength": 80,
+          "minLength": 2,
+          "title": "Category",
+          "type": "string"
+        },
+        "description": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Description",
+          "type": "string"
+        },
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        },
+        "due_on": {
+          "format": "date",
+          "title": "Due On",
+          "type": "string"
+        },
+        "corrective_action": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Corrective Action",
+          "type": "string"
+        },
+        "plan_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Plan Id"
+        },
+        "findings": {
+          "items": {
+            "$ref": "#/$defs/Finding"
+          },
+          "maxItems": 50,
+          "title": "Findings",
+          "type": "array"
+        },
+        "performed_at": {
+          "format": "date-time",
+          "title": "Performed At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "category",
+        "description",
+        "evidence_reference",
+        "due_on",
+        "corrective_action",
+        "performed_at"
+      ],
+      "title": "InspectionData",
+      "type": "object"
+    },
+    "KEY_CUSTODY": {
+      "additionalProperties": false,
+      "properties": {
+        "reference": {
+          "maxLength": 150,
+          "minLength": 3,
+          "title": "Reference",
+          "type": "string"
+        },
+        "location": {
+          "maxLength": 200,
+          "minLength": 2,
+          "title": "Location",
+          "type": "string"
+        },
+        "custodian_account_id": {
+          "format": "uuid",
+          "title": "Custodian Account Id",
+          "type": "string"
+        },
+        "due_on": {
+          "format": "date",
+          "title": "Due On",
+          "type": "string"
+        },
+        "condition": {
+          "maxLength": 2000,
+          "minLength": 3,
+          "title": "Condition",
+          "type": "string"
+        },
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "reference",
+        "location",
+        "custodian_account_id",
+        "due_on",
+        "condition",
+        "evidence_reference"
+      ],
+      "title": "CustodyData",
+      "type": "object"
+    },
+    "PARCEL_CUSTODY": {
+      "additionalProperties": false,
+      "properties": {
+        "reference": {
+          "maxLength": 150,
+          "minLength": 3,
+          "title": "Reference",
+          "type": "string"
+        },
+        "location": {
+          "maxLength": 200,
+          "minLength": 2,
+          "title": "Location",
+          "type": "string"
+        },
+        "custodian_account_id": {
+          "format": "uuid",
+          "title": "Custodian Account Id",
+          "type": "string"
+        },
+        "due_on": {
+          "format": "date",
+          "title": "Due On",
+          "type": "string"
+        },
+        "condition": {
+          "maxLength": 2000,
+          "minLength": 3,
+          "title": "Condition",
+          "type": "string"
+        },
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "reference",
+        "location",
+        "custodian_account_id",
+        "due_on",
+        "condition",
+        "evidence_reference"
+      ],
+      "title": "CustodyData",
+      "type": "object"
+    },
+    "LOST_FOUND": {
+      "additionalProperties": false,
+      "properties": {
+        "reference": {
+          "maxLength": 150,
+          "minLength": 3,
+          "title": "Reference",
+          "type": "string"
+        },
+        "location": {
+          "maxLength": 200,
+          "minLength": 2,
+          "title": "Location",
+          "type": "string"
+        },
+        "custodian_account_id": {
+          "format": "uuid",
+          "title": "Custodian Account Id",
+          "type": "string"
+        },
+        "due_on": {
+          "format": "date",
+          "title": "Due On",
+          "type": "string"
+        },
+        "condition": {
+          "maxLength": 2000,
+          "minLength": 3,
+          "title": "Condition",
+          "type": "string"
+        },
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "reference",
+        "location",
+        "custodian_account_id",
+        "due_on",
+        "condition",
+        "evidence_reference"
+      ],
+      "title": "CustodyData",
+      "type": "object"
+    },
+    "STAFF": {
+      "additionalProperties": false,
+      "properties": {
+        "account_id": {
+          "format": "uuid",
+          "title": "Account Id",
+          "type": "string"
+        },
+        "team": {
+          "maxLength": 80,
+          "minLength": 3,
+          "title": "Team",
+          "type": "string"
+        },
+        "position": {
+          "maxLength": 80,
+          "minLength": 3,
+          "title": "Position",
+          "type": "string"
+        },
+        "skills": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "title": "Skills",
+          "type": "array"
+        },
+        "certificates": {
+          "default": "",
+          "maxLength": 2000,
+          "title": "Certificates",
+          "type": "string"
+        },
+        "certificate_expires_on": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Certificate Expires On"
+        },
+        "territory": {
+          "maxLength": 80,
+          "minLength": 2,
+          "title": "Territory",
+          "type": "string"
+        },
+        "catalog_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxItems": 10,
+          "minItems": 1,
+          "title": "Catalog Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "account_id",
+        "team",
+        "position",
+        "skills",
+        "territory",
+        "catalog_ids"
+      ],
+      "title": "StaffData",
+      "type": "object"
+    },
+    "ROSTER": {
+      "additionalProperties": false,
+      "properties": {
+        "staff_id": {
+          "format": "uuid",
+          "title": "Staff Id",
+          "type": "string"
+        },
+        "starts_at": {
+          "format": "date-time",
+          "title": "Starts At",
+          "type": "string"
+        },
+        "ends_at": {
+          "format": "date-time",
+          "title": "Ends At",
+          "type": "string"
+        },
+        "required_skill": {
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Required Skill",
+          "type": "string"
+        },
+        "task": {
+          "maxLength": 2000,
+          "minLength": 3,
+          "title": "Task",
+          "type": "string"
+        }
+      },
+      "required": [
+        "staff_id",
+        "starts_at",
+        "ends_at",
+        "required_skill",
+        "task"
+      ],
+      "title": "RosterData",
+      "type": "object"
+    },
+    "SOP": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "maxLength": 80,
+          "minLength": 3,
+          "title": "Code",
+          "type": "string"
+        },
+        "revision": {
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "valid_from": {
+          "format": "date",
+          "title": "Valid From",
+          "type": "string"
+        },
+        "valid_to": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Valid To"
+        },
+        "body": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Body",
+          "type": "string"
+        },
+        "confirmed_rule_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Confirmed Rule Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "revision",
+        "valid_from",
+        "body",
+        "confirmed_rule_reference"
+      ],
+      "title": "RuleData",
+      "type": "object"
+    },
+    "TRAINING": {
+      "additionalProperties": false,
+      "properties": {
+        "sop_id": {
+          "format": "uuid",
+          "title": "Sop Id",
+          "type": "string"
+        },
+        "staff_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxItems": 200,
+          "minItems": 1,
+          "title": "Staff Ids",
+          "type": "array"
+        },
+        "scheduled_at": {
+          "format": "date-time",
+          "title": "Scheduled At",
+          "type": "string"
+        },
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sop_id",
+        "staff_ids",
+        "scheduled_at",
+        "evidence_reference"
+      ],
+      "title": "TrainingData",
+      "type": "object"
+    },
+    "MASTER_DATA": {
+      "$defs": {
+        "CatalogEntry": {
+          "additionalProperties": false,
+          "properties": {
+            "code": {
+              "maxLength": 80,
+              "minLength": 1,
+              "title": "Code",
+              "type": "string"
+            },
+            "name": {
+              "maxLength": 200,
+              "minLength": 2,
+              "title": "Name",
+              "type": "string"
+            },
+            "active": {
+              "default": true,
+              "title": "Active",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "code",
+            "name"
+          ],
+          "title": "CatalogEntry",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "maxLength": 80,
+          "minLength": 3,
+          "title": "Code",
+          "type": "string"
+        },
+        "revision": {
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "valid_from": {
+          "format": "date",
+          "title": "Valid From",
+          "type": "string"
+        },
+        "valid_to": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Valid To"
+        },
+        "body": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Body",
+          "type": "string"
+        },
+        "confirmed_rule_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Confirmed Rule Reference",
+          "type": "string"
+        },
+        "catalog": {
+          "enum": [
+            "TEAM",
+            "POSITION",
+            "TERRITORY",
+            "SKILL",
+            "UOM",
+            "ASSET_CATEGORY",
+            "WASTE_TYPE"
+          ],
+          "title": "Catalog",
+          "type": "string"
+        },
+        "entries": {
+          "items": {
+            "$ref": "#/$defs/CatalogEntry"
+          },
+          "maxItems": 200,
+          "minItems": 1,
+          "title": "Entries",
+          "type": "array"
+        }
+      },
+      "required": [
+        "code",
+        "revision",
+        "valid_from",
+        "body",
+        "confirmed_rule_reference",
+        "catalog",
+        "entries"
+      ],
+      "title": "CatalogData",
+      "type": "object"
+    },
+    "DATA_QUALITY": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "maxLength": 80,
+          "minLength": 2,
+          "title": "Category",
+          "type": "string"
+        },
+        "description": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Description",
+          "type": "string"
+        },
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        },
+        "due_on": {
+          "format": "date",
+          "title": "Due On",
+          "type": "string"
+        },
+        "corrective_action": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Corrective Action",
+          "type": "string"
+        },
+        "correction_dossier_id": {
+          "format": "uuid",
+          "title": "Correction Dossier Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "category",
+        "description",
+        "evidence_reference",
+        "due_on",
+        "corrective_action",
+        "correction_dossier_id"
+      ],
+      "title": "DataQualityData",
+      "type": "object"
+    },
+    "DEPOSIT_POLICY": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "maxLength": 80,
+          "minLength": 3,
+          "title": "Code",
+          "type": "string"
+        },
+        "purpose": {
+          "maxLength": 200,
+          "minLength": 3,
+          "title": "Purpose",
+          "type": "string"
+        },
+        "source_kind": {
+          "enum": [
+            "LEASE",
+            "RENOVATION",
+            "BOOKING",
+            "SERVICE"
+          ],
+          "title": "Source Kind",
+          "type": "string"
+        },
+        "amount_vnd": {
+          "maximum": 999999999999,
+          "minimum": 0,
+          "title": "Amount Vnd",
+          "type": "integer"
+        },
+        "conditions": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Conditions",
+          "type": "string"
+        },
+        "valid_from": {
+          "format": "date",
+          "title": "Valid From",
+          "type": "string"
+        },
+        "valid_to": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Valid To"
+        }
+      },
+      "required": [
+        "code",
+        "purpose",
+        "source_kind",
+        "amount_vnd",
+        "conditions",
+        "valid_from"
+      ],
+      "title": "DepositPolicyData",
+      "type": "object"
+    },
+    "LEASE_DEPOSIT": {
+      "additionalProperties": false,
+      "properties": {
+        "lease_id": {
+          "format": "uuid",
+          "title": "Lease Id",
+          "type": "string"
+        },
+        "policy_id": {
+          "format": "uuid",
+          "title": "Policy Id",
+          "type": "string"
+        },
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "lease_id",
+        "policy_id",
+        "evidence_reference"
+      ],
+      "title": "LeaseDepositData",
+      "type": "object"
+    },
+    "ASSET_CHANGE": {
+      "additionalProperties": false,
+      "properties": {
+        "asset_id": {
+          "format": "uuid",
+          "title": "Asset Id",
+          "type": "string"
+        },
+        "operation": {
+          "enum": [
+            "PROFILE",
+            "MOVE",
+            "RETIRE",
+            "REPLACE",
+            "DISPOSE",
+            "WARRANTY",
+            "INSPECTION",
+            "OUTAGE",
+            "RESTORE",
+            "LABOR"
+          ],
+          "title": "Operation",
+          "type": "string"
+        },
+        "serial": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "minLength": 2,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Serial"
+        },
+        "warranty_until": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Warranty Until"
+        },
+        "inspection_due_on": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Inspection Due On"
+        },
+        "location": {
+          "maxLength": 200,
+          "minLength": 2,
+          "title": "Location",
+          "type": "string"
+        },
+        "target_building_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Building Id"
+        },
+        "replacement_asset_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Replacement Asset Id"
+        },
+        "due_on": {
+          "format": "date",
+          "title": "Due On",
+          "type": "string"
+        },
+        "starts_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Starts At"
+        },
+        "ends_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ends At"
+        },
+        "work_order_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Work Order Id"
+        },
+        "hours": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,8}|(?=[\\d.]{1,13}0*$)\\d{0,8}\\.\\d{0,4}0*$)",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Hours"
+        },
+        "cost_vnd": {
+          "default": 0,
+          "maximum": 999999999999,
+          "minimum": 0,
+          "title": "Cost Vnd",
+          "type": "integer"
+        },
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        },
+        "description": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Description",
+          "type": "string"
+        }
+      },
+      "required": [
+        "asset_id",
+        "operation",
+        "location",
+        "due_on",
+        "evidence_reference",
+        "description"
+      ],
+      "title": "AssetData",
+      "type": "object"
+    },
+    "ORGANIZATION": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "maxLength": 80,
+          "minLength": 3,
+          "title": "Code",
+          "type": "string"
+        },
+        "revision": {
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "valid_from": {
+          "format": "date",
+          "title": "Valid From",
+          "type": "string"
+        },
+        "valid_to": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Valid To"
+        },
+        "body": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Body",
+          "type": "string"
+        },
+        "confirmed_rule_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Confirmed Rule Reference",
+          "type": "string"
+        },
+        "legal_name": {
+          "maxLength": 200,
+          "minLength": 3,
+          "title": "Legal Name",
+          "type": "string"
+        },
+        "address": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Address",
+          "type": "string"
+        },
+        "representative_account_id": {
+          "format": "uuid",
+          "title": "Representative Account Id",
+          "type": "string"
+        },
+        "contact": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Contact",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "revision",
+        "valid_from",
+        "body",
+        "confirmed_rule_reference",
+        "legal_name",
+        "address",
+        "representative_account_id",
+        "contact"
+      ],
+      "title": "OrganizationData",
+      "type": "object"
+    },
+    "BUILDING_ZONE": {
+      "additionalProperties": false,
+      "properties": {
+        "zone_id": {
+          "format": "uuid",
+          "title": "Zone Id",
+          "type": "string"
+        },
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "zone_id",
+        "evidence_reference"
+      ],
+      "title": "BuildingZoneData",
+      "type": "object"
+    },
+    "BUILDING_PROFILE": {
+      "additionalProperties": false,
+      "properties": {
+        "operation": {
+          "enum": [
+            "CREATE",
+            "UPDATE",
+            "ACTIVATE",
+            "DEACTIVATE"
+          ],
+          "title": "Operation",
+          "type": "string"
+        },
+        "code": {
+          "maxLength": 50,
+          "minLength": 2,
+          "pattern": "^[A-Z0-9][A-Z0-9_-]*$",
+          "title": "Code",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 200,
+          "minLength": 2,
+          "title": "Name",
+          "type": "string"
+        },
+        "floors_count": {
+          "maximum": 300,
+          "minimum": 1,
+          "title": "Floors Count",
+          "type": "integer"
+        },
+        "zone_id": {
+          "format": "uuid",
+          "title": "Zone Id",
+          "type": "string"
+        },
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "code",
+        "name",
+        "floors_count",
+        "zone_id",
+        "evidence_reference"
+      ],
+      "title": "BuildingProfileData",
+      "type": "object"
+    },
+    "SITE_PROFILE": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 200,
+          "minLength": 3,
+          "title": "Name",
+          "type": "string"
+        },
+        "address": {
+          "maxLength": 500,
+          "minLength": 3,
+          "title": "Address",
+          "type": "string"
+        },
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "address",
+        "evidence_reference"
+      ],
+      "title": "SiteProfileData",
+      "type": "object"
+    },
+    "TOOL_CUSTODY": {
+      "additionalProperties": false,
+      "properties": {
+        "reference": {
+          "maxLength": 150,
+          "minLength": 3,
+          "title": "Reference",
+          "type": "string"
+        },
+        "location": {
+          "maxLength": 200,
+          "minLength": 2,
+          "title": "Location",
+          "type": "string"
+        },
+        "custodian_account_id": {
+          "format": "uuid",
+          "title": "Custodian Account Id",
+          "type": "string"
+        },
+        "due_on": {
+          "format": "date",
+          "title": "Due On",
+          "type": "string"
+        },
+        "condition": {
+          "maxLength": 2000,
+          "minLength": 3,
+          "title": "Condition",
+          "type": "string"
+        },
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        },
+        "source_movement_id": {
+          "format": "uuid",
+          "title": "Source Movement Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "reference",
+        "location",
+        "custodian_account_id",
+        "due_on",
+        "condition",
+        "evidence_reference",
+        "source_movement_id"
+      ],
+      "title": "ToolCustodyData",
+      "type": "object"
+    },
+    "FEE_PUBLICATION": {
+      "additionalProperties": false,
+      "properties": {
+        "fee_version_id": {
+          "format": "uuid",
+          "title": "Fee Version Id",
+          "type": "string"
+        },
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "fee_version_id",
+        "evidence_reference"
+      ],
+      "title": "FeePublicationData",
+      "type": "object"
+    },
+    "FEE_BENEFIT": {
+      "additionalProperties": false,
+      "properties": {
+        "fee_policy_id": {
+          "format": "uuid",
+          "title": "Fee Policy Id",
+          "type": "string"
+        },
+        "unit_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxItems": 500,
+          "minItems": 1,
+          "title": "Unit Ids",
+          "type": "array"
+        },
+        "valid_from": {
+          "format": "date",
+          "title": "Valid From",
+          "type": "string"
+        },
+        "valid_to": {
+          "format": "date",
+          "title": "Valid To",
+          "type": "string"
+        },
+        "percent": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "maximum": 100.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,3}|(?=[\\d.]{1,8}0*$)\\d{0,3}\\.\\d{0,4}0*$)",
+              "type": "string"
+            }
+          ],
+          "title": "Percent"
+        },
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "fee_policy_id",
+        "unit_ids",
+        "valid_from",
+        "valid_to",
+        "percent",
+        "evidence_reference"
+      ],
+      "title": "BenefitData",
+      "type": "object"
+    },
+    "METER_DISCREPANCY": {
+      "additionalProperties": false,
+      "properties": {
+        "meter_id": {
+          "format": "uuid",
+          "title": "Meter Id",
+          "type": "string"
+        },
+        "starts_on": {
+          "format": "date",
+          "title": "Starts On",
+          "type": "string"
+        },
+        "ends_on": {
+          "format": "date",
+          "title": "Ends On",
+          "type": "string"
+        },
+        "explanation": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Explanation",
+          "type": "string"
+        },
+        "resolution": {
+          "enum": [
+            "READ_AGAIN",
+            "CORRECTION",
+            "ACCEPT_EXPLAINED"
+          ],
+          "title": "Resolution",
+          "type": "string"
+        },
+        "correction_record_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Correction Record Id"
+        },
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "meter_id",
+        "starts_on",
+        "ends_on",
+        "explanation",
+        "resolution",
+        "evidence_reference"
+      ],
+      "title": "MeterDiscrepancyData",
+      "type": "object"
+    },
+    "ASSET_WORK_LINK": {
+      "additionalProperties": false,
+      "properties": {
+        "asset_id": {
+          "format": "uuid",
+          "title": "Asset Id",
+          "type": "string"
+        },
+        "work_order_id": {
+          "format": "uuid",
+          "title": "Work Order Id",
+          "type": "string"
+        },
+        "warranty_decision": {
+          "enum": [
+            "PROVIDER",
+            "MANAGEMENT",
+            "NOT_APPLICABLE"
+          ],
+          "title": "Warranty Decision",
+          "type": "string"
+        },
+        "inspection_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Inspection Reference",
+          "type": "string"
+        },
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "asset_id",
+        "work_order_id",
+        "warranty_decision",
+        "inspection_reference",
+        "evidence_reference"
+      ],
+      "title": "AssetWorkLinkData",
+      "type": "object"
+    },
+    "BUDGET_VARIANCE": {
+      "additionalProperties": false,
+      "properties": {
+        "budget_id": {
+          "format": "uuid",
+          "title": "Budget Id",
+          "type": "string"
+        },
+        "explanation": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Explanation",
+          "type": "string"
+        },
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "budget_id",
+        "explanation",
+        "evidence_reference"
+      ],
+      "title": "BudgetVarianceData",
+      "type": "object"
+    },
+    "CONTRACT_MILESTONE": {
+      "additionalProperties": false,
+      "properties": {
+        "contract_id": {
+          "format": "uuid",
+          "title": "Contract Id",
+          "type": "string"
+        },
+        "milestone_code": {
+          "maxLength": 80,
+          "minLength": 2,
+          "title": "Milestone Code",
+          "type": "string"
+        },
+        "result": {
+          "maxLength": 2000,
+          "minLength": 3,
+          "title": "Result",
+          "type": "string"
+        },
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "contract_id",
+        "milestone_code",
+        "result",
+        "evidence_reference"
+      ],
+      "title": "ContractMilestoneData",
+      "type": "object"
+    },
+    "UOM_CONVERSION": {
+      "additionalProperties": false,
+      "properties": {
+        "item_id": {
+          "format": "uuid",
+          "title": "Item Id",
+          "type": "string"
+        },
+        "from_uom": {
+          "maxLength": 30,
+          "minLength": 1,
+          "title": "From Uom",
+          "type": "string"
+        },
+        "factor": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,14}|(?=[\\d.]{1,19}0*$)\\d{0,14}\\.\\d{0,4}0*$)",
+              "type": "string"
+            }
+          ],
+          "title": "Factor"
+        },
+        "valid_from": {
+          "format": "date",
+          "title": "Valid From",
+          "type": "string"
+        },
+        "valid_to": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Valid To"
+        },
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "item_id",
+        "from_uom",
+        "factor",
+        "valid_from",
+        "evidence_reference"
+      ],
+      "title": "UomConversionData",
+      "type": "object"
+    },
+    "WORK_ASSIGNMENT": {
+      "additionalProperties": false,
+      "properties": {
+        "target_type": {
+          "enum": [
+            "WORK_ORDER",
+            "CLEANING",
+            "SECURITY"
+          ],
+          "title": "Target Type",
+          "type": "string"
+        },
+        "target_id": {
+          "format": "uuid",
+          "title": "Target Id",
+          "type": "string"
+        },
+        "roster_id": {
+          "format": "uuid",
+          "title": "Roster Id",
+          "type": "string"
+        },
+        "required_skill": {
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Required Skill",
+          "type": "string"
+        },
+        "sop_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sop Id"
+        },
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "target_type",
+        "target_id",
+        "roster_id",
+        "required_skill",
+        "evidence_reference"
+      ],
+      "title": "AssignmentData",
+      "type": "object"
+    },
+    "INSURANCE_POLICY": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        },
+        "starts_on": {
+          "format": "date",
+          "title": "Starts On",
+          "type": "string"
+        },
+        "ends_on": {
+          "format": "date",
+          "title": "Ends On",
+          "type": "string"
+        },
+        "insurer": {
+          "maxLength": 200,
+          "minLength": 3,
+          "title": "Insurer",
+          "type": "string"
+        },
+        "policy_number": {
+          "maxLength": 100,
+          "minLength": 3,
+          "title": "Policy Number",
+          "type": "string"
+        },
+        "insured_objects": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 100,
+          "minItems": 1,
+          "title": "Insured Objects",
+          "type": "array"
+        },
+        "coverage": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Coverage",
+          "type": "string"
+        },
+        "exclusions": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Exclusions",
+          "type": "string"
+        },
+        "limit_vnd": {
+          "exclusiveMinimum": 0,
+          "maximum": 999999999999,
+          "title": "Limit Vnd",
+          "type": "integer"
+        },
+        "deductible_vnd": {
+          "maximum": 999999999999,
+          "minimum": 0,
+          "title": "Deductible Vnd",
+          "type": "integer"
+        },
+        "contact": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Contact",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_reference",
+        "starts_on",
+        "ends_on",
+        "insurer",
+        "policy_number",
+        "insured_objects",
+        "coverage",
+        "exclusions",
+        "limit_vnd",
+        "deductible_vnd",
+        "contact"
+      ],
+      "title": "InsurancePolicy",
+      "type": "object"
+    },
+    "INSURANCE_CLAIM": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        },
+        "policy_id": {
+          "format": "uuid",
+          "title": "Policy Id",
+          "type": "string"
+        },
+        "incident_id": {
+          "format": "uuid",
+          "title": "Incident Id",
+          "type": "string"
+        },
+        "occurred_on": {
+          "format": "date",
+          "title": "Occurred On",
+          "type": "string"
+        },
+        "loss_vnd": {
+          "exclusiveMinimum": 0,
+          "maximum": 999999999999,
+          "title": "Loss Vnd",
+          "type": "integer"
+        },
+        "description": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Description",
+          "type": "string"
+        },
+        "evidence_documents": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxItems": 30,
+          "title": "Evidence Documents",
+          "type": "array"
+        },
+        "handler_account_id": {
+          "format": "uuid",
+          "title": "Handler Account Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_reference",
+        "policy_id",
+        "incident_id",
+        "occurred_on",
+        "loss_vnd",
+        "description",
+        "handler_account_id"
+      ],
+      "title": "InsuranceClaim",
+      "type": "object"
+    },
+    "PROJECT": {
+      "$defs": {
+        "ProjectItem": {
+          "additionalProperties": false,
+          "properties": {
+            "code": {
+              "maxLength": 80,
+              "minLength": 2,
+              "title": "Code",
+              "type": "string"
+            },
+            "description": {
+              "maxLength": 1000,
+              "minLength": 3,
+              "title": "Description",
+              "type": "string"
+            },
+            "quantity": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0.0,
+                  "type": "number"
+                },
+                {
+                  "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,14}|(?=[\\d.]{1,19}0*$)\\d{0,14}\\.\\d{0,4}0*$)",
+                  "type": "string"
+                }
+              ],
+              "title": "Quantity"
+            },
+            "uom": {
+              "maxLength": 30,
+              "minLength": 1,
+              "title": "Uom",
+              "type": "string"
+            },
+            "due_on": {
+              "format": "date",
+              "title": "Due On",
+              "type": "string"
+            },
+            "asset_id": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Asset Id"
+            },
+            "planned_vnd": {
+              "maximum": 999999999999,
+              "minimum": 0,
+              "title": "Planned Vnd",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "code",
+            "description",
+            "quantity",
+            "uom",
+            "due_on",
+            "planned_vnd"
+          ],
+          "title": "ProjectItem",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        },
+        "starts_on": {
+          "format": "date",
+          "title": "Starts On",
+          "type": "string"
+        },
+        "ends_on": {
+          "format": "date",
+          "title": "Ends On",
+          "type": "string"
+        },
+        "budget_id": {
+          "format": "uuid",
+          "title": "Budget Id",
+          "type": "string"
+        },
+        "owner_account_id": {
+          "format": "uuid",
+          "title": "Owner Account Id",
+          "type": "string"
+        },
+        "objectives": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Objectives",
+          "type": "string"
+        },
+        "scope": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Scope",
+          "type": "string"
+        },
+        "impact": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Impact",
+          "type": "string"
+        },
+        "planned_vnd": {
+          "exclusiveMinimum": 0,
+          "maximum": 999999999999,
+          "title": "Planned Vnd",
+          "type": "integer"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/$defs/ProjectItem"
+          },
+          "maxItems": 100,
+          "minItems": 1,
+          "title": "Items",
+          "type": "array"
+        },
+        "contract_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Contract Id"
+        }
+      },
+      "required": [
+        "evidence_reference",
+        "starts_on",
+        "ends_on",
+        "budget_id",
+        "owner_account_id",
+        "objectives",
+        "scope",
+        "impact",
+        "planned_vnd",
+        "items"
+      ],
+      "title": "Project",
+      "type": "object"
+    },
+    "PROJECT_CHANGE": {
+      "$defs": {
+        "ProjectItem": {
+          "additionalProperties": false,
+          "properties": {
+            "code": {
+              "maxLength": 80,
+              "minLength": 2,
+              "title": "Code",
+              "type": "string"
+            },
+            "description": {
+              "maxLength": 1000,
+              "minLength": 3,
+              "title": "Description",
+              "type": "string"
+            },
+            "quantity": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0.0,
+                  "type": "number"
+                },
+                {
+                  "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,14}|(?=[\\d.]{1,19}0*$)\\d{0,14}\\.\\d{0,4}0*$)",
+                  "type": "string"
+                }
+              ],
+              "title": "Quantity"
+            },
+            "uom": {
+              "maxLength": 30,
+              "minLength": 1,
+              "title": "Uom",
+              "type": "string"
+            },
+            "due_on": {
+              "format": "date",
+              "title": "Due On",
+              "type": "string"
+            },
+            "asset_id": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Asset Id"
+            },
+            "planned_vnd": {
+              "maximum": 999999999999,
+              "minimum": 0,
+              "title": "Planned Vnd",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "code",
+            "description",
+            "quantity",
+            "uom",
+            "due_on",
+            "planned_vnd"
+          ],
+          "title": "ProjectItem",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        },
+        "starts_on": {
+          "format": "date",
+          "title": "Starts On",
+          "type": "string"
+        },
+        "ends_on": {
+          "format": "date",
+          "title": "Ends On",
+          "type": "string"
+        },
+        "budget_id": {
+          "format": "uuid",
+          "title": "Budget Id",
+          "type": "string"
+        },
+        "owner_account_id": {
+          "format": "uuid",
+          "title": "Owner Account Id",
+          "type": "string"
+        },
+        "objectives": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Objectives",
+          "type": "string"
+        },
+        "scope": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Scope",
+          "type": "string"
+        },
+        "impact": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Impact",
+          "type": "string"
+        },
+        "planned_vnd": {
+          "exclusiveMinimum": 0,
+          "maximum": 999999999999,
+          "title": "Planned Vnd",
+          "type": "integer"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/$defs/ProjectItem"
+          },
+          "maxItems": 100,
+          "minItems": 1,
+          "title": "Items",
+          "type": "array"
+        },
+        "contract_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Contract Id"
+        },
+        "project_id": {
+          "format": "uuid",
+          "title": "Project Id",
+          "type": "string"
+        },
+        "expected_project_version": {
+          "minimum": 1,
+          "title": "Expected Project Version",
+          "type": "integer"
+        },
+        "change_reason": {
+          "maxLength": 2000,
+          "minLength": 3,
+          "title": "Change Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_reference",
+        "starts_on",
+        "ends_on",
+        "budget_id",
+        "owner_account_id",
+        "objectives",
+        "scope",
+        "impact",
+        "planned_vnd",
+        "items",
+        "project_id",
+        "expected_project_version",
+        "change_reason"
+      ],
+      "title": "ProjectChange",
+      "type": "object"
+    },
+    "PROJECT_ACCEPTANCE": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        },
+        "project_id": {
+          "format": "uuid",
+          "title": "Project Id",
+          "type": "string"
+        },
+        "item_code": {
+          "maxLength": 80,
+          "minLength": 2,
+          "title": "Item Code",
+          "type": "string"
+        },
+        "accepted_quantity": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,14}|(?=[\\d.]{1,19}0*$)\\d{0,14}\\.\\d{0,4}0*$)",
+              "type": "string"
+            }
+          ],
+          "title": "Accepted Quantity"
+        },
+        "defective_quantity": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,14}|(?=[\\d.]{1,19}0*$)\\d{0,14}\\.\\d{0,4}0*$)",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Defective Quantity"
+        },
+        "defect_resolution": {
+          "default": "",
+          "maxLength": 4000,
+          "title": "Defect Resolution",
+          "type": "string"
+        },
+        "actual_vnd": {
+          "maximum": 999999999999,
+          "minimum": 0,
+          "title": "Actual Vnd",
+          "type": "integer"
+        },
+        "performed_on": {
+          "format": "date",
+          "title": "Performed On",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_reference",
+        "project_id",
+        "item_code",
+        "accepted_quantity",
+        "actual_vnd",
+        "performed_on"
+      ],
+      "title": "ProjectAcceptance",
+      "type": "object"
+    },
+    "PROJECT_HANDOVER": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        },
+        "project_id": {
+          "format": "uuid",
+          "title": "Project Id",
+          "type": "string"
+        },
+        "as_built_document_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "title": "As Built Document Ids",
+          "type": "array"
+        },
+        "asset_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxItems": 100,
+          "minItems": 1,
+          "title": "Asset Ids",
+          "type": "array"
+        },
+        "operating_instructions": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Operating Instructions",
+          "type": "string"
+        },
+        "recipient_account_id": {
+          "format": "uuid",
+          "title": "Recipient Account Id",
+          "type": "string"
+        },
+        "warranty_until": {
+          "format": "date",
+          "title": "Warranty Until",
+          "type": "string"
+        },
+        "warranty_contact": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Warranty Contact",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_reference",
+        "project_id",
+        "as_built_document_ids",
+        "asset_ids",
+        "operating_instructions",
+        "recipient_account_id",
+        "warranty_until",
+        "warranty_contact"
+      ],
+      "title": "ProjectHandover",
+      "type": "object"
+    },
+    "PROJECT_PROGRESS": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        },
+        "project_id": {
+          "format": "uuid",
+          "title": "Project Id",
+          "type": "string"
+        },
+        "item_code": {
+          "maxLength": 80,
+          "minLength": 2,
+          "title": "Item Code",
+          "type": "string"
+        },
+        "performed_on": {
+          "format": "date",
+          "title": "Performed On",
+          "type": "string"
+        },
+        "actual_quantity": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,14}|(?=[\\d.]{1,19}0*$)\\d{0,14}\\.\\d{0,4}0*$)",
+              "type": "string"
+            }
+          ],
+          "title": "Actual Quantity"
+        },
+        "issues": {
+          "maxLength": 2000,
+          "minLength": 3,
+          "title": "Issues",
+          "type": "string"
+        },
+        "operating_impact": {
+          "maxLength": 2000,
+          "minLength": 3,
+          "title": "Operating Impact",
+          "type": "string"
+        },
+        "notification_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Notification Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_reference",
+        "project_id",
+        "item_code",
+        "performed_on",
+        "actual_quantity",
+        "issues",
+        "operating_impact",
+        "notification_reference"
+      ],
+      "title": "ProjectProgress",
+      "type": "object"
+    },
+    "PROJECT_DEFECT_RESOLUTION": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        },
+        "project_id": {
+          "format": "uuid",
+          "title": "Project Id",
+          "type": "string"
+        },
+        "acceptance_id": {
+          "format": "uuid",
+          "title": "Acceptance Id",
+          "type": "string"
+        },
+        "addressed_quantity": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,14}|(?=[\\d.]{1,19}0*$)\\d{0,14}\\.\\d{0,4}0*$)",
+              "type": "string"
+            }
+          ],
+          "title": "Addressed Quantity"
+        },
+        "resolution": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Resolution",
+          "type": "string"
+        },
+        "responsible_account_id": {
+          "format": "uuid",
+          "title": "Responsible Account Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_reference",
+        "project_id",
+        "acceptance_id",
+        "addressed_quantity",
+        "resolution",
+        "responsible_account_id"
+      ],
+      "title": "ProjectDefectResolution",
+      "type": "object"
+    },
+    "PROJECT_SETTLEMENT": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        },
+        "project_id": {
+          "format": "uuid",
+          "title": "Project Id",
+          "type": "string"
+        },
+        "expense_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxItems": 100,
+          "title": "Expense Ids",
+          "type": "array"
+        },
+        "actual_vnd": {
+          "maximum": 999999999999,
+          "minimum": 0,
+          "title": "Actual Vnd",
+          "type": "integer"
+        },
+        "explanation": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Explanation",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_reference",
+        "project_id",
+        "actual_vnd",
+        "explanation"
+      ],
+      "title": "ProjectSettlement",
+      "type": "object"
+    },
+    "COMMERCIAL_SPACE": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        },
+        "property_node_id": {
+          "format": "uuid",
+          "title": "Property Node Id",
+          "type": "string"
+        },
+        "use_purpose": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Use Purpose",
+          "type": "string"
+        },
+        "area_m2": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,10}|(?=[\\d.]{1,13}0*$)\\d{0,10}\\.\\d{0,2}0*$)",
+              "type": "string"
+            }
+          ],
+          "title": "Area M2"
+        },
+        "asking_rent_vnd": {
+          "maximum": 999999999999,
+          "minimum": 0,
+          "title": "Asking Rent Vnd",
+          "type": "integer"
+        },
+        "operating_conditions": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Operating Conditions",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_reference",
+        "property_node_id",
+        "use_purpose",
+        "area_m2",
+        "asking_rent_vnd",
+        "operating_conditions"
+      ],
+      "title": "CommercialSpace",
+      "type": "object"
+    },
+    "COMMERCIAL_PROPOSAL": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        },
+        "starts_on": {
+          "format": "date",
+          "title": "Starts On",
+          "type": "string"
+        },
+        "ends_on": {
+          "format": "date",
+          "title": "Ends On",
+          "type": "string"
+        },
+        "space_id": {
+          "format": "uuid",
+          "title": "Space Id",
+          "type": "string"
+        },
+        "party_kind": {
+          "enum": [
+            "ORGANIZATION",
+            "PERSON"
+          ],
+          "title": "Party Kind",
+          "type": "string"
+        },
+        "party_name": {
+          "maxLength": 200,
+          "minLength": 3,
+          "title": "Party Name",
+          "type": "string"
+        },
+        "legal_reference": {
+          "maxLength": 150,
+          "minLength": 3,
+          "title": "Legal Reference",
+          "type": "string"
+        },
+        "contact": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Contact",
+          "type": "string"
+        },
+        "purpose": {
+          "maxLength": 1000,
+          "minLength": 3,
+          "title": "Purpose",
+          "type": "string"
+        },
+        "operating_plan": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Operating Plan",
+          "type": "string"
+        },
+        "rent_vnd": {
+          "exclusiveMinimum": 0,
+          "maximum": 999999999999,
+          "title": "Rent Vnd",
+          "type": "integer"
+        },
+        "service_vnd": {
+          "maximum": 999999999999,
+          "minimum": 0,
+          "title": "Service Vnd",
+          "type": "integer"
+        },
+        "deposit_vnd": {
+          "maximum": 999999999999,
+          "minimum": 0,
+          "title": "Deposit Vnd",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "evidence_reference",
+        "starts_on",
+        "ends_on",
+        "space_id",
+        "party_kind",
+        "party_name",
+        "legal_reference",
+        "contact",
+        "purpose",
+        "operating_plan",
+        "rent_vnd",
+        "service_vnd",
+        "deposit_vnd"
+      ],
+      "title": "CommercialProposal",
+      "type": "object"
+    },
+    "COMMERCIAL_LEASE": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        },
+        "proposal_id": {
+          "format": "uuid",
+          "title": "Proposal Id",
+          "type": "string"
+        },
+        "contract_number": {
+          "maxLength": 100,
+          "minLength": 3,
+          "title": "Contract Number",
+          "type": "string"
+        },
+        "terms": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Terms",
+          "type": "string"
+        },
+        "rent_cycle": {
+          "enum": [
+            "MONTH",
+            "QUARTER",
+            "YEAR"
+          ],
+          "title": "Rent Cycle",
+          "type": "string"
+        },
+        "responsible_account_id": {
+          "format": "uuid",
+          "title": "Responsible Account Id",
+          "type": "string"
+        },
+        "handover_condition": {
+          "maxLength": 2000,
+          "minLength": 3,
+          "title": "Handover Condition",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_reference",
+        "proposal_id",
+        "contract_number",
+        "terms",
+        "rent_cycle",
+        "responsible_account_id",
+        "handover_condition"
+      ],
+      "title": "CommercialLease",
+      "type": "object"
+    },
+    "LEASE_AMENDMENT": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        },
+        "starts_on": {
+          "format": "date",
+          "title": "Starts On",
+          "type": "string"
+        },
+        "ends_on": {
+          "format": "date",
+          "title": "Ends On",
+          "type": "string"
+        },
+        "space_id": {
+          "format": "uuid",
+          "title": "Space Id",
+          "type": "string"
+        },
+        "party_kind": {
+          "enum": [
+            "ORGANIZATION",
+            "PERSON"
+          ],
+          "title": "Party Kind",
+          "type": "string"
+        },
+        "party_name": {
+          "maxLength": 200,
+          "minLength": 3,
+          "title": "Party Name",
+          "type": "string"
+        },
+        "legal_reference": {
+          "maxLength": 150,
+          "minLength": 3,
+          "title": "Legal Reference",
+          "type": "string"
+        },
+        "contact": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Contact",
+          "type": "string"
+        },
+        "purpose": {
+          "maxLength": 1000,
+          "minLength": 3,
+          "title": "Purpose",
+          "type": "string"
+        },
+        "operating_plan": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Operating Plan",
+          "type": "string"
+        },
+        "rent_vnd": {
+          "exclusiveMinimum": 0,
+          "maximum": 999999999999,
+          "title": "Rent Vnd",
+          "type": "integer"
+        },
+        "service_vnd": {
+          "maximum": 999999999999,
+          "minimum": 0,
+          "title": "Service Vnd",
+          "type": "integer"
+        },
+        "deposit_vnd": {
+          "maximum": 999999999999,
+          "minimum": 0,
+          "title": "Deposit Vnd",
+          "type": "integer"
+        },
+        "lease_id": {
+          "format": "uuid",
+          "title": "Lease Id",
+          "type": "string"
+        },
+        "expected_lease_version": {
+          "minimum": 1,
+          "title": "Expected Lease Version",
+          "type": "integer"
+        },
+        "operation": {
+          "enum": [
+            "AMEND",
+            "RENEW",
+            "TERMINATE",
+            "REPOSSESS"
+          ],
+          "title": "Operation",
+          "type": "string"
+        },
+        "obligations_explanation": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Obligations Explanation",
+          "type": "string"
+        },
+        "return_condition": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 3,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Return Condition"
+        }
+      },
+      "required": [
+        "evidence_reference",
+        "starts_on",
+        "ends_on",
+        "space_id",
+        "party_kind",
+        "party_name",
+        "legal_reference",
+        "contact",
+        "purpose",
+        "operating_plan",
+        "rent_vnd",
+        "service_vnd",
+        "deposit_vnd",
+        "lease_id",
+        "expected_lease_version",
+        "operation",
+        "obligations_explanation"
+      ],
+      "title": "LeaseAmendment",
+      "type": "object"
+    },
+    "COMMERCIAL_CHARGE": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        },
+        "lease_id": {
+          "format": "uuid",
+          "title": "Lease Id",
+          "type": "string"
+        },
+        "starts_on": {
+          "format": "date",
+          "title": "Starts On",
+          "type": "string"
+        },
+        "ends_on": {
+          "format": "date",
+          "title": "Ends On",
+          "type": "string"
+        },
+        "due_on": {
+          "format": "date",
+          "title": "Due On",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_reference",
+        "lease_id",
+        "starts_on",
+        "ends_on",
+        "due_on"
+      ],
+      "title": "CommercialCharge",
+      "type": "object"
+    },
+    "COMMERCIAL_MOVEMENT": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        },
+        "charge_id": {
+          "format": "uuid",
+          "title": "Charge Id",
+          "type": "string"
+        },
+        "amount_vnd": {
+          "exclusiveMinimum": 0,
+          "maximum": 999999999999,
+          "title": "Amount Vnd",
+          "type": "integer"
+        },
+        "reference": {
+          "maxLength": 150,
+          "minLength": 3,
+          "title": "Reference",
+          "type": "string"
+        },
+        "operation": {
+          "enum": [
+            "RECEIPT",
+            "REFUND",
+            "DEDUCTION"
+          ],
+          "title": "Operation",
+          "type": "string"
+        },
+        "occurred_on": {
+          "format": "date",
+          "title": "Occurred On",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_reference",
+        "charge_id",
+        "amount_vnd",
+        "reference",
+        "operation",
+        "occurred_on"
+      ],
+      "title": "CommercialMovement",
+      "type": "object"
+    },
+    "ENERGY_TARGET": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        },
+        "starts_on": {
+          "format": "date",
+          "title": "Starts On",
+          "type": "string"
+        },
+        "ends_on": {
+          "format": "date",
+          "title": "Ends On",
+          "type": "string"
+        },
+        "area_id": {
+          "format": "uuid",
+          "title": "Area Id",
+          "type": "string"
+        },
+        "commodity": {
+          "enum": [
+            "ELECTRICITY",
+            "WATER"
+          ],
+          "title": "Commodity",
+          "type": "string"
+        },
+        "uom": {
+          "enum": [
+            "kWh",
+            "m3"
+          ],
+          "title": "Uom",
+          "type": "string"
+        },
+        "meter_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxItems": 100,
+          "minItems": 1,
+          "title": "Meter Ids",
+          "type": "array"
+        },
+        "target_quantity": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,14}|(?=[\\d.]{1,19}0*$)\\d{0,14}\\.\\d{0,4}0*$)",
+              "type": "string"
+            }
+          ],
+          "title": "Target Quantity"
+        },
+        "tolerance_percent": {
+          "anyOf": [
+            {
+              "maximum": 1000.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,4}|(?=[\\d.]{1,9}0*$)\\d{0,4}\\.\\d{0,4}0*$)",
+              "type": "string"
+            }
+          ],
+          "title": "Tolerance Percent"
+        },
+        "definition": {
+          "maxLength": 1000,
+          "minLength": 3,
+          "title": "Definition",
+          "type": "string"
+        },
+        "policy_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Policy Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_reference",
+        "starts_on",
+        "ends_on",
+        "area_id",
+        "commodity",
+        "uom",
+        "meter_ids",
+        "target_quantity",
+        "tolerance_percent",
+        "definition",
+        "policy_reference"
+      ],
+      "title": "EnergyTarget",
+      "type": "object"
+    },
+    "ENERGY_REPORT": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        },
+        "starts_on": {
+          "format": "date",
+          "title": "Starts On",
+          "type": "string"
+        },
+        "ends_on": {
+          "format": "date",
+          "title": "Ends On",
+          "type": "string"
+        },
+        "target_id": {
+          "format": "uuid",
+          "title": "Target Id",
+          "type": "string"
+        },
+        "explanation": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Explanation",
+          "type": "string"
+        },
+        "verified_cause_reference": {
+          "anyOf": [
+            {
+              "maxLength": 300,
+              "minLength": 3,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Verified Cause Reference"
+        }
+      },
+      "required": [
+        "evidence_reference",
+        "starts_on",
+        "ends_on",
+        "target_id",
+        "explanation"
+      ],
+      "title": "EnergyReport",
+      "type": "object"
+    },
+    "ENERGY_MEASURE": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        },
+        "target_id": {
+          "format": "uuid",
+          "title": "Target Id",
+          "type": "string"
+        },
+        "description": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Description",
+          "type": "string"
+        },
+        "owner_account_id": {
+          "format": "uuid",
+          "title": "Owner Account Id",
+          "type": "string"
+        },
+        "due_on": {
+          "format": "date",
+          "title": "Due On",
+          "type": "string"
+        },
+        "expected_saving": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,14}|(?=[\\d.]{1,19}0*$)\\d{0,14}\\.\\d{0,4}0*$)",
+              "type": "string"
+            }
+          ],
+          "title": "Expected Saving"
+        },
+        "cost_vnd": {
+          "maximum": 999999999999,
+          "minimum": 0,
+          "title": "Cost Vnd",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "evidence_reference",
+        "target_id",
+        "description",
+        "owner_account_id",
+        "due_on",
+        "expected_saving",
+        "cost_vnd"
+      ],
+      "title": "EnergyMeasure",
+      "type": "object"
+    },
+    "ENERGY_RESULT": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_reference": {
+          "maxLength": 300,
+          "minLength": 3,
+          "title": "Evidence Reference",
+          "type": "string"
+        },
+        "starts_on": {
+          "format": "date",
+          "title": "Starts On",
+          "type": "string"
+        },
+        "ends_on": {
+          "format": "date",
+          "title": "Ends On",
+          "type": "string"
+        },
+        "measure_id": {
+          "format": "uuid",
+          "title": "Measure Id",
+          "type": "string"
+        },
+        "baseline_report_id": {
+          "format": "uuid",
+          "title": "Baseline Report Id",
+          "type": "string"
+        },
+        "result_report_id": {
+          "format": "uuid",
+          "title": "Result Report Id",
+          "type": "string"
+        },
+        "conclusion": {
+          "maxLength": 4000,
+          "minLength": 3,
+          "title": "Conclusion",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_reference",
+        "starts_on",
+        "ends_on",
+        "measure_id",
+        "baseline_report_id",
+        "result_report_id",
+        "conclusion"
+      ],
+      "title": "EnergyResult",
+      "type": "object"
+    }
+  },
+  "controls": {
+    "meter-assignments": {
+      "kind": "meter-assignments",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "meter_id": {
+            "format": "uuid",
+            "title": "Meter Id",
+            "type": "string"
+          },
+          "unit_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Unit Id"
+          },
+          "point": {
+            "maxLength": 200,
+            "minLength": 2,
+            "title": "Point",
+            "type": "string"
+          },
+          "valid_from": {
+            "format": "date",
+            "title": "Valid From",
+            "type": "string"
+          },
+          "evidence_reference": {
+            "maxLength": 300,
+            "minLength": 3,
+            "title": "Evidence Reference",
+            "type": "string"
+          }
+        },
+        "required": [
+          "meter_id",
+          "point",
+          "valid_from",
+          "evidence_reference"
+        ],
+        "title": "MeterAssignmentInput",
+        "type": "object"
+      },
+      "can_create": true,
+      "can_bill": false
+    },
+    "access-cards": {
+      "kind": "access-cards",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "building_id": {
+            "format": "uuid",
+            "title": "Building Id",
+            "type": "string"
+          },
+          "unit_id": {
+            "format": "uuid",
+            "title": "Unit Id",
+            "type": "string"
+          },
+          "holder_account_id": {
+            "format": "uuid",
+            "title": "Holder Account Id",
+            "type": "string"
+          },
+          "valid_to": {
+            "format": "date",
+            "title": "Valid To",
+            "type": "string"
+          },
+          "areas": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Areas",
+            "type": "array"
+          },
+          "authorization_record_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Authorization Record Id"
+          }
+        },
+        "required": [
+          "building_id",
+          "unit_id",
+          "holder_account_id",
+          "valid_to",
+          "areas"
+        ],
+        "title": "AccessCardInput",
+        "type": "object"
+      },
+      "can_create": true,
+      "can_bill": false
+    },
+    "parking-slots": {
+      "kind": "parking-slots",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "resource_id": {
+            "format": "uuid",
+            "title": "Resource Id",
+            "type": "string"
+          },
+          "code": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          },
+          "vehicle_types": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 10,
+            "minItems": 1,
+            "title": "Vehicle Types",
+            "type": "array"
+          }
+        },
+        "required": [
+          "resource_id",
+          "code",
+          "vehicle_types"
+        ],
+        "title": "SlotInput",
+        "type": "object"
+      },
+      "can_create": true,
+      "can_bill": false
+    },
+    "visitor-parking": {
+      "kind": "visitor-parking",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "resource_id": {
+            "format": "uuid",
+            "title": "Resource Id",
+            "type": "string"
+          },
+          "plate": {
+            "maxLength": 30,
+            "minLength": 3,
+            "title": "Plate",
+            "type": "string"
+          },
+          "vehicle_type": {
+            "maxLength": 30,
+            "minLength": 2,
+            "title": "Vehicle Type",
+            "type": "string"
+          },
+          "rate_vnd": {
+            "maximum": 9999999999,
+            "minimum": 0,
+            "title": "Rate Vnd",
+            "type": "integer"
+          },
+          "entered_at": {
+            "format": "date-time",
+            "title": "Entered At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "resource_id",
+          "plate",
+          "vehicle_type",
+          "rate_vnd",
+          "entered_at"
+        ],
+        "title": "VisitorParkingInput",
+        "type": "object"
+      },
+      "can_create": true,
+      "can_bill": false
+    },
+    "card-blanks": {
+      "kind": "card-blanks",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "building_id": {
+            "format": "uuid",
+            "title": "Building Id",
+            "type": "string"
+          },
+          "code": {
+            "maxLength": 80,
+            "minLength": 3,
+            "title": "Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "building_id",
+          "code"
+        ],
+        "title": "BlankInput",
+        "type": "object"
+      },
+      "can_create": true,
+      "can_bill": false
+    },
+    "integrations": {
+      "kind": "integrations",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "building_id": {
+            "format": "uuid",
+            "title": "Building Id",
+            "type": "string"
+          },
+          "code": {
+            "maxLength": 80,
+            "minLength": 3,
+            "title": "Code",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "ACCESS",
+              "PARKING",
+              "METER",
+              "ACCOUNTING",
+              "BANK"
+            ],
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "building_id",
+          "code",
+          "kind"
+        ],
+        "title": "EndpointInput",
+        "type": "object"
+      },
+      "can_create": true,
+      "can_bill": false
+    },
+    "templates": {
+      "kind": "templates",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "building_id": {
+            "format": "uuid",
+            "title": "Building Id",
+            "type": "string"
+          },
+          "code": {
+            "pattern": "^[A-Z][A-Z0-9_]{2,79}$",
+            "title": "Code",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 300,
+            "minLength": 3,
+            "title": "Title",
+            "type": "string"
+          },
+          "body": {
+            "maxLength": 4000,
+            "minLength": 3,
+            "title": "Body",
+            "type": "string"
+          },
+          "required_fields": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Required Fields",
+            "type": "array"
+          },
+          "mandatory": {
+            "default": false,
+            "title": "Mandatory",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "building_id",
+          "code",
+          "title",
+          "body"
+        ],
+        "title": "TemplateInput",
+        "type": "object"
+      },
+      "can_create": true,
+      "can_bill": false
+    },
+    "jobs": {
+      "kind": "jobs",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "building_id": {
+            "format": "uuid",
+            "title": "Building Id",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 3,
+            "title": "Name",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "LIFECYCLE",
+              "DOCUMENT_EXPIRY",
+              "MAINTENANCE",
+              "SLA_SCAN",
+              "ASSET_DEADLINE",
+              "SOP_ACK",
+              "COMMUNITY_DECISION",
+              "CONTRACT_MILESTONE"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "interval_minutes": {
+            "maximum": 525600,
+            "minimum": 5,
+            "title": "Interval Minutes",
+            "type": "integer"
+          },
+          "next_run_at": {
+            "format": "date-time",
+            "title": "Next Run At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "building_id",
+          "name",
+          "kind",
+          "interval_minutes",
+          "next_run_at"
+        ],
+        "title": "JobInput",
+        "type": "object"
+      },
+      "can_create": true,
+      "can_bill": false
+    },
+    "invitations": {
+      "kind": "invitations",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "building_id": {
+            "format": "uuid",
+            "title": "Building Id",
+            "type": "string"
+          },
+          "username": {
+            "pattern": "^[a-zA-Z0-9_.-]{3,100}$",
+            "title": "Username",
+            "type": "string"
+          },
+          "full_name": {
+            "maxLength": 200,
+            "minLength": 3,
+            "title": "Full Name",
+            "type": "string"
+          },
+          "person_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Person Id"
+          },
+          "role": {
+            "enum": [
+              "admin",
+              "director",
+              "cskh",
+              "accountant",
+              "technical_lead",
+              "technician",
+              "cleaning",
+              "security",
+              "resident"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "email": {
+            "maxLength": 254,
+            "pattern": "^[^\\s@\\r\\n]+@[^\\s@\\r\\n]+\\.[^\\s@\\r\\n]+$",
+            "title": "Email",
+            "type": "string"
+          },
+          "verification_reference": {
+            "maxLength": 300,
+            "minLength": 3,
+            "title": "Verification Reference",
+            "type": "string"
+          }
+        },
+        "required": [
+          "building_id",
+          "username",
+          "full_name",
+          "role",
+          "email",
+          "verification_reference"
+        ],
+        "title": "InvitationInput",
+        "type": "object"
+      },
+      "can_create": true,
+      "can_bill": false
+    },
+    "meters": {
+      "kind": "meters",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "building_id": {
+            "format": "uuid",
+            "title": "Building Id",
+            "type": "string"
+          },
+          "unit_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Unit Id"
+          },
+          "code": {
+            "maxLength": 80,
+            "minLength": 2,
+            "title": "Code",
+            "type": "string"
+          },
+          "serial": {
+            "maxLength": 100,
+            "minLength": 2,
+            "title": "Serial",
+            "type": "string"
+          },
+          "commodity": {
+            "enum": [
+              "WATER",
+              "ELECTRICITY"
+            ],
+            "title": "Commodity",
+            "type": "string"
+          },
+          "multiplier": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 100000.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,17}0*$)\\d{0,12}\\.\\d{0,4}0*$)",
+                "type": "string"
+              }
+            ],
+            "default": "1",
+            "title": "Multiplier"
+          },
+          "baseline": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,14}|(?=[\\d.]{1,19}0*$)\\d{0,14}\\.\\d{0,4}0*$)",
+                "type": "string"
+              }
+            ],
+            "title": "Baseline"
+          },
+          "valid_from": {
+            "format": "date",
+            "title": "Valid From",
+            "type": "string"
+          },
+          "upstream_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Upstream Id"
+          }
+        },
+        "required": [
+          "building_id",
+          "code",
+          "serial",
+          "commodity",
+          "baseline",
+          "valid_from"
+        ],
+        "title": "MeterInput",
+        "type": "object"
+      },
+      "can_create": true,
+      "can_bill": false
+    },
+    "readings": {
+      "kind": "readings",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "meter_id": {
+            "format": "uuid",
+            "title": "Meter Id",
+            "type": "string"
+          },
+          "read_on": {
+            "format": "date",
+            "title": "Read On",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,14}|(?=[\\d.]{1,19}0*$)\\d{0,14}\\.\\d{0,4}0*$)",
+                "type": "string"
+              }
+            ],
+            "title": "Value"
+          },
+          "evidence_reference": {
+            "maxLength": 300,
+            "minLength": 3,
+            "title": "Evidence Reference",
+            "type": "string"
+          },
+          "anomaly_threshold": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,14}|(?=[\\d.]{1,19}0*$)\\d{0,14}\\.\\d{0,4}0*$)",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Anomaly Threshold"
+          }
+        },
+        "required": [
+          "meter_id",
+          "read_on",
+          "value",
+          "evidence_reference"
+        ],
+        "title": "ReadingInput",
+        "type": "object"
+      },
+      "can_create": true,
+      "can_bill": true
+    },
+    "stock": {
+      "kind": "stock",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "building_id": {
+            "format": "uuid",
+            "title": "Building Id",
+            "type": "string"
+          },
+          "code": {
+            "maxLength": 80,
+            "minLength": 2,
+            "title": "Code",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 3,
+            "title": "Name",
+            "type": "string"
+          },
+          "uom": {
+            "maxLength": 30,
+            "minLength": 1,
+            "title": "Uom",
+            "type": "string"
+          },
+          "warehouse": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Warehouse",
+            "type": "string"
+          },
+          "location": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Location",
+            "type": "string"
+          },
+          "lot": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Lot",
+            "type": "string"
+          },
+          "minimum": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,14}|(?=[\\d.]{1,19}0*$)\\d{0,14}\\.\\d{0,4}0*$)",
+                "type": "string"
+              }
+            ],
+            "default": "0",
+            "title": "Minimum"
+          },
+          "unit_cost_vnd": {
+            "maximum": 9999999999,
+            "minimum": 0,
+            "title": "Unit Cost Vnd",
+            "type": "integer"
+          },
+          "expires_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expires On"
+          }
+        },
+        "required": [
+          "building_id",
+          "code",
+          "name",
+          "uom",
+          "warehouse",
+          "location",
+          "lot",
+          "unit_cost_vnd"
+        ],
+        "title": "StockInput",
+        "type": "object"
+      },
+      "can_create": true,
+      "can_bill": false
+    },
+    "stock-movements": {
+      "kind": "stock-movements",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "item_id": {
+            "format": "uuid",
+            "title": "Item Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "RECEIVE",
+              "RESERVE",
+              "RELEASE",
+              "ISSUE",
+              "RETURN",
+              "TRANSFER",
+              "COUNT",
+              "DAMAGE"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,14}|(?=[\\d.]{1,19}0*$)\\d{0,14}\\.\\d{0,4}0*$)",
+                "type": "string"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "work_order_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Work Order Id"
+          },
+          "related_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Related Id"
+          },
+          "destination_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Destination Id"
+          },
+          "expected_version": {
+            "minimum": 1,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "reference": {
+            "maxLength": 150,
+            "minLength": 3,
+            "title": "Reference",
+            "type": "string"
+          },
+          "evidence_reference": {
+            "maxLength": 300,
+            "minLength": 3,
+            "title": "Evidence Reference",
+            "type": "string"
+          },
+          "sender_account_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Sender Account Id"
+          },
+          "recipient_account_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Recipient Account Id"
+          },
+          "condition": {
+            "default": "GOOD",
+            "enum": [
+              "GOOD",
+              "DAMAGED"
+            ],
+            "title": "Condition",
+            "type": "string"
+          },
+          "input_uom": {
+            "anyOf": [
+              {
+                "maxLength": 30,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Input Uom"
+          },
+          "conversion_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Conversion Id"
+          },
+          "delivery_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Delivery Id"
+          }
+        },
+        "required": [
+          "item_id",
+          "kind",
+          "quantity",
+          "expected_version",
+          "reference",
+          "evidence_reference"
+        ],
+        "title": "StockCommand",
+        "type": "object"
+      },
+      "can_create": true,
+      "can_bill": false
+    },
+    "treasury": {
+      "kind": "treasury",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "building_id": {
+            "format": "uuid",
+            "title": "Building Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "BUDGET",
+              "FUND"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "code": {
+            "maxLength": 80,
+            "minLength": 3,
+            "title": "Code",
+            "type": "string"
+          },
+          "purpose": {
+            "maxLength": 200,
+            "minLength": 3,
+            "title": "Purpose",
+            "type": "string"
+          },
+          "starts_on": {
+            "format": "date",
+            "title": "Starts On",
+            "type": "string"
+          },
+          "ends_on": {
+            "format": "date",
+            "title": "Ends On",
+            "type": "string"
+          },
+          "limit_vnd": {
+            "default": 0,
+            "maximum": 999999999999,
+            "minimum": 0,
+            "title": "Limit Vnd",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "building_id",
+          "kind",
+          "code",
+          "purpose",
+          "starts_on",
+          "ends_on"
+        ],
+        "title": "TreasuryInput",
+        "type": "object"
+      },
+      "can_create": true,
+      "can_bill": false
+    },
+    "expenses": {
+      "kind": "expenses",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "budget_id": {
+            "format": "uuid",
+            "title": "Budget Id",
+            "type": "string"
+          },
+          "fund_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Fund Id"
+          },
+          "procurement_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Procurement Id"
+          },
+          "kind": {
+            "enum": [
+              "EXPENSE",
+              "ADVANCE",
+              "AP"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "amount_vnd": {
+            "exclusiveMinimum": 0,
+            "maximum": 999999999999,
+            "title": "Amount Vnd",
+            "type": "integer"
+          },
+          "reference": {
+            "maxLength": 150,
+            "minLength": 3,
+            "title": "Reference",
+            "type": "string"
+          },
+          "evidence_reference": {
+            "maxLength": 300,
+            "minLength": 3,
+            "title": "Evidence Reference",
+            "type": "string"
+          },
+          "allocation": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Allocation",
+            "type": "object"
+          }
+        },
+        "required": [
+          "budget_id",
+          "kind",
+          "amount_vnd",
+          "reference",
+          "evidence_reference"
+        ],
+        "title": "ExpenseInput",
+        "type": "object"
+      },
+      "can_create": true,
+      "can_bill": false
+    },
+    "commercial-ledgers": {
+      "kind": "commercial-ledgers",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {},
+        "title": "PortalInput",
+        "type": "object"
+      },
+      "can_create": false,
+      "can_bill": false
+    }
+  },
+  "exchange": {
+    "version": "GREENCITY-JSON-1",
+    "inputs": {
+      "readings": {
+        "kind": "METER",
+        "label": "Chỉ số đồng hồ",
+        "schema": {
+          "additionalProperties": false,
+          "properties": {
+            "external_id": {
+              "maxLength": 150,
+              "minLength": 3,
+              "title": "External Id",
+              "type": "string"
+            },
+            "meter_id": {
+              "format": "uuid",
+              "title": "Meter Id",
+              "type": "string"
+            },
+            "read_on": {
+              "format": "date",
+              "title": "Read On",
+              "type": "string"
+            },
+            "value": {
+              "anyOf": [
+                {
+                  "minimum": 0.0,
+                  "type": "number"
+                },
+                {
+                  "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,14}|(?=[\\d.]{1,19}0*$)\\d{0,14}\\.\\d{0,4}0*$)",
+                  "type": "string"
+                }
+              ],
+              "title": "Value"
+            },
+            "evidence_reference": {
+              "maxLength": 300,
+              "minLength": 3,
+              "title": "Evidence Reference",
+              "type": "string"
+            }
+          },
+          "required": [
+            "external_id",
+            "meter_id",
+            "read_on",
+            "value",
+            "evidence_reference"
+          ],
+          "title": "IncomingReading",
+          "type": "object"
+        }
+      },
+      "bank-transactions": {
+        "kind": "BANK",
+        "label": "Giao dịch ngân hàng",
+        "schema": {
+          "additionalProperties": false,
+          "properties": {
+            "external_id": {
+              "maxLength": 120,
+              "minLength": 3,
+              "title": "External Id",
+              "type": "string"
+            },
+            "accounting_period_id": {
+              "format": "uuid",
+              "title": "Accounting Period Id",
+              "type": "string"
+            },
+            "billing_account_id": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Billing Account Id"
+            },
+            "amount_vnd": {
+              "exclusiveMinimum": 0,
+              "maximum": 999999999999,
+              "title": "Amount Vnd",
+              "type": "integer"
+            },
+            "received_at": {
+              "format": "date-time",
+              "title": "Received At",
+              "type": "string"
+            },
+            "evidence_reference": {
+              "maxLength": 300,
+              "minLength": 3,
+              "title": "Evidence Reference",
+              "type": "string"
+            }
+          },
+          "required": [
+            "external_id",
+            "accounting_period_id",
+            "amount_vnd",
+            "received_at",
+            "evidence_reference"
+          ],
+          "title": "BankTransaction",
+          "type": "object"
+        }
+      },
+      "parking-events": {
+        "kind": "PARKING",
+        "label": "Sự kiện vào/ra bãi xe",
+        "schema": {
+          "additionalProperties": false,
+          "properties": {
+            "external_id": {
+              "maxLength": 150,
+              "minLength": 3,
+              "title": "External Id",
+              "type": "string"
+            },
+            "operation": {
+              "enum": [
+                "ENTER",
+                "EXIT"
+              ],
+              "title": "Operation",
+              "type": "string"
+            },
+            "resource_id": {
+              "format": "uuid",
+              "title": "Resource Id",
+              "type": "string"
+            },
+            "plate": {
+              "maxLength": 30,
+              "minLength": 3,
+              "title": "Plate",
+              "type": "string"
+            },
+            "vehicle_type": {
+              "maxLength": 30,
+              "minLength": 2,
+              "title": "Vehicle Type",
+              "type": "string"
+            },
+            "occurred_at": {
+              "format": "date-time",
+              "title": "Occurred At",
+              "type": "string"
+            },
+            "visitor_id": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Visitor Id"
+            },
+            "rate_vnd": {
+              "maximum": 999999999,
+              "minimum": 0,
+              "title": "Rate Vnd",
+              "type": "integer"
+            },
+            "evidence_reference": {
+              "maxLength": 300,
+              "minLength": 3,
+              "title": "Evidence Reference",
+              "type": "string"
+            }
+          },
+          "required": [
+            "external_id",
+            "operation",
+            "resource_id",
+            "plate",
+            "vehicle_type",
+            "occurred_at",
+            "rate_vnd",
+            "evidence_reference"
+          ],
+          "title": "ParkingEvent",
+          "type": "object"
+        }
+      }
+    }
+  }
+}

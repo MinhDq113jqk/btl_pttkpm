@@ -65,28 +65,34 @@ export function ImportRunsView({ account, client }) {
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState('');
   const actionKeys = useRef(new Map());
+  const fileRevision = useRef(0); const running = useRef(false); const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; fileRevision.current += 1; }; }, []);
   const selectedMappings = Object.values(mapping);
   const mappingReady = IMPORT_FIELDS.every(([field]) => typeof mapping[field] === 'string' && mapping[field].length > 0)
     && new Set(selectedMappings).size === IMPORT_FIELDS.length;
 
-  const getActionKey = action => {
-    if (!actionKeys.current.has(action)) actionKeys.current.set(action, globalThis.crypto.randomUUID());
-    return actionKeys.current.get(action);
+  const getActionKey = (action, payload = {}) => {
+    const fingerprint = JSON.stringify(payload);
+    if (actionKeys.current.get(action)?.fingerprint !== fingerprint) actionKeys.current.set(action, { fingerprint, key: globalThis.crypto.randomUUID() });
+    return actionKeys.current.get(action).key;
   };
 
   const runAction = async (action, callback) => {
+    if (running.current) return null;
+    running.current = true;
     setBusy(action);
     setError(null);
     setNotice('');
     try {
       const result = await callback();
+      if (!mounted.current) return null;
       actionKeys.current.delete(action);
       return result;
     } catch (caught) {
-      setError(caught);
+      if (mounted.current) setError(caught);
       return null;
     } finally {
-      setBusy('');
+      running.current = false; if (mounted.current) setBusy('');
     }
   };
 
@@ -94,12 +100,14 @@ export function ImportRunsView({ account, client }) {
     if (!run?.id) return undefined;
     const controller = new AbortController();
     client.listUnitCsvImportRows(run.id, { page: rows.page, page_size: rows.page_size, signal: controller.signal })
-      .then(setRows)
-      .catch(caught => { if (caught?.name !== 'AbortError') setError(caught); });
+      .then(result => { if (!controller.signal.aborted) setRows(result); })
+      .catch(caught => { if (!controller.signal.aborted && caught?.name !== 'AbortError') setError(caught); });
     return () => controller.abort();
   }, [client, run?.id, run?.version, rows.page, rows.page_size]);
 
   const onFileChange = async selected => {
+    if (running.current) return;
+    const revision = ++fileRevision.current;
     setFile(selected || null);
     setRun(null);
     setLookupRunId('');
@@ -112,11 +120,12 @@ export function ImportRunsView({ account, client }) {
     if (!selected) return;
     try {
       const firstLine = (await selected.slice(0, 64 * 1024).text()).split(/\r?\n/, 1)[0];
+      if (revision !== fileRevision.current) return;
       const parsed = parseCsvHeader(firstLine);
       setHeaders(parsed);
       setMapping(Object.fromEntries(IMPORT_FIELDS.map(([field]) => [field, parsed.includes(field) ? field : ''])));
     } catch (caught) {
-      setError(caught);
+      if (revision === fileRevision.current) setError(caught);
     }
   };
 
@@ -133,7 +142,7 @@ export function ImportRunsView({ account, client }) {
   const upload = async () => {
     if (!file || !buildingCode.trim()) return;
     const result = await runAction('upload', () => client.uploadUnitCsvImport(file, {
-      buildingCode, mode, idempotencyKey: getActionKey('upload'),
+      buildingCode, mode, idempotencyKey: getActionKey('upload', { buildingCode, mode, filename: file.name, size: file.size, lastModified: file.lastModified }),
     }));
     if (result) {
       setRun(result);
@@ -146,7 +155,7 @@ export function ImportRunsView({ account, client }) {
   const preview = async () => {
     if (!run || !mappingReady) return;
     const result = await runAction(`preview:${run.id}`, () => client.previewUnitCsvImport(run.id, run.version, mapping, {
-      idempotencyKey: getActionKey(`preview:${run.id}`),
+      idempotencyKey: getActionKey(`preview:${run.id}`, { version: run.version, mapping }),
     }));
     if (result) {
       setRun(result);
@@ -158,7 +167,7 @@ export function ImportRunsView({ account, client }) {
   const apply = async () => {
     if (!run) return;
     const result = await runAction(`apply:${run.id}`, () => client.applyUnitCsvImport(run.id, run.version, {
-      idempotencyKey: getActionKey(`apply:${run.id}`),
+      idempotencyKey: getActionKey(`apply:${run.id}`, { version: run.version }),
     }));
     if (result) {
       setRun(result);
@@ -206,21 +215,21 @@ export function ImportRunsView({ account, client }) {
       <section className="surface import-panel" aria-labelledby="import-upload-heading">
         <div className="import-panel-heading"><FileSpreadsheet size={21} aria-hidden="true" /><div><h2 id="import-upload-heading">Chọn tòa nhà và tệp</h2><p>Quyền với tòa nhà được máy chủ kiểm tra từ phiên đăng nhập.</p></div></div>
         <label className="field-label" htmlFor="import-building-code">Mã tòa nhà</label>
-        <input id="import-building-code" className="import-input" value={buildingCode} onChange={event => setBuildingCode(event.target.value)} maxLength={50} autoComplete="off" />
+        <input id="import-building-code" disabled={Boolean(busy)} className="import-input" value={buildingCode} onChange={event => setBuildingCode(event.target.value)} maxLength={50} autoComplete="off" />
         <p className="helper-text">Nhập mã tòa trong site đang hoạt động. Không nhập tenant, site ID hoặc role.</p>
         <label className="field-label" htmlFor="unit-import-file">Tệp CSV</label>
-        <input id="unit-import-file" className="import-input" type="file" accept=".csv,text/csv" onChange={event => onFileChange(event.target.files?.[0] || null)} />
+        <input id="unit-import-file" disabled={Boolean(busy)} className="import-input" type="file" accept=".csv,text/csv" onChange={event => onFileChange(event.target.files?.[0] || null)} />
         {file && <div className="import-file-summary"><strong>{file.name}</strong><span>{Math.ceil(file.size / 1024)} KB · {headers.length} cột</span></div>}
         {headers.length > 0 && <div className="import-mapping">
           <div className="import-panel-heading"><div><h3>Ánh xạ cột CSV</h3><p>Mỗi cột nguồn chỉ dùng cho một trường.</p></div></div>
           {IMPORT_FIELDS.map(([field, label]) => <label className="import-map-row" key={field}>
-            <span>{label}</span><select className="import-input" aria-label={`Cột CSV cho ${label}`} value={mapping[field] || ''}
+            <span>{label}</span><select disabled={Boolean(busy)} className="import-input" aria-label={`Cột CSV cho ${label}`} value={mapping[field] || ''}
               onChange={event => setMapping(previous => ({ ...previous, [field]: event.target.value }))}>
               <option value="">Chọn cột</option>{headers.map(header => <option value={header} key={header}>{header}</option>)}
             </select>
           </label>)}
         </div>}
-        <fieldset className="import-mode">
+        <fieldset disabled={Boolean(busy)} className="import-mode">
           <legend>Chính sách áp dụng</legend>
           <label><input type="radio" name="import-mode" value="PARTIAL" checked={mode === 'PARTIAL'} onChange={() => setMode('PARTIAL')} />Nhập dòng hợp lệ</label>
           <label><input type="radio" name="import-mode" value="ALL_OR_NOTHING" checked={mode === 'ALL_OR_NOTHING'} onChange={() => setMode('ALL_OR_NOTHING')} />Chỉ nhập khi toàn bộ tệp hợp lệ</label>

@@ -1,13 +1,14 @@
 from pathlib import Path
 import os
 from typing import Literal
+from uuid import UUID
 
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import URL, make_url
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
-ENV_FILE = None if os.getenv("GREENCITY_DISABLE_DOTENV") == "1" else BACKEND_ROOT / ".env"
+ENV_FILE = None if os.getenv("GREENCITY_DISABLE_DOTENV") == "1" else (BACKEND_ROOT / '.env', BACKEND_ROOT / '.local' / 'application.env')
 
 
 class Settings(BaseSettings):
@@ -39,6 +40,27 @@ class Settings(BaseSettings):
     login_throttle_reset_seconds: int = Field(default=86400, ge=600, le=604800)
     login_throttle_retention_days: int = Field(default=30, ge=1, le=365)
     login_throttle_max_identities: int = Field(default=10000, ge=100, le=1000000)
+    vnpay_enabled: bool = False
+    vnpay_tmn_code: str = ""
+    vnpay_hash_secret: SecretStr | None = None
+    vnpay_tenant_id: UUID | None = None
+    vnpay_service_account_id: UUID | None = None
+    vnpay_payment_url: str = "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html"
+    vnpay_api_url: str = "https://sandbox.vnpayment.vn/merchant_webapi/api/transaction"
+    vnpay_server_ip: str = "127.0.0.1"
+    vnpay_return_url: str = ""
+    vnpay_intent_ttl_seconds: int = Field(default=900, ge=300, le=3600)
+    portal_public_url: str = "http://localhost:5173"
+    recovery_token_ttl_seconds: int = Field(default=900, ge=300, le=3600)
+    booking_hold_seconds: int = Field(default=1800, ge=300, le=86400)
+    smtp_enabled: bool = False
+    smtp_host: str = ""
+    smtp_port: int = Field(default=587, ge=1, le=65535)
+    smtp_security: Literal["starttls", "ssl"] = "starttls"
+    smtp_username: str = ""
+    smtp_password: SecretStr | None = None
+    smtp_from_email: str = ""
+    smtp_timeout_seconds: int = Field(default=15, ge=1, le=30)
 
     def auth_secret(self) -> str:
         value = self.secret_key.get_secret_value() if self.secret_key else ""

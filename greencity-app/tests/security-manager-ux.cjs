@@ -1,6 +1,11 @@
 const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
 const { randomUUID } = require('node:crypto');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const evidenceDir = process.env.UX_EVIDENCE_DIR;
+if (evidenceDir) fs.mkdirSync(evidenceDir, { recursive: true });
 
 const siteId = randomUUID();
 const buildingId = randomUUID();
@@ -49,6 +54,7 @@ async function openAs(browser, role) {
     if (url.pathname.endsWith('/security/assignees')) return route.fulfill(respond([{ id: securityId, full_name: 'Nhân viên an ninh A' }]));
     if (url.pathname.endsWith('/security/dashboard')) return route.fulfill(respond({ shifts: shift ? [shift] : [], exceptions: [], incidents }));
     if (url.pathname.endsWith('/security/shifts') && request.method() === 'POST') {
+      check('shift creation sends the server-issued point and assignee ids', body.building_id === buildingId && body.assignee_id === securityId && body.patrol_windows[0].patrol_point_id === pointId);
       const patrol = body.patrol_windows[0];
       window = {
         id: windowId, security_shift_id: shiftId, patrol_point_id: patrol.patrol_point_id,
@@ -64,13 +70,10 @@ async function openAs(browser, role) {
       };
       return route.fulfill(respond(shift, 201));
     }
-    if (url.pathname.endsWith('/security/shifts') && request.method() === 'POST') {
-      check('shift creation sends the server-issued point and assignee ids', body.building_id === buildingId && body.assignee_id === securityId && body.patrol_windows[0].patrol_point_id === pointId);
-      shift.scheduled_start_at = body.scheduled_start_at; shift.scheduled_end_at = body.scheduled_end_at;
-      window.window_start_at = body.patrol_windows[0].window_start_at; window.window_end_at = body.patrol_windows[0].window_end_at;
-      return route.fulfill(respond(shift, 201));
+    if (url.pathname.endsWith(`/security/shifts/${shiftId}/start`)) {
+      check('start command belongs to the assigned security worker', currentId === shift.assigned_to_id && body.expected_version === shift.version);
+      shift.status = 'IN_PROGRESS'; shift.version += 1; return route.fulfill(respond(shift));
     }
-    if (url.pathname.endsWith(`/security/shifts/${shiftId}/start`)) { shift.status = 'IN_PROGRESS'; shift.version += 1; return route.fulfill(respond(shift)); }
     if (url.pathname.endsWith(`/security/shifts/${shiftId}/handoffs`)) {
       shift.handoffs.push({ id: randomUUID(), received_by_id: body.received_by_id, summary: body.summary, created_at: '2026-09-27T01:05:00Z' });
       return route.fulfill(respond(shift, 201));
@@ -146,10 +149,18 @@ async function openAs(browser, role) {
     await form.getByLabel('Kết thúc').fill('2026-09-27T10:00');
     await form.getByRole('button', { name: 'Tạo ca', exact: true }).click();
     await director.page.getByText('Đã tạo ca trực và cửa sổ tuần tra.', { exact: true }).waitFor();
-    await director.page.getByText('Đã tạo ca trực và cửa sổ tuần tra.', { exact: true }).waitFor();
-    await director.page.getByRole('button', { name: 'Bắt đầu ca', exact: true }).click();
+    check('manager creates a scoped shift for the selected security account', shift.building_id === buildingId && shift.assigned_to_id === securityId);
+    check('manager waits for the assigned worker to begin the shift', await director.page.getByRole('button', { name: 'Bắt đầu ca', exact: true }).count() === 0
+      && await director.page.getByText('Nhân viên được phân công cần tiếp nhận tại Đào tạo & Nhận việc và tự bắt đầu ca trực.', { exact: true }).isVisible());
+    if (evidenceDir) await director.page.screenshot({ path: path.join(evidenceDir, 'security-manager-planned.png'), fullPage: true });
+    const operator = await openAs(browser, 'security'); opened.push(operator);
+    await operator.page.getByRole('button', { name: 'Bắt đầu ca', exact: true }).click();
+    await operator.page.getByText('Đang trực', { exact: true }).waitFor();
+    check('assigned security worker starts the shift', shift.status === 'IN_PROGRESS');
+    await operator.context.close();
+    await director.page.getByRole('button', { name: 'Làm mới', exact: true }).click();
     await director.page.getByText('Đang trực', { exact: true }).waitFor();
-    check('manager creates a scoped shift and starts the assigned patrol', shift.status === 'IN_PROGRESS');
+    if (evidenceDir) await director.page.screenshot({ path: path.join(evidenceDir, 'security-manager-after-refresh.png'), fullPage: true });
 
     await director.page.getByLabel('Người nhận').selectOption(securityId);
     await director.page.getByLabel('Tóm tắt bàn giao').fill('Ca bắt đầu bình thường.');

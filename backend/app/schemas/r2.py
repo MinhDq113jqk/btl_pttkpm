@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 from uuid import UUID
 
@@ -192,6 +192,8 @@ class WorkOrderView(ApiModel):
     building_id: UUID
     service_request_id: UUID | None
     maintenance_occurrence_id: UUID | None
+    asset_id: UUID | None
+    asset_snapshot: dict | None
     title: str
     description: str
     status: str
@@ -300,7 +302,7 @@ class SignedAttachmentLink(BaseModel):
 class AssetCreate(InputModel):
     building_id: UUID
     unit_id: UUID | None = None
-    code: str = Field(min_length=2, max_length=50, pattern=r"^[A-Z0-9][A-Z0-9_-]*$")
+    code: str = Field(min_length=2, max_length=30, pattern=r"^[A-Z0-9][A-Z0-9_-]*$", description='Mã loại tài sản; hệ thống cấp AST-{loại}-{số thứ tự}.')
     name: str = Field(min_length=2, max_length=200)
     description: str = Field(default="", max_length=4000)
 
@@ -314,6 +316,10 @@ class AssetView(ApiModel):
     code: str
     name: str
     description: str
+    serial: str | None = None
+    location: str | None = None
+    warranty_until: date | None = None
+    inspection_due_on: date | None = None
     status: str
     version: int
 

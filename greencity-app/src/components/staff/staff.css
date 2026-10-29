@@ -41,7 +41,8 @@
 @keyframes request-spin { to { transform: rotate(360deg); } }
 .staff-login-help { display: flex; margin: 14px auto; }
 .staff-login-disclaimer { border-top: 1px solid #d8e5dc; padding-top: 18px; display: flex; gap: 8px; color: #52665e; font-size: 11px; line-height: 1.7; }
-.staff-login-disclaimer svg { margin-top: 3px; }
+.staff-login-disclaimer svg { flex: 0 0 auto; margin-top: 3px; }
+.staff-login-disclaimer > span { min-width: 0; overflow-wrap: anywhere; }
 .staff-login-copyright { color: #63796c; font-size: 11px; text-align: center; margin-top: 30px; }
 .password-change-callout { display: flex; align-items: flex-start; gap: 11px; margin-top: 28px; padding: 14px 15px; border-left: 3px solid #0f766e; background: rgba(255, 255, 255, .62); color: #245747; }
 .password-change-callout > svg { flex: 0 0 auto; margin-top: 1px; }

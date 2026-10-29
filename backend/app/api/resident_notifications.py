@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, select, or_
 
 from app.core.policy import UserContext, get_current_user_context, scope_not_found
 from app.models.platform import DomainEvent, NotificationReadModel
@@ -19,11 +19,14 @@ router = APIRouter(tags=["R6 resident notifications"])
 def _assert_resident_scope(context: UserContext) -> None:
     context.assert_role("resident")
     context.assert_active_site()
-    if context.resident_person_id is None or not context.resident_unit_ids:
+    if context.resident_person_id is None or not (context.resident_unit_ids or context.resident_delegations):
         raise scope_not_found()
 
 
-def _notification_conditions(context: UserContext):
+def _notification_conditions(context: UserContext, unit_id: UUID | None = None):
+    units = (*context.resident_unit_ids, *(u for u, _ in context.resident_delegations))
+    if unit_id is not None and unit_id not in units:
+        raise scope_not_found()
     return (
         NotificationReadModel.tenant_id == context.tenant_id,
         NotificationReadModel.site_id == context.assert_active_site(),
@@ -31,10 +34,13 @@ def _notification_conditions(context: UserContext):
         # A notification projection may never escape its source event's scope.
         DomainEvent.tenant_id == context.tenant_id,
         DomainEvent.site_id == context.assert_active_site(),
+        *(() if unit_id is None else (or_(
+            NotificationReadModel.template_snapshot["unit_id"].as_string().is_(None),
+            NotificationReadModel.template_snapshot["unit_id"].as_string() == str(unit_id)),)),
     )
 
 
-def _notification_statement(context: UserContext):
+def _notification_statement(context: UserContext, unit_id: UUID | None = None):
     return select(NotificationReadModel, DomainEvent.correlation_id).join(
         DomainEvent,
         and_(
@@ -42,7 +48,7 @@ def _notification_statement(context: UserContext):
             DomainEvent.tenant_id == NotificationReadModel.tenant_id,
             DomainEvent.site_id == NotificationReadModel.site_id,
         ),
-    ).where(*_notification_conditions(context))
+    ).where(*_notification_conditions(context, unit_id))
 
 
 def _view(notification: NotificationReadModel, correlation_id: UUID) -> ResidentNotificationView:
@@ -53,6 +59,7 @@ def _view(notification: NotificationReadModel, correlation_id: UUID) -> Resident
         delivery_status=notification.delivery_status,
         delivered_at=notification.delivered_at,
         read_at=notification.read_at,
+        acknowledged_at=notification.acknowledged_at,
         correlation_id=correlation_id,
         created_at=notification.created_at,
     )
@@ -62,13 +69,14 @@ def _view(notification: NotificationReadModel, correlation_id: UUID) -> Resident
 def list_resident_notifications(
     request: Request,
     include_read: bool = False,
+    unit_id: UUID | None = None,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     current_user: UserContext = Depends(get_current_user_context),
 ):
     _assert_resident_scope(current_user)
     with request.app.state.database.get_session() as session:
-        statement = _notification_statement(current_user)
+        statement = _notification_statement(current_user, unit_id)
         unread_condition = NotificationReadModel.read_at.is_(None)
         unread_count = session.scalar(select(func.count(NotificationReadModel.id)).select_from(
             NotificationReadModel,
@@ -76,7 +84,7 @@ def list_resident_notifications(
             DomainEvent.id == NotificationReadModel.domain_event_id,
             DomainEvent.tenant_id == NotificationReadModel.tenant_id,
             DomainEvent.site_id == NotificationReadModel.site_id,
-        )).where(*_notification_conditions(current_user), unread_condition)) or 0
+        )).where(*_notification_conditions(current_user, unit_id), unread_condition)) or 0
         if not include_read:
             statement = statement.where(unread_condition)
         total = session.scalar(select(func.count()).select_from(statement.subquery())) or 0

@@ -1,3 +1,4 @@
+from app.services.sad_work import next_code
 from datetime import UTC
 from uuid import UUID, uuid4
 
@@ -80,6 +81,8 @@ def _maintenance_work_order_view(session, record: WorkOrder) -> WorkOrderView:
         building_id=record.building_id,
         service_request_id=record.service_request_id,
         maintenance_occurrence_id=record.maintenance_occurrence_id,
+        asset_id=record.asset_id,
+        asset_snapshot=record.asset_snapshot,
         title=record.title,
         description=record.description,
         status=record.status,
@@ -223,7 +226,7 @@ def create_asset(
             site_id=current_user.assert_active_site(),
             building_id=body.building_id,
             unit_id=body.unit_id,
-            code=body.code,
+            code=next_code(session, current_user.assert_active_site(), 'AST-' + body.code),
             name=body.name.strip(),
             description=body.description.strip(),
             status="ACTIVE",
@@ -289,6 +292,8 @@ def create_maintenance_plan(
             return MaintenancePlanView.model_validate(_scoped_plan(session, current_user, replay.resource_id))
         asset = _scoped_asset(session, current_user, body.asset_id)
         current_user.assert_building_role(asset.building_id, "technical_lead")
+        if asset.status != 'ACTIVE':
+            raise AppError('ERR-ASSET-INACTIVE', 'Chỉ lập kế hoạch cho tài sản đang hoạt động.', 409)
         plan = MaintenancePlan(
             tenant_id=asset.tenant_id,
             site_id=asset.site_id,
@@ -325,6 +330,98 @@ def get_maintenance_plan(request: Request, plan_id: UUID,
         return MaintenancePlanView.model_validate(plan)
 
 
+def dispatch_maintenance_plan(session, current_user, request, plan, as_of):
+    plan = session.scalar(select(MaintenancePlan).where(MaintenancePlan.id == plan.id).with_for_update().execution_options(populate_existing=True))
+    if not plan.is_active or plan.next_due_at > as_of: return None
+    asset = _scoped_asset(session, current_user, plan.asset_id)
+    if asset.status != 'ACTIVE':
+        return None
+    occurrence_id = uuid4()
+    inserted_occurrence_id = session.scalar(pg_insert(MaintenanceOccurrence).values(
+        id=occurrence_id,
+        tenant_id=plan.tenant_id,
+        site_id=plan.site_id,
+        building_id=plan.building_id,
+        plan_id=plan.id,
+        due_at=plan.next_due_at,
+        status="DUE",
+        created_by_id=current_user.account_id,
+        updated_by_id=current_user.account_id,
+        version=1,
+    ).on_conflict_do_nothing(constraint="uq_maintenance_occurrences_plan_due").returning(
+        MaintenanceOccurrence.id,
+    ))
+    replayed = inserted_occurrence_id is None
+    occurrence = session.scalar(select(MaintenanceOccurrence).where(
+        MaintenanceOccurrence.plan_id == plan.id,
+        MaintenanceOccurrence.due_at == plan.next_due_at,
+    ).with_for_update())
+    if (occurrence.status == "DEFERRED" and occurrence.defer_until
+            and occurrence.defer_until > as_of.astimezone(UTC)):
+        existing_work_order_id = session.scalar(select(WorkOrder.id).where(
+            WorkOrder.maintenance_occurrence_id == occurrence.id,
+        ))
+        return SchedulerOccurrenceView(
+            occurrence_id=occurrence.id,
+            work_order_id=existing_work_order_id,
+            plan_id=plan.id,
+            due_at=occurrence.due_at,
+            replayed=True,
+        )
+    work_order_id = uuid4()
+    inserted_work_order_id = session.scalar(pg_insert(WorkOrder).values(
+        id=work_order_id,
+        tenant_id=plan.tenant_id,
+        site_id=plan.site_id,
+        building_id=plan.building_id,
+        service_request_id=None,
+        maintenance_occurrence_id=occurrence.id,
+        code=next_code(session, plan.site_id, 'WO-' + utc_now().strftime('%Y%m')),
+        asset_id=plan.asset_id,
+        asset_snapshot={'code': asset.code, 'location': asset.location, 'building_id': str(asset.building_id), 'warranty_until': str(asset.warranty_until) if asset.warranty_until else None},
+        title=plan.title,
+        description=f"Bảo trì định kỳ cho kế hoạch {plan.code}",
+        status="DRAFT",
+        created_by_id=current_user.account_id,
+        updated_by_id=current_user.account_id,
+        version=1,
+    ).on_conflict_do_nothing(constraint="uq_work_orders_maintenance_occurrence").returning(
+        WorkOrder.id,
+    ))
+    if inserted_work_order_id:
+        session.add_all(WorkOrderChecklistItem(
+            work_order_id=inserted_work_order_id,
+            position=position,
+            label=item["label"],
+            is_required=item.get("required", True),
+        ) for position, item in enumerate(plan.checklist_template, 1))
+        audit(session, current_user, request, event_type="MaintenanceOccurrenceDue", action="schedule",
+              resource_type="MaintenanceOccurrence", resource_id=occurrence.id,
+              building_id=plan.building_id,
+              after={"due_at": occurrence.due_at.isoformat(),
+                     "work_order_id": str(inserted_work_order_id)})
+        emit(session, current_user, request, event_type="MaintenanceOccurrenceDue",
+             resource_type="MaintenanceOccurrence", resource_id=occurrence.id,
+             payload={"work_order_id": str(inserted_work_order_id)})
+    else:
+        work_order_id = session.scalar(select(WorkOrder.id).where(
+            WorkOrder.maintenance_occurrence_id == occurrence.id,
+        ))
+    if inserted_work_order_id or occurrence.status in {"DUE", "DEFERRED"}:
+        occurrence.status = "WO_CREATED"
+        occurrence.defer_until = None
+        occurrence.defer_reason = None
+        occurrence.updated_by_id = current_user.account_id
+        occurrence.version += 1
+    return SchedulerOccurrenceView(
+        occurrence_id=occurrence.id,
+        work_order_id=inserted_work_order_id or work_order_id,
+        plan_id=plan.id,
+        due_at=occurrence.due_at,
+        replayed=replayed,
+    )
+
+
 @router.post("/maintenance/scheduler/run", response_model=SchedulerRunView)
 def run_maintenance_scheduler(
     request: Request,
@@ -348,89 +445,8 @@ def run_maintenance_scheduler(
         for plan in plans:
             if not current_user.matching_grants(frozenset({"admin", "technical_lead"}), plan.building_id):
                 continue
-            occurrence_id = uuid4()
-            inserted_occurrence_id = session.scalar(pg_insert(MaintenanceOccurrence).values(
-                id=occurrence_id,
-                tenant_id=plan.tenant_id,
-                site_id=plan.site_id,
-                building_id=plan.building_id,
-                plan_id=plan.id,
-                due_at=plan.next_due_at,
-                status="DUE",
-                created_by_id=current_user.account_id,
-                updated_by_id=current_user.account_id,
-                version=1,
-            ).on_conflict_do_nothing(constraint="uq_maintenance_occurrences_plan_due").returning(
-                MaintenanceOccurrence.id,
-            ))
-            replayed = inserted_occurrence_id is None
-            occurrence = session.scalar(select(MaintenanceOccurrence).where(
-                MaintenanceOccurrence.plan_id == plan.id,
-                MaintenanceOccurrence.due_at == plan.next_due_at,
-            ).with_for_update())
-            if (occurrence.status == "DEFERRED" and occurrence.defer_until
-                    and occurrence.defer_until > body.as_of.astimezone(UTC)):
-                existing_work_order_id = session.scalar(select(WorkOrder.id).where(
-                    WorkOrder.maintenance_occurrence_id == occurrence.id,
-                ))
-                items.append(SchedulerOccurrenceView(
-                    occurrence_id=occurrence.id,
-                    work_order_id=existing_work_order_id,
-                    plan_id=plan.id,
-                    due_at=occurrence.due_at,
-                    replayed=True,
-                ))
-                continue
-            work_order_id = uuid4()
-            inserted_work_order_id = session.scalar(pg_insert(WorkOrder).values(
-                id=work_order_id,
-                tenant_id=plan.tenant_id,
-                site_id=plan.site_id,
-                building_id=plan.building_id,
-                service_request_id=None,
-                maintenance_occurrence_id=occurrence.id,
-                code=f"MWO-{occurrence.id.hex[:12].upper()}",
-                title=plan.title,
-                description=f"Bảo trì định kỳ cho kế hoạch {plan.code}",
-                status="DRAFT",
-                created_by_id=current_user.account_id,
-                updated_by_id=current_user.account_id,
-                version=1,
-            ).on_conflict_do_nothing(constraint="uq_work_orders_maintenance_occurrence").returning(
-                WorkOrder.id,
-            ))
-            if inserted_work_order_id:
-                session.add_all(WorkOrderChecklistItem(
-                    work_order_id=inserted_work_order_id,
-                    position=position,
-                    label=item["label"],
-                    is_required=item.get("required", True),
-                ) for position, item in enumerate(plan.checklist_template, 1))
-                audit(session, current_user, request, event_type="MaintenanceOccurrenceDue", action="schedule",
-                      resource_type="MaintenanceOccurrence", resource_id=occurrence.id,
-                      building_id=plan.building_id,
-                      after={"due_at": occurrence.due_at.isoformat(),
-                             "work_order_id": str(inserted_work_order_id)})
-                emit(session, current_user, request, event_type="MaintenanceOccurrenceDue",
-                     resource_type="MaintenanceOccurrence", resource_id=occurrence.id,
-                     payload={"work_order_id": str(inserted_work_order_id)})
-            else:
-                work_order_id = session.scalar(select(WorkOrder.id).where(
-                    WorkOrder.maintenance_occurrence_id == occurrence.id,
-                ))
-            if inserted_work_order_id or occurrence.status in {"DUE", "DEFERRED"}:
-                occurrence.status = "WO_CREATED"
-                occurrence.defer_until = None
-                occurrence.defer_reason = None
-                occurrence.updated_by_id = current_user.account_id
-                occurrence.version += 1
-            items.append(SchedulerOccurrenceView(
-                occurrence_id=occurrence.id,
-                work_order_id=inserted_work_order_id or work_order_id,
-                plan_id=plan.id,
-                due_at=occurrence.due_at,
-                replayed=replayed,
-            ))
+            item = dispatch_maintenance_plan(session, current_user, request, plan, body.as_of)
+            if item is not None: items.append(item)
         response = SchedulerRunView(items=items)
         anchor = items[0].occurrence_id if items else current_user.assert_active_site()
         remember_idempotency(session, current_user, operation="maintenance-scheduler.run",

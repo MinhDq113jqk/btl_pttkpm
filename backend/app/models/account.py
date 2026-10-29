@@ -1,6 +1,7 @@
 from uuid import UUID
+from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, CheckConstraint, ForeignKey, ForeignKeyConstraint, Index, Integer, String, UniqueConstraint, Uuid
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, ForeignKeyConstraint, Index, Integer, String, UniqueConstraint, Uuid, and_, or_
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, IdentityTimestampMixin
@@ -25,6 +26,9 @@ class Account(IdentityTimestampMixin, Base):
     username: Mapped[str] = mapped_column(String(100), nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    email: Mapped[str | None] = mapped_column(String(254), nullable=True)
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    profile_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     session_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
     must_change_password: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
@@ -39,6 +43,7 @@ class AccountRole(IdentityTimestampMixin, Base):
     __tablename__ = "account_roles"
     __table_args__ = (
         CheckConstraint("building_id IS NULL OR site_id IS NOT NULL", name="building_requires_site"),
+        CheckConstraint("valid_from IS NULL OR valid_to IS NULL OR valid_to > valid_from", name="role_effectivity"),
         ForeignKeyConstraint(["building_id", "site_id"],
                              ["greencity.buildings.id", "greencity.buildings.site_id"],
                              name="fk_account_roles_building_site", ondelete="CASCADE"),
@@ -50,5 +55,13 @@ class AccountRole(IdentityTimestampMixin, Base):
     role: Mapped[str] = mapped_column(String(50), nullable=False)
     site_id: Mapped[UUID | None] = mapped_column(ForeignKey("greencity.sites.id", ondelete="CASCADE"), nullable=True)
     building_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True, index=True)
+    valid_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    valid_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    @classmethod
+    def effective_at(cls, moment=None):
+        now = moment or datetime.now(UTC)
+        return and_(or_(cls.valid_from.is_(None), cls.valid_from <= now),
+                    or_(cls.valid_to.is_(None), cls.valid_to > now))
 
     site = relationship("Site")

@@ -1,0 +1,204 @@
+﻿DANH SÁCH 50 ẢNH GIAO DIỆN USE CASE CỐT LÕI
+Thứ tự ảnh theo mục 1.6.1 của SAD_GREENCITY.
+Số Hình dưới đây tương ứng thứ tự trong bộ ảnh 1–50.
+
+1.png --> Hình 1 UI-A1 Thiết lập cây không gian
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-A1 Thiết lập cây không gian
+Tên UC trong tài liệu: UC-A1  Thiết lập cấu trúc Khu đô thị → Phân khu → Tòa nhà → Tầng → Căn hộ/Mặt bằng/Khu vực chung
+
+2.png --> Hình 2 UI-A2 Quản lý hồ sơ và diện tích căn
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-A2 Quản lý hồ sơ và diện tích căn
+Tên UC trong tài liệu: UC-A2  Quản lý hồ sơ căn hộ, diện tích thông thủy, diện tích tim tường, mục đích sử dụng và trạng thái vận hành
+
+3.png --> Hình 3 UI-A3 Ghi nhận bàn giao căn
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-A3 Ghi nhận bàn giao căn
+Tên UC trong tài liệu: UC-A3  Lập biên bản bàn giao, ghi nhận tồn tại khi bàn giao và đưa căn hộ vào sử dụng
+
+4.png --> Hình 4 UI-A4 Phê duyệt và theo dõi cải tạo
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-A4 Phê duyệt và theo dõi cải tạo
+Tên UC trong tài liệu: UC-A4  Tiếp nhận, phê duyệt đăng ký sửa chữa/cải tạo; theo dõi thời gian thi công và trạng thái UNDER_RENOVATION
+
+5.png --> Hình 5 UI-A5 Xét đề nghị sửa hồ sơ căn
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-A5 Xét đề nghị sửa hồ sơ căn
+Tên UC trong tài liệu: UC-A5  Tiếp nhận đề nghị điều chỉnh thông tin căn hộ từ cư dân, kiểm tra minh chứng và ghi kết quả xử lý
+
+6.png --> Hình 6 UI-R1 Quản lý hồ sơ cá nhân
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-R1 Quản lý hồ sơ cá nhân
+Tên UC trong tài liệu: UC-R1  Quản lý hồ sơ cá nhân Person, độc lập với căn hộ và tài khoản đăng nhập
+
+7.png --> Hình 7 UI-R2 Xác lập sở hữu và đồng sở hữu
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-R2 Xác lập sở hữu và đồng sở hữu
+Tên UC trong tài liệu: UC-R2  Ghi nhận, xác minh quyền sở hữu và đồng sở hữu căn hộ theo thời gian
+Nội dung ảnh: Tra cứu quan hệ sở hữu hiện có và tỷ lệ đồng sở hữu.
+
+8.png --> Hình 8 UI-R3 Duyệt đăng ký chuyển vào
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-R3 Duyệt đăng ký chuyển vào
+Tên UC trong tài liệu: UC-R3  Tiếp nhận, phê duyệt đăng ký cư trú/chuyển vào cho thành viên và người thuê
+
+9.png --> Hình 9 UI-R4 Cập nhật và xác minh nhân thân
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-R4 Cập nhật và xác minh nhân thân
+Tên UC trong tài liệu: UC-R4  Cho phép cư dân cập nhật thông tin cá nhân; tiếp nhận đề nghị xác minh trường nhạy cảm
+
+10.png --> Hình 10 UI-R5 Kết thúc cư trú
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-R5 Kết thúc cư trú
+Tên UC trong tài liệu: UC-R5  Xử lý kết thúc cư trú/chuyển ra và rà soát các quyền, đăng ký dịch vụ liên quan
+
+11.png --> Hình 11 UI-R6 Ghi nhận chuyển nhượng
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-R6 Ghi nhận chuyển nhượng
+Tên UC trong tài liệu: UC-R6  Ghi nhận chuyển nhượng căn hộ, kết thúc quan hệ chủ cũ, mở quan hệ chủ mới và bảo toàn lịch sử công nợ
+
+12.png --> Hình 12 UI-R7 Quản lý ủy quyền
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-R7 Quản lý ủy quyền
+Tên UC trong tài liệu: UC-R7  Quản lý ủy quyền và đại diện hợp pháp theo phạm vi, thời hạn
+
+13.png --> Hình 13 UI-R8 Quản lý hợp đồng thuê
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-R8 Quản lý hợp đồng thuê
+Tên UC trong tài liệu: UC-R8  Quản lý hợp đồng thuê, gia hạn, thay đổi và thanh lý sớm
+
+14.png --> Hình 14 UI-R9 Thay người chịu phí
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-R9 Thay người chịu phí
+Tên UC trong tài liệu: UC-R9  Thay đổi chủ thể chịu trách nhiệm tài chính LiabilityEpisode, độc lập với quyền sở hữu
+
+15.png --> Hình 15 UI-P1 Cấu hình bãi và sức chứa
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-P1 Cấu hình bãi và sức chứa
+Tên UC trong tài liệu: UC-P1  Cấu hình bãi xe, khu đỗ, vị trí/ô đỗ, loại xe hỗ trợ và sức chứa
+
+16.png --> Hình 16 UI-P2 Đăng ký gửi xe
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-P2 Đăng ký gửi xe
+Tên UC trong tài liệu: UC-P2  Đăng ký gửi xe theo căn hộ/cư dân, kiểm tra hạn mức và gán biểu phí
+
+17.png --> Hình 17 UI-P3 Cấp suất từ danh sách chờ
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-P3 Cấp suất từ danh sách chờ
+Tên UC trong tài liệu: UC-P3  Quản lý danh sách chờ; cấp suất theo chính sách khi có chỗ trống, có thời hạn xác nhận
+
+18.png --> Hình 18 UI-P4 Thay đổi và hủy đăng ký xe
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-P4 Thay đổi và hủy đăng ký xe
+Tên UC trong tài liệu: UC-P4  Thay đổi xe, biển số, bãi đỗ; tạm dừng hoặc hủy đăng ký gửi xe
+
+19.png --> Hình 19 UI-C1 Cấp mới và quản lý phôi thẻ
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-C1 Cấp mới và quản lý phôi thẻ
+Tên UC trong tài liệu: UC-C1  Quản lý phôi thẻ và cấp mới thẻ
+
+20.png --> Hình 20 UI-C2 Báo mất và khóa khẩn cấp
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-C2 Báo mất và khóa khẩn cấp
+Tên UC trong tài liệu: UC-C2  Tiếp nhận báo mất và khóa khẩn cấp
+
+21.png --> Hình 21 UI-C3 Gia hạn cấp lại và thu hồi thẻ
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-C3 Gia hạn cấp lại và thu hồi thẻ
+Tên UC trong tài liệu: UC-C3  Gia hạn, cấp lại, thu hồi và kết thúc hiệu lực thẻ
+
+22.png --> Hình 22 UI-C4 Điều chỉnh vùng ra vào
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-C4 Điều chỉnh vùng ra vào
+Tên UC trong tài liệu: UC-C4  Điều chỉnh phạm vi ra vào của thẻ đang hoạt động
+
+23.png --> Hình 23 UI-C5 Đối chiếu đồng bộ thẻ tại thiết bị
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-C5 Đối chiếu đồng bộ thẻ tại thiết bị
+Tên UC trong tài liệu: UC-C5  Theo dõi kết quả kích hoạt, khóa hoặc thay đổi quyền trên thiết bị kiểm soát; xử lý trường hợp chưa đồng bộ thành công
+
+24.png --> Hình 24 UI-F1 Quản lý hồ sơ tài sản
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-F1 Quản lý hồ sơ tài sản
+Tên UC trong tài liệu: UC-F1  Quản lý hồ sơ tài sản: mã, serial, vị trí, tình trạng, vòng đời và bảo hành
+
+25.png --> Hình 25 UI-F2 Lập kế hoạch bảo trì
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-F2 Lập kế hoạch bảo trì
+Tên UC trong tài liệu: UC-F2  Lập kế hoạch bảo trì định kỳ, chu kỳ và checklist
+
+26.png --> Hình 26 UI-F3 Thực hiện WO bảo trì
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-F3 Thực hiện WO bảo trì
+Tên UC trong tài liệu: UC-F3  Khởi tạo, phân công và thực hiện lệnh công việc bảo trì; chống tạo trùng cho cùng lần đến hạn
+
+27.png --> Hình 27 UI-F4 Xử lý sự cố kỹ thuật
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-F4 Xử lý sự cố kỹ thuật
+Tên UC trong tài liệu: UC-F4  Tiếp nhận sự cố kỹ thuật, điều phối xử lý và tạo lệnh sửa chữa
+
+28.png --> Hình 28 UI-F5 Nghiệm thu kỹ thuật độc lập
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-F5 Nghiệm thu kỹ thuật độc lập
+Tên UC trong tài liệu: UC-F5  Nghiệm thu kỹ thuật độc lập, yêu cầu làm lại và cập nhật trạng thái tài sản
+
+29.png --> Hình 29 UI-U2 Đặt và hủy lịch tiện ích
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-U2 Đặt và hủy lịch tiện ích
+Tên UC trong tài liệu: UC-U2  Tiếp nhận đặt chỗ và hủy lịch từ cư dân
+
+30.png --> Hình 30 UI-M1 Quản lý đồng hồ và điểm đo
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-M1 Quản lý đồng hồ và điểm đo
+Tên UC trong tài liệu: UC-M1  Quản lý đồng hồ và quan hệ gắn đồng hồ với căn hộ/khu vực theo thời gian
+
+31.png --> Hình 31 UI-M2 Ghi và xác minh chỉ số
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-M2 Ghi và xác minh chỉ số
+Tên UC trong tài liệu: UC-M2  Ghi nhận, xác minh chỉ số theo kỳ và phát hiện bất thường
+
+32.png --> Hình 32 UI-M3 Thay đồng hồ giữa kỳ
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-M3 Thay đồng hồ giữa kỳ
+Tên UC trong tài liệu: UC-M3  Thay đồng hồ giữa kỳ, ghi chỉ số tháo/lắp và bảo toàn sản lượng liên tục
+
+33.png --> Hình 33 UI-M4 Phê duyệt hiệu chỉnh chỉ số
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-M4 Phê duyệt hiệu chỉnh chỉ số
+Tên UC trong tài liệu: UC-M4  Đính chính chỉ số bằng hồ sơ hiệu chỉnh có phê duyệt
+
+34.png --> Hình 34 UI-B1 Ban hành phiên bản biểu phí
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-B1 Ban hành phiên bản biểu phí
+Tên UC trong tài liệu: UC-B1  Thiết lập danh mục phí và phiên bản biểu phí; bảo toàn phiên bản đã sử dụng
+
+35.png --> Hình 35 UI-B2 Cấu hình phí theo diện tích
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-B2 Cấu hình phí theo diện tích
+Tên UC trong tài liệu: UC-B2  Cấu hình phí quản lý theo diện tích, loại diện tích, làm tròn và phân bổ theo thời gian
+
+36.png --> Hình 36 UI-B4 Quản lý vòng đời nguồn phí
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-B4 Quản lý vòng đời nguồn phí
+Tên UC trong tài liệu: UC-B4  Kích hoạt, tạm dừng và chấm dứt nguồn phát sinh phí
+
+37.png --> Hình 37 UI-B5 Duyệt miễn giảm và ưu đãi
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-B5 Duyệt miễn giảm và ưu đãi
+Tên UC trong tài liệu: UC-B5  Quản lý miễn giảm, ưu đãi theo đối tượng, thời hạn và căn cứ phê duyệt
+
+38.png --> Hình 38 UI-SRV1 Tiếp nhận yêu cầu cư dân
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-SRV1 Tiếp nhận yêu cầu cư dân
+Tên UC trong tài liệu: UC-SRV1  Tiếp nhận yêu cầu qua cổng cư dân, quầy, điện thoại hoặc kênh được chọn
+
+39.png --> Hình 39 UI-SRV3 Phân công và chuyển cấp
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-SRV3 Phân công và chuyển cấp
+Tên UC trong tài liệu: UC-SRV3  Phân công, chuyển bộ phận và chuyển cấp khi quá hạn hoặc vượt khả năng xử lý
+
+40.png --> Hình 40 UI-SRV6 Đóng hoặc mở lại yêu cầu
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-SRV6 Đóng hoặc mở lại yêu cầu
+Tên UC trong tài liệu: UC-SRV6  Xác nhận hoàn tất, mở lại yêu cầu hoặc ghi nhận cư dân chưa đồng ý kết quả
+
+41.png --> Hình 41 UI-BILL4 Tính và xem trước phí
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-BILL4 Tính và xem trước phí
+Tên UC trong tài liệu: UC-BILL4  Tính phí và lập bản xem trước; chỉ ra dữ liệu thiếu hoặc bất thường
+
+42.png --> Hình 42 UI-BILL5 Phê duyệt kết quả tính
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-BILL5 Phê duyệt kết quả tính
+Tên UC trong tài liệu: UC-BILL5  Trình, phê duyệt kết quả tính phí và kiểm tra lại khi nguồn thay đổi
+
+43.png --> Hình 43 UI-BILL6 Phát hành hóa đơn nghiệp vụ
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-BILL6 Phát hành hóa đơn nghiệp vụ
+Tên UC trong tài liệu: UC-BILL6  Phát hành hóa đơn, lưu căn cứ tính và phiên bản chính sách; kiểm soát phát hành trùng
+
+44.png --> Hình 44 UI-PAY1 Tiếp nhận khoản thanh toán
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-PAY1 Tiếp nhận khoản thanh toán
+Tên UC trong tài liệu: UC-PAY1  Tiếp nhận giao dịch thanh toán thủ công hoặc từ nguồn tích hợp
+
+45.png --> Hình 45 UI-PAY3 Đối chiếu đích thanh toán
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-PAY3 Đối chiếu đích thanh toán
+Tên UC trong tài liệu: UC-PAY3  Đối chiếu giao dịch với người nộp, tài khoản phí và hóa đơn
+
+46.png --> Hình 46 UI-PAY5 Xác nhận phân bổ tiền
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-PAY5 Xác nhận phân bổ tiền
+Tên UC trong tài liệu: UC-PAY5  Xem trước và xác nhận phân bổ tiền cho một hoặc nhiều hóa đơn
+
+47.png --> Hình 47 UI-AR5 Giải quyết tranh chấp
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-AR5 Giải quyết tranh chấp
+Tên UC trong tài liệu: UC-AR5  Tiếp nhận, xác minh và kết luận tranh chấp hóa đơn/công nợ
+
+48.png --> Hình 48 UI-AR6 Duyệt điều chỉnh và đảo giao dịch
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-AR6 Duyệt điều chỉnh và đảo giao dịch
+Tên UC trong tài liệu: UC-AR6  Lập và phê duyệt điều chỉnh, đảo giao dịch hoặc sửa sai bằng chứng từ liên kết
+
+49.png --> Hình 49 UI-S1 Xem Hồ sơ của tôi
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-S1 Xem Hồ sơ của tôi
+Tên UC trong tài liệu: UC-S1  Cung cấp “Hồ sơ của tôi”, tổng hợp căn hộ, cư trú, xe, thẻ, phí và yêu cầu
+
+50.png --> Hình 50 UI-I2 Nhập và nghiệm thu dữ liệu
+Vị trí: 1.6.1 Đặc tả 50 Use Case cốt lõi > UC-I2 Nhập và nghiệm thu dữ liệu
+Tên UC trong tài liệu: UC-I2  Nhập dữ liệu theo lô, xem trước lỗi, xác nhận và nghiệm thu bộ dữ liệu khởi tạo trước vận hành

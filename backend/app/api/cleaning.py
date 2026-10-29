@@ -1,3 +1,4 @@
+from app.services.sad_work import next_code
 from datetime import UTC
 from uuid import UUID, uuid4
 
@@ -220,7 +221,7 @@ def list_cleaning_assignees(
         accounts = session.scalars(select(Account).join(AccountRole).where(
             Account.tenant_id == current_user.tenant_id,
             Account.is_active.is_(True),
-            AccountRole.role == "cleaning",
+            AccountRole.effective_at(), AccountRole.role == "cleaning",
             AccountRole.site_id == current_user.assert_active_site(),
             or_(AccountRole.building_id.is_(None), AccountRole.building_id == building_id),
         ).distinct().order_by(Account.full_name, Account.id)).all()
@@ -342,6 +343,8 @@ def assign_cleaning_task(
     current_user: UserContext = Depends(get_current_user_context),
 ):
     with request.app.state.database.get_session() as session:
+        from app.services.operational_control import financial_lock
+        financial_lock(session, current_user)
         task = _scoped_task(session, current_user, task_id, lock=True)
         _assert_manager(current_user, task.building_id)
         require_version(task.version, body.expected_version)
@@ -351,23 +354,27 @@ def assign_cleaning_task(
             Account.id == body.assignee_id,
             Account.tenant_id == current_user.tenant_id,
             Account.is_active.is_(True),
-            AccountRole.role == "cleaning",
+            AccountRole.effective_at(), AccountRole.role == "cleaning",
             AccountRole.site_id == current_user.assert_active_site(),
             or_(AccountRole.building_id.is_(None), AccountRole.building_id == task.building_id),
         ))
         if assignee is None:
             raise scope_not_found()
+        from app.models.operations import CleaningShift
+        from app.services.sad_work import queue_direct_assignment
+        shift = session.get(CleaningShift, task.shift_id)
+        assignment = queue_direct_assignment(session, current_user, task, assignee.id, 'CLEANING', shift.scheduled_start_at, shift.scheduled_end_at)
         before = {"status": task.status, "assigned_to_id": str(task.assigned_to_id) if task.assigned_to_id else None}
-        task.status = "ASSIGNED"
-        task.assigned_to_id = assignee.id
+        # Assignment remains pending until the worker accepts the dossier.
         task.updated_by_id = current_user.account_id
         task.version += 1
+        assignment.data = {**assignment.data, 'target_version': task.version}
         audit(session, current_user, request, event_type="CleaningTaskAssigned", action="assign",
               resource_type="CleaningTask", resource_id=task.id, building_id=task.building_id,
-              before=before, after={"status": task.status, "assigned_to_id": str(assignee.id)})
+              before=before, after={"status": task.status, "assigned_to_id": before['assigned_to_id'], "pending_assignee_id": str(assignee.id)})
         emit(session, current_user, request, event_type="CleaningTaskAssigned",
              resource_type="CleaningTask", resource_id=task.id,
-             payload={"assigned_to_id": str(assignee.id)})
+             payload={"pending_assignee_id": str(assignee.id), "acceptance_status": "PENDING"})
         session.commit()
         return _task_view(session, task)
 
@@ -380,8 +387,12 @@ def start_cleaning_task(
     current_user: UserContext = Depends(get_current_user_context),
 ):
     with request.app.state.database.get_session() as session:
+        from app.services.operational_control import financial_lock
+        financial_lock(session, current_user)
         task = _scoped_task(session, current_user, task_id, lock=True)
         _assert_assigned_cleaner(current_user, task)
+        from app.services.sad_work import require_work_ack
+        require_work_ack(session, task, current_user, 'CLEANING')
         require_version(task.version, body.expected_version)
         if task.status != "ASSIGNED":
             raise AppError("ERR-STATE-TRANSITION", "Task chưa sẵn sàng để bắt đầu.", 409)
@@ -479,7 +490,7 @@ def _create_rework_case(session, context: UserContext, request: Request, task: C
         site_id=task.site_id,
         building_id=task.building_id,
         cleaning_task_id=task.id,
-        code=f"CWO-{uuid4().hex[:12].upper()}",
+        code=next_code(session, task.site_id, 'WO-' + utc_now().strftime('%Y%m')),
         title=f"Làm lại vệ sinh: {area_name}"[:200],
         description=f"Checklist vệ sinh không đạt: {labels}",
         status="DRAFT",

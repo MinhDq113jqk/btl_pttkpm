@@ -57,7 +57,7 @@ def load_demo_seed_credentials(settings: Settings) -> dict[str, str]:
     return credentials
 
 
-def seed_database(session: Session, demo_credentials: dict[str, str]) -> None:
+def seed_database(session: Session, demo_credentials: dict[str, str], *, account_usernames: dict[str, str] | None = None) -> None:
     # 1. Tenant
     tenant = session.execute(
         select(Tenant).where(Tenant.name == "GreenCity Corporation")
@@ -75,7 +75,7 @@ def seed_database(session: Session, demo_credentials: dict[str, str]) -> None:
         site_west = Site(
             tenant_id=tenant.id,
             code="GC-WEST",
-            name="GreenCity West Đô Thị Mẫu",
+            name="GreenCity West",
             address="Đại lộ Ánh Sao, Khu đô thị Tây GreenCity, Hà Nội",
         )
         session.add(site_west)
@@ -88,7 +88,7 @@ def seed_database(session: Session, demo_credentials: dict[str, str]) -> None:
         site_east = Site(
             tenant_id=tenant.id,
             code="GC-EAST",
-            name="GreenCity East Kiểm Thử Cô Lập",
+            name="GreenCity East",
             address="Đường Hoa Ban, Khu đô thị Đông GreenCity, Hà Nội",
         )
         session.add(site_east)
@@ -337,7 +337,7 @@ def seed_database(session: Session, demo_credentials: dict[str, str]) -> None:
     # 6. Accounts and Roles. Credentials are injected by the explicit seed
     # guard above; do not add a source-derived fallback here.
     accounts_data = [
-        ("admin_demo", "Quản Trị Viên Demo", [RoleEnum.ADMIN], None),
+        ("admin_demo", "Quản Trị Viên", [RoleEnum.ADMIN], None),
         ("director_west", "Giám Đốc BQL West", [RoleEnum.DIRECTOR], site_west.id),
         ("cskh_west", "Lễ Tân CSKH West", [RoleEnum.CSKH], site_west.id),
         ("cskh_east", "Lễ Tân CSKH East", [RoleEnum.CSKH], site_east.id),
@@ -349,6 +349,8 @@ def seed_database(session: Session, demo_credentials: dict[str, str]) -> None:
     ]
 
     for username, full_name, roles, site_id in accounts_data:
+        seed_username = username
+        username = (account_usernames or {}).get(username, username)
         account = session.execute(
             select(Account).where(Account.tenant_id == tenant.id, Account.username == username)
         ).scalar_one_or_none()
@@ -356,14 +358,14 @@ def seed_database(session: Session, demo_credentials: dict[str, str]) -> None:
             account = Account(
                 tenant_id=tenant.id,
                 username=username,
-                hashed_password=hash_password(demo_credentials[username]),
+                hashed_password=hash_password(demo_credentials[seed_username]),
                 full_name=full_name,
                 is_active=True,
                 must_change_password=True,
             )
             session.add(account)
             session.flush()
-        elif not verify_password(demo_credentials[username], account.hashed_password):
+        elif not verify_password(demo_credentials[seed_username], account.hashed_password):
             # Do not silently rotate an existing credential: it hides an
             # operationally important change and would make repeat seed unsafe.
             raise RuntimeError(

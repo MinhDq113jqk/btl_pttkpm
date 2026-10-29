@@ -899,11 +899,12 @@ export function createApiClient({
     return result.payload;
   }
 
-  async function downloadFile(target, { signal, fallbackFilename = 'download.csv' } = {}) {
+  async function downloadFile(target, { signal, fallbackFilename = 'download.csv', body } = {}) {
     const requestCorrelationId = correlationIdFactory?.() || '';
     const requestRevision = sessionRevision;
     const requestToken = accessToken;
     const headers = { Accept: 'text/csv, application/octet-stream' };
+    if (body) headers['Content-Type'] = 'application/json';
     if (requestCorrelationId) headers['X-Correlation-ID'] = requestCorrelationId;
     if (requestToken) headers.Authorization = `Bearer ${requestToken}`;
     const url = /^https?:\/\//i.test(target)
@@ -913,7 +914,7 @@ export function createApiClient({
         : `${apiBaseUrl}${target}`;
     let response;
     try {
-      response = await fetchImpl(url, { method: 'GET', headers, signal });
+      response = await fetchImpl(url, { method: body ? 'POST' : 'GET', headers, signal, ...(body ? { body: JSON.stringify(body) } : {}) });
     } catch (cause) {
       if (requestRevision !== sessionRevision) throw staleSessionError();
       if (cause?.name === 'AbortError') throw cause;
@@ -953,6 +954,69 @@ export function createApiClient({
   }
 
   return {
+    async acceptInvitation(identifier, token, password, { signal } = {}) {
+      const result = await request(`/portal/invitations/${encodeURIComponent(identifier)}/accept`, { method: 'POST', body: { token, password }, signal });
+      return result.payload;
+    },
+    async downloadOperationalReport(identifier, { signal } = {}) {
+      return downloadFile(`/portal/control/reports/${encodeURIComponent(identifier)}/download`, { signal, fallbackFilename: 'bao-cao.json' });
+    },
+    async downloadDocumentBundle(documentIds, unitId, { signal } = {}) {
+      return downloadFile('/portal/control/documents/bundle', { signal, fallbackFilename: 'ho-so.zip', body: { document_ids: documentIds, unit_id: unitId || null } });
+    },
+    async portalGet(path, params = {}, { signal } = {}) {
+      if (!/^\/[a-z0-9/_-]+$/.test(path)) throw new TypeError('Invalid portal path');
+      const query = new URLSearchParams(Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== '').map(([key, value]) => [key, String(value)]));
+      const result = await request(`/portal${path}${query.size ? `?${query}` : ''}`, { signal });
+      if (!result.payload || typeof result.payload !== 'object') throw new ApiError('Không đọc được dữ liệu cổng cư dân.', { code: 'ERR-INVALID-RESPONSE', correlationId: result.correlationId });
+      return result.payload;
+    },
+
+    async portalCommand(path, body, { idempotencyKey, signal } = {}) {
+      if (!/^\/[a-z0-9/-]+$/.test(path) || !idempotencyKey) throw new TypeError('Portal path and idempotencyKey are required');
+      const result = await request(`/portal${path}`, { method: 'POST', body, idempotencyKey, signal });
+      return result.payload;
+    },
+
+    async uploadPortalDocument(file, params, { idempotencyKey, signal } = {}) {
+      const query = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '').map(([k, v]) => [k, String(v)]));
+      const result = await request(`/portal/documents?${query}`, { method: 'POST', rawBody: file,
+        contentType: file.type, extraHeaders: { 'X-File-Name': encodeURIComponent(file.name) }, idempotencyKey, signal });
+      return result.payload;
+    },
+
+    async downloadPortalDocument(identifier, unitId, { signal } = {}) {
+      const query = new URLSearchParams(unitId ? { unit_id: unitId } : {});
+      const linked = await request(`/portal/documents/${encodeURIComponent(identifier)}/signed-link?${query}`, { signal });
+      query.set('token', linked.payload.token);
+      return downloadFile(`/portal/documents/${encodeURIComponent(identifier)}/download?${query}`, { signal, fallbackFilename: 'tai-lieu' });
+    },
+
+    async logoutAllSessions({ signal } = {}) {
+      await request('/auth/logout-all', { method: 'POST', signal });
+      clearSession();
+    },
+
+    async requestAccountRecovery(username, { signal } = {}) {
+      const result = await request('/auth/recovery/request', { method: 'POST', body: { username }, authenticated: false, signal });
+      return result.payload;
+    },
+
+    async completeAccountRecovery(values, { signal } = {}) {
+      const result = await request('/auth/recovery/complete', { method: 'POST', body: values, authenticated: false, signal });
+      return result.payload;
+    },
+
+    async verifyAccountRecovery(identifier, values, { signal } = {}) {
+      const result = await request(`/portal/recovery-requests/${encodeURIComponent(identifier)}/verify`, { method: 'POST', body: values, signal });
+      return result.payload;
+    },
+
+    async supportAssistant(values, { signal, idempotencyKey } = {}) {
+      const result = await request('/portal/assistant/support', { method: 'POST', body: values, signal, idempotencyKey });
+      return result.payload;
+    },
+
     async chatAssistant(message, { signal } = {}) {
       if (typeof message !== 'string' || !message.trim()) throw new TypeError('message must be a non-empty string');
       const result = await request('/assistant/chat', {
@@ -1224,9 +1288,11 @@ export function createApiClient({
       return assertParcelTimeline(result.payload, result.correlationId);
     },
 
-    async listServiceRequests({ status, page = 1, page_size = 20, signal } = {}) {
+    async listServiceRequests({ status, buildingId, unitId, page = 1, page_size = 20, signal } = {}) {
       const query = new URLSearchParams();
       if (status) query.set('status', status);
+      if (buildingId) query.set('building_id', buildingId);
+      if (unitId) query.set('unit_id', unitId);
       query.set('page', String(page));
       query.set('page_size', String(page_size));
       const result = await request(`/service-requests?${query}`, { signal });
@@ -1575,8 +1641,9 @@ export function createApiClient({
       return assertServiceRequestFormOptions(result.payload, result.correlationId);
     },
 
-    async listResidentServiceRequests({ page = 1, page_size = 20, signal } = {}) {
+    async listResidentServiceRequests({ unitId, page = 1, page_size = 20, signal } = {}) {
       const query = new URLSearchParams({ page: String(page), page_size: String(page_size) });
+      if (unitId) query.set('unit_id', unitId);
       const result = await request(`/resident/service-requests?${query}`, { signal });
       return assertResidentServiceRequestList(result.payload, result.correlationId);
     },
@@ -1650,28 +1717,29 @@ export function createApiClient({
       return assertResidentSignedLink(result.payload, result.correlationId);
     },
 
-    async getResidentBillingSummary(asOf, { signal } = {}) {
+    async getResidentBillingSummary(asOf, { unitId, signal } = {}) {
       if (!asOf) throw new TypeError('asOf is required');
-      const result = await request(`/resident/billing/summary?as_of=${encodeURIComponent(asOf)}`, { signal });
+      const result = await request(`/resident/billing/summary?as_of=${encodeURIComponent(asOf)}${unitId ? `&unit_id=${encodeURIComponent(unitId)}` : ''}`, { signal });
       return assertResidentBillingSummary(result.payload, result.correlationId);
     },
 
-    async listResidentBillingInvoices(asOf, { signal } = {}) {
+    async listResidentBillingInvoices(asOf, { unitId, signal } = {}) {
       if (!asOf) throw new TypeError('asOf is required');
-      const result = await request(`/resident/billing/invoices?as_of=${encodeURIComponent(asOf)}`, { signal });
+      const result = await request(`/resident/billing/invoices?as_of=${encodeURIComponent(asOf)}${unitId ? `&unit_id=${encodeURIComponent(unitId)}` : ''}`, { signal });
       return assertResidentBillingInvoices(result.payload, result.correlationId);
     },
 
-    async listResidentBillingPayments(asOf, { signal } = {}) {
+    async listResidentBillingPayments(asOf, { unitId, signal } = {}) {
       if (!asOf) throw new TypeError('asOf is required');
-      const result = await request(`/resident/billing/payments?as_of=${encodeURIComponent(asOf)}`, { signal });
+      const result = await request(`/resident/billing/payments?as_of=${encodeURIComponent(asOf)}${unitId ? `&unit_id=${encodeURIComponent(unitId)}` : ''}`, { signal });
       return assertResidentBillingPayments(result.payload, result.correlationId);
     },
 
-    async listResidentNotifications({ includeRead = false, page = 1, page_size = 20, signal } = {}) {
+    async listResidentNotifications({ unitId, includeRead = false, page = 1, page_size = 20, signal } = {}) {
       const query = new URLSearchParams({
         include_read: includeRead ? 'true' : 'false', page: String(page), page_size: String(page_size),
       });
+      if (unitId) query.set('unit_id', unitId);
       const result = await request(`/resident/notifications?${query}`, { signal });
       return assertResidentNotificationList(result.payload, result.correlationId);
     },
@@ -1694,13 +1762,25 @@ export function createApiClient({
       return assertBillingPolicies(result.payload, result.correlationId);
     },
 
+    async createBillingFeePolicyVersion(policyId, values, { idempotencyKey, signal } = {}) {
+      if (!idempotencyKey) throw new TypeError('idempotencyKey is required');
+      const result = await request(`/billing/fee-policies/${encodeURIComponent(policyId)}/versions`, { method: 'POST', signal, idempotencyKey, body: values });
+      return result.payload;
+    },
+
+    async editBillingFeePolicyVersion(policyId, versionId, values, { idempotencyKey, signal } = {}) {
+      if (!idempotencyKey) throw new TypeError('idempotencyKey is required');
+      const result = await request(`/billing/fee-policies/${encodeURIComponent(policyId)}/versions/${encodeURIComponent(versionId)}/edit`, { method: 'POST', signal, idempotencyKey, body: values });
+      return result.payload;
+    },
+
     async createBillingFeePolicy(values, { idempotencyKey, signal } = {}) {
       if (typeof idempotencyKey !== 'string' || !idempotencyKey.trim()) throw new TypeError('idempotencyKey is required when creating a fee policy');
       const result = await request('/billing/fee-policies', {
         method: 'POST', signal, idempotencyKey: idempotencyKey.trim(), body: {
           building_id: values?.building_id, code: values?.code, name: values?.name,
           effective_from: values?.effective_from, unit_rate_vnd: values?.unit_rate_vnd,
-          rounding_unit_vnd: values?.rounding_unit_vnd,
+          rounding_unit_vnd: values?.rounding_unit_vnd, area_field: values?.area_field, basis: values?.basis, commodity: values?.commodity, uom: values?.uom,
         },
       });
       return assertBillingPolicies({ items: [result.payload] }, result.correlationId).items[0];

@@ -1,3 +1,5 @@
+from app.services.sad_completion import capture_sla, sla_deadline
+from app.services.sad_work import next_code
 import hashlib
 from datetime import timedelta
 from pathlib import Path
@@ -60,7 +62,6 @@ from app.services.r2 import (
     ImageEvidenceError,
     MAX_EVIDENCE_BYTES,
     audit,
-    calculate_sla_deadline,
     complete_maintenance,
     emit,
     idempotency_replay,
@@ -100,7 +101,7 @@ def _request_view(record: ServiceRequest) -> ServiceRequestView:
         status=record.status,
         sla_started_at=record.sla_started_at,
         sla_duration_minutes=record.sla_duration_minutes,
-        sla_deadline=calculate_sla_deadline(record.sla_started_at, record.sla_duration_minutes),
+        sla_deadline=sla_deadline(record),
         sla_breached_at=record.sla_breached_at,
         owner_account_id=record.owner_account_id,
         resolved_at=record.resolved_at,
@@ -149,6 +150,8 @@ def _work_order_view(session, record: WorkOrder) -> WorkOrderView:
         building_id=record.building_id,
         service_request_id=record.service_request_id,
         maintenance_occurrence_id=record.maintenance_occurrence_id,
+        asset_id=record.asset_id,
+        asset_snapshot=record.asset_snapshot,
         title=record.title,
         description=record.description,
         status=record.status,
@@ -262,12 +265,16 @@ def _assert_signed_attachment_token(
 def list_service_requests(
     request: Request,
     status: ServiceRequestStatus | None = Query(default=None),
+    building_id: UUID | None = Query(default=None),
+    unit_id: UUID | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     current_user: UserContext = Depends(get_current_user_context),
 ):
     visibility = _request_list_visibility(current_user)
     conditions = [*current_user.scope_conditions(ServiceRequest), visibility]
+    if building_id is not None: conditions.append(ServiceRequest.building_id == building_id)
+    if unit_id is not None: conditions.append(ServiceRequest.unit_id == unit_id)
     if status is not None:
         conditions.append(ServiceRequest.status == status)
 
@@ -297,9 +304,7 @@ def list_service_requests(
                 building_name=building.name,
                 status=record.status,
                 priority=record.priority,
-                sla_deadline=calculate_sla_deadline(
-                    record.sla_started_at, record.sla_duration_minutes,
-                ),
+                sla_deadline=sla_deadline(record),
                 created_at=record.created_at,
             ) for record, building, unit in rows],
             page=page,
@@ -420,6 +425,7 @@ def create_service_request(
             created_by_id=current_user.account_id,
             updated_by_id=current_user.account_id,
         )
+        capture_sla(session, record)
         session.add(record)
         session.flush()
         audit(session, current_user, request, event_type="ServiceRequestCreated", action="create",
@@ -486,7 +492,7 @@ def list_service_request_assignees(
                 Account.tenant_id == current_user.tenant_id,
                 Account.is_active.is_(True),
                 AccountRole.site_id == current_user.assert_active_site(),
-                AccountRole.role.in_(roles),
+                AccountRole.effective_at(), AccountRole.role.in_(roles),
             )
             .order_by(Account.full_name, Account.id, AccountRole.role)
         )
@@ -511,7 +517,7 @@ def triage_service_request(request: Request, request_id: UUID, body: TriageReque
             Account.tenant_id == current_user.tenant_id,
             Account.is_active.is_(True),
             AccountRole.site_id == current_user.assert_active_site(),
-            AccountRole.role.in_(("cskh", "technical_lead")),
+            AccountRole.effective_at(), AccountRole.role.in_(("cskh", "technical_lead")),
             AccountRole.building_id == record.building_id,
         ))
         if owner is None:
@@ -556,7 +562,7 @@ def create_work_order(
             site_id=service_request.site_id,
             building_id=service_request.building_id,
             service_request_id=service_request.id,
-            code=f"WO-{uuid4().hex[:12].upper()}",
+            code=next_code(session, service_request.site_id, 'WO-' + utc_now().strftime('%Y%m')),
             title=body.title.strip(),
             description=body.description.strip(),
             status="DRAFT",
@@ -609,7 +615,7 @@ def list_work_order_assignees(
                 Account.tenant_id == current_user.tenant_id,
                 Account.is_active.is_(True),
                 AccountRole.site_id == current_user.assert_active_site(),
-                AccountRole.role == "technician",
+                AccountRole.effective_at(), AccountRole.role == "technician",
             )
             .order_by(Account.full_name, Account.id)
         ).all()
@@ -653,6 +659,8 @@ def assign_work_order(request: Request, work_order_id: UUID, body: WorkOrderAssi
                       current_user: UserContext = Depends(get_current_user_context)):
     current_user.assert_role("technical_lead")
     with request.app.state.database.get_session() as session:
+        from app.services.operational_control import financial_lock
+        financial_lock(session, current_user)
         record = scoped_work_order(session, current_user, work_order_id, lock=True)
         current_user.assert_building_role(record.building_id, "technical_lead")
         require_version(record.version, body.expected_version)
@@ -663,21 +671,23 @@ def assign_work_order(request: Request, work_order_id: UUID, body: WorkOrderAssi
             Account.tenant_id == current_user.tenant_id,
             Account.is_active.is_(True),
             AccountRole.site_id == current_user.assert_active_site(),
-            AccountRole.role == "technician",
+            AccountRole.effective_at(), AccountRole.role == "technician",
         ))
         if assignee is None:
             raise scope_not_found()
+        from app.services.sad_work import queue_direct_assignment
+        assignment = queue_direct_assignment(session, current_user, record, assignee.id, 'WORK_ORDER')
         before = {"status": record.status, "assigned_to_id": str(record.assigned_to_id) if record.assigned_to_id else None}
-        record.status = "ASSIGNED"
-        record.assigned_to_id = assignee.id
+        # The coordinator keeps ownership until the candidate accepts the dossier.
         record.updated_by_id = current_user.account_id
         record.version += 1
+        assignment.data = {**assignment.data, 'target_version': record.version}
         audit(session, current_user, request, event_type="WorkOrderAssigned", action="assign",
               resource_type="WorkOrder", resource_id=record.id, building_id=record.building_id,
-              before=before, after={"status": record.status, "assigned_to_id": str(assignee.id)})
+              before=before, after={"status": record.status, "assigned_to_id": before['assigned_to_id'], "pending_assignee_id": str(assignee.id)})
         emit(session, current_user, request, event_type="WorkOrderAssigned",
              resource_type="WorkOrder", resource_id=record.id,
-             payload={"assigned_to_id": str(assignee.id)})
+             payload={"pending_assignee_id": str(assignee.id), "acceptance_status": "PENDING"})
         session.commit()
         return _work_order_view(session, record)
 
@@ -686,8 +696,12 @@ def assign_work_order(request: Request, work_order_id: UUID, body: WorkOrderAssi
 def start_work_order(request: Request, work_order_id: UUID, body: VersionCommand,
                      current_user: UserContext = Depends(get_current_user_context)):
     with request.app.state.database.get_session() as session:
+        from app.services.operational_control import financial_lock
+        financial_lock(session, current_user)
         record = scoped_work_order(session, current_user, work_order_id, lock=True)
         _assert_technician(record, current_user)
+        from app.services.sad_work import require_work_ack
+        require_work_ack(session, record, current_user, 'WORK_ORDER')
         require_version(record.version, body.expected_version)
         if record.status not in {"ASSIGNED", "ON_HOLD"}:
             raise AppError("ERR-STATE-TRANSITION", "Công việc chưa sẵn sàng để bắt đầu.", 409)
@@ -921,6 +935,17 @@ def create_cost_line(
             current_user.assert_building_role(record.building_id, "technical_lead")
         if record.status not in {"IN_PROGRESS", "WAITING_ACCEPTANCE"}:
             raise AppError("ERR-STATE-TRANSITION", "Chi phí chỉ ghi nhận khi công việc đang thực hiện.", 409)
+        from app.models.maintenance import Asset, MaintenanceOccurrence, MaintenancePlan
+        asset_id = record.asset_id
+        if not asset_id and record.maintenance_occurrence_id:
+            asset_id = session.scalar(select(MaintenancePlan.asset_id).join(MaintenanceOccurrence, MaintenanceOccurrence.plan_id == MaintenancePlan.id).where(MaintenanceOccurrence.id == record.maintenance_occurrence_id))
+        asset = session.get(Asset, asset_id) if asset_id else None
+        if asset and asset.warranty_until and utc_now().date() <= asset.warranty_until:
+            decision = (record.asset_snapshot or {}).get('decision', {})
+            if not decision.get('evidence_reference') or decision.get('warranty_decision') not in ('PROVIDER', 'MANAGEMENT'):
+                raise AppError('ERR-ASSET-WARRANTY-DECISION', 'Tài sản còn bảo hành; cần quyết định trách nhiệm trước ghi chi phí.', 409)
+            if decision['warranty_decision'] == 'PROVIDER' and body.cost_bearer == 'RESIDENT':
+                raise AppError('ERR-ASSET-WARRANTY-BEARER', 'Không chuyển khoản thuộc bảo hành NCC sang cư dân.', 409)
         if body.cost_bearer == "RESIDENT":
             if body.evidence_attachment_id is None:
                 raise AppError("ERR-CHECKLIST-INCOMPLETE", "Chi phí cư dân cần bằng chứng.", 422)
@@ -1271,23 +1296,8 @@ def close_service_request(request: Request, request_id: UUID, body: WorkOrderClo
 def run_sla_scan(request: Request, body: SlaRun,
                  current_user: UserContext = Depends(get_current_user_context)):
     current_user.assert_role("admin", "director")
-    breached = []
+    from app.services.sad_completion import scan_sla
     with request.app.state.database.get_session() as session:
-        records = session.scalars(select(ServiceRequest).where(
-            *current_user.scope_conditions(ServiceRequest),
-            ServiceRequest.status.in_(("NEW", "TRIAGED", "IN_PROGRESS", "WAITING_INFO")),
-            ServiceRequest.sla_breached_at.is_(None),
-        ).order_by(ServiceRequest.id).with_for_update()).all()
-        for record in records:
-            if calculate_sla_deadline(record.sla_started_at, record.sla_duration_minutes) <= body.as_of:
-                record.sla_breached_at = body.as_of
-                record.updated_by_id = current_user.account_id
-                record.version += 1
-                breached.append(record.id)
-                audit(session, current_user, request, event_type="SlaBreached", action="escalate",
-                      resource_type="ServiceRequest", resource_id=record.id,
-                      building_id=record.building_id, after={"sla_breached_at": body.as_of.isoformat()})
-                emit(session, current_user, request, event_type="SlaBreached",
-                     resource_type="ServiceRequest", resource_id=record.id)
+        breached = scan_sla(session, current_user, request, body.as_of)
         session.commit()
     return SlaRunView(breached_request_ids=breached)

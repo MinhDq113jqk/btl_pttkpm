@@ -95,11 +95,16 @@ def _shift(case, key, start_at=None):
 
 
 def _assign(case, task, cleaner):
+    from sad_assignment_support import prepare_worker, accept_work
+    prepare_worker(case, case['cleaners'][cleaner], task['building_id'], 'cleaning')
     response = case["client"].post(f"/api/v1/cleaning/tasks/{task['id']}/assign",
                                    headers=case["auth"]["director"], json={
                                        "assignee_id": str(case["cleaners"][cleaner].id),
                                        "expected_version": task["version"],
                                    })
+    assert response.status_code == 200, response.text
+    accept_work(case, task['id'], cleaner)
+    response = case['client'].get(f"/api/v1/cleaning/tasks/{task['id']}", headers=case['auth'][cleaner])
     assert response.status_code == 200, response.text
     return response.json()
 

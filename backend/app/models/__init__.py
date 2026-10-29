@@ -1,4 +1,13 @@
 from app.models.base import Base
+from app.models.resident_portal import (
+    PortalFinancialAdjustment,
+    PortalResourceClosure,
+    PortalDossier, PortalDossierEvent, ResidentDelegation, LiabilityEpisode,
+    PortalResource, PortalFeeSource, PortalFeeInterval, PortalFeePosting, PortalDeposit,
+    PortalDepositMovement, VehicleRegistration, ResidentCredential, FacilityBooking,
+    ServiceEnrollment, PortalRequestMessage, ResidentDocument, PortalContent,
+    PortalPaymentIntent, AccountRecovery,
+)
 from app.models.tenant import Tenant
 from app.models.enums import (
     AccountingPeriodStatusEnum,
@@ -163,3 +172,9 @@ __all__ = [
     "Parcel",
     "PARCEL_STATUS_TRANSITIONS",
 ]
+from app.models.property import LeaseContract, UnitProfileEpisode, PersonMerge, PropertyNode, UnitLocation
+from app.models.financial_control import BillingReview, FinanceCommand, ArCase, ApprovalDelegation, FinancePolicy, AllocationReversal, FinanceEvent, CreditUseAllocation
+from app.models import operational_control
+from app.models import account_parking
+from app.models import sad_completion
+from app.models import sad_extensions

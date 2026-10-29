@@ -1,4 +1,6 @@
 export const navItems = [
+  { id: 'settings', label: 'Tài khoản', icon: 'ShieldCheck' },
+  { id: 'workforce', label: 'Đào tạo & Nhận việc', icon: 'CheckSquare' },
   { id: 'overview', label: 'Tổng quan', icon: 'LayoutDashboard' },
   { id: 'tasks', label: 'Công việc & Yêu cầu', icon: 'CheckSquare' },
   { id: 'maintenance', label: 'Kỹ thuật & Bảo trì', icon: 'Wrench' },
@@ -6,6 +8,8 @@ export const navItems = [
   { id: 'security', label: 'An ninh & Tuần tra', icon: 'ShieldCheck' },
   { id: 'parcels', label: 'Bưu phẩm & Bàn giao', icon: 'Package' },
   { id: 'residents', label: 'Khách hàng & Cư dân', icon: 'Users' },
+  { id: 'portal', label: 'Dịch vụ cư dân', icon: 'Users' },
+  { id: 'assistant', label: 'Trợ lý & CSKH', icon: 'Sparkles' },
   { id: 'finance', label: 'Tài chính & Công nợ', icon: 'BadgePercent' },
   { id: 'imports', label: 'Nhập dữ liệu căn hộ', icon: 'Upload' },
   { id: 'notifications', label: 'Thông báo', icon: 'Bell' },

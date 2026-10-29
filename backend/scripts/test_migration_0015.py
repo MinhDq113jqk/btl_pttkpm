@@ -6,7 +6,7 @@ import subprocess
 import sys
 from uuid import uuid4
 
-from sqlalchemy import inspect, text
+from sqlalchemy import inspect, text, MetaData, Table
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import IntegrityError
 
@@ -103,7 +103,10 @@ def main() -> int:
             )
             session.add(parcel)
             session.flush()
-            case_record = CaseRecord(
+            # Historical migration fixtures use the reflected 0015 schema, not HEAD models.
+            cases_table = Table('cases', MetaData(), schema=SCHEMA, autoload_with=session.get_bind())
+            case_id = uuid4()
+            case_values = dict(id=case_id,
                 tenant_id=tenant.id, site_id=site.id, building_id=building.id,
                 source_parcel_id=parcel.id, reason="Migration evidence", created_by_id=account_id,
                 updated_by_id=account_id,
@@ -119,17 +122,18 @@ def main() -> int:
                 uploaded_by_id=account_id, original_name="evidence.png", storage_key=f"0015/{uuid4().hex}.png",
                 mime_type="image/png", size_bytes=8, sha256="a" * 64,
             )
-            session.add_all((case_record, incident, attachment))
+            session.execute(cases_table.insert().values(**case_values))
+            session.add_all((incident, attachment))
             session.commit()
-            case_id, incident_id, attachment_id, parcel_id = case_record.id, incident.id, attachment.id, parcel.id
+            incident_id, attachment_id, parcel_id = incident.id, attachment.id, parcel.id
 
-            invalid = CaseRecord(
+            invalid = dict(id=uuid4(),
                 tenant_id=tenant.id, site_id=site.id, building_id=building.id,
                 source_parcel_id=parcel.id, source_work_order_id=uuid4(), reason="invalid",
                 created_by_id=account_id, updated_by_id=account_id,
             )
-            session.add(invalid)
             try:
+                session.execute(cases_table.insert().values(**invalid))
                 session.flush()
             except IntegrityError:
                 session.rollback()
@@ -143,7 +147,7 @@ def main() -> int:
         with database.get_session() as session:
             session.query(Attachment).filter(Attachment.id == attachment_id).delete()
             session.query(SecurityIncident).filter(SecurityIncident.id == incident_id).delete()
-            session.query(CaseRecord).filter(CaseRecord.id == case_id).delete()
+            session.execute(cases_table.delete().where(cases_table.c.id == case_id))
             session.query(Parcel).filter(Parcel.id == parcel_id).delete()
             session.commit()
         migrate("downgrade", "0014")

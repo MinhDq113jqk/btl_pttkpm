@@ -1,0 +1,567 @@
+{
+  "records": [
+    {
+      "kind": "PARCEL_CUSTODY",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "reference": {
+            "maxLength": 150,
+            "minLength": 3,
+            "title": "Reference",
+            "type": "string"
+          },
+          "location": {
+            "maxLength": 200,
+            "minLength": 2,
+            "title": "Location",
+            "type": "string"
+          },
+          "custodian_account_id": {
+            "format": "uuid",
+            "title": "Custodian Account Id",
+            "type": "string"
+          },
+          "due_on": {
+            "format": "date",
+            "title": "Due On",
+            "type": "string"
+          },
+          "condition": {
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Condition",
+            "type": "string"
+          },
+          "evidence_reference": {
+            "maxLength": 300,
+            "minLength": 3,
+            "title": "Evidence Reference",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reference",
+          "location",
+          "custodian_account_id",
+          "due_on",
+          "condition",
+          "evidence_reference"
+        ],
+        "title": "CustodyData",
+        "type": "object"
+      }
+    },
+    {
+      "kind": "LOST_FOUND",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "reference": {
+            "maxLength": 150,
+            "minLength": 3,
+            "title": "Reference",
+            "type": "string"
+          },
+          "location": {
+            "maxLength": 200,
+            "minLength": 2,
+            "title": "Location",
+            "type": "string"
+          },
+          "custodian_account_id": {
+            "format": "uuid",
+            "title": "Custodian Account Id",
+            "type": "string"
+          },
+          "due_on": {
+            "format": "date",
+            "title": "Due On",
+            "type": "string"
+          },
+          "condition": {
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Condition",
+            "type": "string"
+          },
+          "evidence_reference": {
+            "maxLength": 300,
+            "minLength": 3,
+            "title": "Evidence Reference",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reference",
+          "location",
+          "custodian_account_id",
+          "due_on",
+          "condition",
+          "evidence_reference"
+        ],
+        "title": "CustodyData",
+        "type": "object"
+      }
+    },
+    {
+      "kind": "ORGANIZATION",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "maxLength": 80,
+            "minLength": 3,
+            "title": "Code",
+            "type": "string"
+          },
+          "revision": {
+            "minimum": 1,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "valid_from": {
+            "format": "date",
+            "title": "Valid From",
+            "type": "string"
+          },
+          "valid_to": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Valid To"
+          },
+          "body": {
+            "maxLength": 4000,
+            "minLength": 3,
+            "title": "Body",
+            "type": "string"
+          },
+          "confirmed_rule_reference": {
+            "maxLength": 300,
+            "minLength": 3,
+            "title": "Confirmed Rule Reference",
+            "type": "string"
+          },
+          "legal_name": {
+            "maxLength": 200,
+            "minLength": 3,
+            "title": "Legal Name",
+            "type": "string"
+          },
+          "address": {
+            "maxLength": 300,
+            "minLength": 3,
+            "title": "Address",
+            "type": "string"
+          },
+          "representative_account_id": {
+            "format": "uuid",
+            "title": "Representative Account Id",
+            "type": "string"
+          },
+          "contact": {
+            "maxLength": 300,
+            "minLength": 3,
+            "title": "Contact",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "revision",
+          "valid_from",
+          "body",
+          "confirmed_rule_reference",
+          "legal_name",
+          "address",
+          "representative_account_id",
+          "contact"
+        ],
+        "title": "OrganizationData",
+        "type": "object"
+      }
+    },
+    {
+      "kind": "BUILDING_ZONE",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "zone_id": {
+            "format": "uuid",
+            "title": "Zone Id",
+            "type": "string"
+          },
+          "evidence_reference": {
+            "maxLength": 300,
+            "minLength": 3,
+            "title": "Evidence Reference",
+            "type": "string"
+          }
+        },
+        "required": [
+          "zone_id",
+          "evidence_reference"
+        ],
+        "title": "BuildingZoneData",
+        "type": "object"
+      }
+    },
+    {
+      "kind": "BUILDING_PROFILE",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "operation": {
+            "enum": [
+              "CREATE",
+              "UPDATE",
+              "ACTIVATE",
+              "DEACTIVATE"
+            ],
+            "title": "Operation",
+            "type": "string"
+          },
+          "code": {
+            "maxLength": 50,
+            "minLength": 2,
+            "pattern": "^[A-Z0-9][A-Z0-9_-]*$",
+            "title": "Code",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 2,
+            "title": "Name",
+            "type": "string"
+          },
+          "floors_count": {
+            "maximum": 300,
+            "minimum": 1,
+            "title": "Floors Count",
+            "type": "integer"
+          },
+          "zone_id": {
+            "format": "uuid",
+            "title": "Zone Id",
+            "type": "string"
+          },
+          "evidence_reference": {
+            "maxLength": 300,
+            "minLength": 3,
+            "title": "Evidence Reference",
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation",
+          "code",
+          "name",
+          "floors_count",
+          "zone_id",
+          "evidence_reference"
+        ],
+        "title": "BuildingProfileData",
+        "type": "object"
+      }
+    },
+    {
+      "kind": "SITE_PROFILE",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "maxLength": 200,
+            "minLength": 3,
+            "title": "Name",
+            "type": "string"
+          },
+          "address": {
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Address",
+            "type": "string"
+          },
+          "evidence_reference": {
+            "maxLength": 300,
+            "minLength": 3,
+            "title": "Evidence Reference",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "address",
+          "evidence_reference"
+        ],
+        "title": "SiteProfileData",
+        "type": "object"
+      }
+    },
+    {
+      "kind": "FEE_PUBLICATION",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "fee_version_id": {
+            "format": "uuid",
+            "title": "Fee Version Id",
+            "type": "string"
+          },
+          "evidence_reference": {
+            "maxLength": 300,
+            "minLength": 3,
+            "title": "Evidence Reference",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fee_version_id",
+          "evidence_reference"
+        ],
+        "title": "FeePublicationData",
+        "type": "object"
+      }
+    },
+    {
+      "kind": "FEE_BENEFIT",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "fee_policy_id": {
+            "format": "uuid",
+            "title": "Fee Policy Id",
+            "type": "string"
+          },
+          "unit_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Unit Ids",
+            "type": "array"
+          },
+          "valid_from": {
+            "format": "date",
+            "title": "Valid From",
+            "type": "string"
+          },
+          "valid_to": {
+            "format": "date",
+            "title": "Valid To",
+            "type": "string"
+          },
+          "percent": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 100.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,3}|(?=[\\d.]{1,8}0*$)\\d{0,3}\\.\\d{0,4}0*$)",
+                "type": "string"
+              }
+            ],
+            "title": "Percent"
+          },
+          "evidence_reference": {
+            "maxLength": 300,
+            "minLength": 3,
+            "title": "Evidence Reference",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fee_policy_id",
+          "unit_ids",
+          "valid_from",
+          "valid_to",
+          "percent",
+          "evidence_reference"
+        ],
+        "title": "BenefitData",
+        "type": "object"
+      }
+    }
+  ],
+  "controls": [
+    {
+      "kind": "parking-slots",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "resource_id": {
+            "format": "uuid",
+            "title": "Resource Id",
+            "type": "string"
+          },
+          "code": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          },
+          "vehicle_types": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 10,
+            "minItems": 1,
+            "title": "Vehicle Types",
+            "type": "array"
+          }
+        },
+        "required": [
+          "resource_id",
+          "code",
+          "vehicle_types"
+        ],
+        "title": "SlotInput",
+        "type": "object"
+      },
+      "can_create": true
+    },
+    {
+      "kind": "visitor-parking",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "resource_id": {
+            "format": "uuid",
+            "title": "Resource Id",
+            "type": "string"
+          },
+          "plate": {
+            "maxLength": 30,
+            "minLength": 3,
+            "title": "Plate",
+            "type": "string"
+          },
+          "vehicle_type": {
+            "maxLength": 30,
+            "minLength": 2,
+            "title": "Vehicle Type",
+            "type": "string"
+          },
+          "rate_vnd": {
+            "maximum": 9999999999,
+            "minimum": 0,
+            "title": "Rate Vnd",
+            "type": "integer"
+          },
+          "entered_at": {
+            "format": "date-time",
+            "title": "Entered At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "resource_id",
+          "plate",
+          "vehicle_type",
+          "rate_vnd",
+          "entered_at"
+        ],
+        "title": "VisitorParkingInput",
+        "type": "object"
+      },
+      "can_create": true
+    },
+    {
+      "kind": "card-blanks",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "building_id": {
+            "format": "uuid",
+            "title": "Building Id",
+            "type": "string"
+          },
+          "code": {
+            "maxLength": 80,
+            "minLength": 3,
+            "title": "Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "building_id",
+          "code"
+        ],
+        "title": "BlankInput",
+        "type": "object"
+      },
+      "can_create": true
+    },
+    {
+      "kind": "access-cards",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "building_id": {
+            "format": "uuid",
+            "title": "Building Id",
+            "type": "string"
+          },
+          "unit_id": {
+            "format": "uuid",
+            "title": "Unit Id",
+            "type": "string"
+          },
+          "holder_account_id": {
+            "format": "uuid",
+            "title": "Holder Account Id",
+            "type": "string"
+          },
+          "valid_to": {
+            "format": "date",
+            "title": "Valid To",
+            "type": "string"
+          },
+          "areas": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Areas",
+            "type": "array"
+          },
+          "authorization_record_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Authorization Record Id"
+          }
+        },
+        "required": [
+          "building_id",
+          "unit_id",
+          "holder_account_id",
+          "valid_to",
+          "areas"
+        ],
+        "title": "AccessCardInput",
+        "type": "object"
+      },
+      "can_create": true
+    }
+  ]
+}

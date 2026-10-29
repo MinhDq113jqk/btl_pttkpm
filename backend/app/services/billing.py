@@ -1,5 +1,5 @@
 """Transactional R4 billing calculation; monetary arithmetic lives only here."""
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Callable
 from uuid import UUID
@@ -18,6 +18,7 @@ from app.models.billing import (
     BillingInvoiceItem,
     BillingRun,
     FeePolicyVersion,
+    FeePolicy,
     OverpaymentCredit,
     Payment,
     PaymentAllocation,
@@ -26,6 +27,7 @@ from app.models.billing import (
 from app.models.service import CostLine, InvoiceItem, PendingCharge, ServiceRequest, WorkOrder
 from app.models.unit import Unit
 from app.services.r2 import utc_now
+from app.services.billing_proration import calculate_proration
 
 
 def round_half_up_to_unit(value: Decimal, unit_vnd: int) -> int:
@@ -52,6 +54,8 @@ def split_largest_remainder(total_vnd: int, shares: list[tuple[str, Decimal]]) -
 
 
 def _basis_amount(unit: Unit, policy_version: FeePolicyVersion) -> tuple[Decimal, int]:
+    if policy_version.basis == "FIXED_UNIT":
+        return Decimal(1), round_half_up_to_unit(Decimal(policy_version.unit_rate_vnd), policy_version.rounding_unit_vnd)
     if policy_version.basis != "UNIT_AREA_M2":
         raise AppError("ERR-BILLING-BASIS", "Cơ sở tính phí chưa được hỗ trợ.", 409)
     basis = Decimal(str(unit.area_m2))
@@ -93,25 +97,75 @@ def _calculate_run(
     invoice_number_resolver: Callable[[BillingAccount], str] | None = None,
     issued_on_resolver: Callable[[BillingAccount], date | None] | None = None,
     due_on_resolver: Callable[[BillingAccount], date | None] | None = None,
+    responsibility_resolver: Callable[[BillingAccount], dict] | None = None,
 ) -> None:
+    # Serialize against publication, then capture every rate effective in this period.
+    session.scalar(select(FeePolicy).where(FeePolicy.id == policy_version.fee_policy_id).with_for_update())
+    versions = session.scalars(select(FeePolicyVersion).where(
+        FeePolicyVersion.fee_policy_id == policy_version.fee_policy_id,
+        FeePolicyVersion.effective_from <= period.period_end,
+        or_(FeePolicyVersion.published_at.is_not(None), FeePolicyVersion.created_by_id.is_(None)),
+    ).order_by(FeePolicyVersion.effective_from, FeePolicyVersion.version_number)).all()
+    at_start = [row for row in versions if row.effective_from <= period.period_start]
+    if not at_start or at_start[-1].id != policy_version.id:
+        raise AppError("ERR-FEE-POLICY-NOT-EFFECTIVE", "Cần chọn phiên bản biểu phí có hiệu lực tại đầu kỳ.", 409)
     accounts = session.execute(
         select(BillingAccount, Unit).join(Unit, BillingAccount.unit_id == Unit.id).where(
             BillingAccount.building_id == run.building_id,
-            BillingAccount.status == "ACTIVE",
+            or_(BillingAccount.status == "ACTIVE", and_(BillingAccount.status == "CLOSED", BillingAccount.closed_on.is_not(None))),
             BillingAccount.opened_on <= period.period_end,
+            or_(BillingAccount.closed_on.is_(None), BillingAccount.closed_on > period.period_start),
         ).order_by(BillingAccount.account_number, BillingAccount.id).with_for_update()
     ).all()
     for account, unit in accounts:
-        basis, fee_amount = _basis_amount(unit, policy_version)
-        item_specs = [{
-            "description": policy_version.basis.replace("_", " "),
-            "basis": policy_version.basis,
-            "basis_quantity": basis,
-            "unit_rate_vnd_snapshot": policy_version.unit_rate_vnd,
-            "rounding_unit_vnd_snapshot": policy_version.rounding_unit_vnd,
-            "amount_vnd": fee_amount,
-            "source_pending_charge_id": None,
-        }]
+        start = max(period.period_start, account.opened_on)
+        stop = min(period.period_end + timedelta(days=1), account.closed_on or period.period_end + timedelta(days=1))
+        segments = []
+        version_by_id = {str(row.id): row for row in versions}
+        from app.models.property import UnitProfileEpisode
+        profiles = session.scalars(select(UnitProfileEpisode).where(UnitProfileEpisode.unit_id == unit.id,
+            UnitProfileEpisode.valid_from < stop,
+            or_(UnitProfileEpisode.valid_to.is_(None),UnitProfileEpisode.valid_to > start)).order_by(UnitProfileEpisode.valid_from)).all()
+        for index, version in enumerate(versions):
+            next_start = versions[index + 1].effective_from if index + 1 < len(versions) else stop
+            version_stop = min(next_start, version.effective_to or stop, stop)
+            version_start = max(start, version.effective_from)
+            if version_stop <= version_start:
+                continue
+            if version.basis == 'UNIT_AREA_M2' and profiles:
+                for profile in profiles:
+                    a=max(version_start,profile.valid_from);b=min(version_stop,profile.valid_to or version_stop)
+                    if b<=a:continue
+                    area=getattr(profile,version.area_field,None)
+                    if area is None or area<=0:raise AppError('ERR-BILLING-BASIS','Thiếu trường diện tích được biểu phí chỉ định.',409)
+                    key=f'{version.id}:{profile.id}'
+                    version_by_id[key]=version
+                    segments.append({'key':key,'starts_on':a,'ends_on':b,'quantity':area,
+                        'amount_vnd':version.unit_rate_vnd,'rounding_unit_vnd':version.rounding_unit_vnd})
+            else:
+                if version.basis == 'UNIT_AREA_M2' and version.area_field != 'area_m2':
+                    raise AppError('ERR-BILLING-BASIS','Chưa xác minh diện tích thông thủy/tim tường; không dùng trường khác.',409)
+                basis, _ = _basis_amount(unit, version)
+                segments.append({"key": str(version.id), "starts_on": version_start, "ends_on": version_stop,
+                    "quantity": basis, "amount_vnd": version.unit_rate_vnd, "rounding_unit_vnd": version.rounding_unit_vnd})
+        from app.services.sad_work import apply_benefits
+        segments, benefit_snapshots = apply_benefits(session, unit.id, policy_version.fee_policy_id, segments, version_by_id)
+        try:
+            calculation = calculate_proration(period.period_start, period.period_end, segments)
+        except ValueError:
+            raise AppError("ERR-BILLING-BASIS", "Khoảng hiệu lực tính phí không hợp lệ.", 409) from None
+        if calculation["active_days"] != (stop - start).days:
+            raise AppError("ERR-FEE-POLICY-NOT-EFFECTIVE", "Thiếu biểu phí cho một phần khoảng phải thu.", 409)
+        item_specs = []
+        for segment in calculation["segments"]:
+            version = version_by_id[segment["key"]]
+            item_specs.append({
+                "description": version.basis.replace("_", " "), "basis": version.basis,
+                "basis_quantity": Decimal(segment["quantity"]), "unit_rate_vnd_snapshot": version.unit_rate_vnd,
+                "rounding_unit_vnd_snapshot": version.rounding_unit_vnd, "amount_vnd": segment["amount_vnd"],
+                "source_pending_charge_id": None, "fee_policy_version_id": version.id,
+                "calculation_snapshot": {**calculation, "benefits": benefit_snapshots, "line_key": segment["key"], "line_amount_vnd": segment["amount_vnd"]},
+            })
         approved_charges = _approved_charges(session, account, run.cutoff_at)
         for charge, cost_line in approved_charges:
             item_specs.append({
@@ -122,11 +176,14 @@ def _calculate_run(
                 "rounding_unit_vnd_snapshot": 1,
                 "amount_vnd": cost_line.amount_vnd,
                 "source_pending_charge_id": charge.id,
+                "fee_policy_version_id": policy_version.id,
+                "calculation_snapshot": {"method": "ONE_TIME", "amount_vnd": cost_line.amount_vnd},
             })
         total_vnd = sum(item["amount_vnd"] for item in item_specs)
         if total_vnd <= 0:
             continue
         invoice = BillingInvoice(
+            responsibility_snapshot=responsibility_resolver(account) if responsibility_resolver else {},
             tenant_id=run.tenant_id,
             site_id=run.site_id,
             building_id=run.building_id,
@@ -160,7 +217,6 @@ def _calculate_run(
                 site_id=run.site_id,
                 building_id=run.building_id,
                 billing_invoice_id=invoice.id,
-                fee_policy_version_id=policy_version.id,
                 line_number=line_number,
                 **spec,
             ))
@@ -205,6 +261,7 @@ def execute_run(
     invoice_number_resolver: Callable[[BillingAccount], str] | None = None,
     issued_on_resolver: Callable[[BillingAccount], date | None] | None = None,
     due_on_resolver: Callable[[BillingAccount], date | None] | None = None,
+    responsibility_resolver: Callable[[BillingAccount], dict] | None = None,
 ) -> BillingRun:
     """Generate an all-or-nothing invoice set; failures survive for safe retry."""
     run.status = "CALCULATING"
@@ -222,6 +279,7 @@ def execute_run(
                 invoice_number_resolver=invoice_number_resolver,
                 issued_on_resolver=issued_on_resolver,
                 due_on_resolver=due_on_resolver,
+                responsibility_resolver=responsibility_resolver,
             )
             session.flush()
     except AppError as error:
@@ -408,7 +466,7 @@ def match_unmatched_payment_command(
     return payment
 
 
-def allocate_payment(session: Session, payment: Payment, actor_id: UUID) -> tuple[list[PaymentAllocation], OverpaymentCredit | None]:
+def allocate_payment(session: Session, payment: Payment, actor_id: UUID, *, preferred_invoice_id: UUID | None = None) -> tuple[list[PaymentAllocation], OverpaymentCredit | None]:
     """ALG-05: consume the payment against the oldest open debts of one account."""
     if payment.billing_account_id is None or payment.status == "UNMATCHED":
         raise AppError("ERR-PAYMENT-UNMATCHED", "Payment thiếu mã chưa thể phân bổ.", 409)
@@ -429,11 +487,14 @@ def allocate_payment(session: Session, payment: Payment, actor_id: UUID) -> tupl
     if remaining_vnd < 0:
         raise AppError("ERR-PAYMENT-INTEGRITY", "Payment có tổng phân bổ vượt số tiền nhận.", 409)
     payment.status = "ALLOCATING"
+    from sqlalchemy import case
+    preferred_order = [case((BillingInvoice.id == preferred_invoice_id, 0), else_=1)] if preferred_invoice_id else []
     invoices = session.scalars(select(BillingInvoice).where(
         BillingInvoice.billing_account_id == payment.billing_account_id,
         BillingInvoice.status.in_(("ISSUED", "PARTIALLY_PAID")),
         BillingInvoice.outstanding_vnd > 0,
     ).order_by(
+        *preferred_order,
         BillingInvoice.due_on.asc().nulls_last(),
         BillingInvoice.issued_on.asc().nulls_last(),
         BillingInvoice.invoice_number.asc(),

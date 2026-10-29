@@ -1,3 +1,4 @@
+import { MyWorkPanel } from './components/SadWorkDetails';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Info, ShieldCheck } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
@@ -18,7 +19,6 @@ import { CleaningDesktopView } from './components/CleaningDesktopView';
 import { SecurityDesktopView } from './components/SecurityDesktopView';
 import { ParcelDeskView } from './components/ParcelDeskView';
 import { BillingDesktopView } from './components/BillingDesktopView';
-import { ResidentPortalView } from './components/ResidentPortalView';
 import { navItems } from './data/navigation';
 import { ASSISTANT_STORAGE_KEY, clearAssistantHistoryForAccount } from './data/assistantStore';
 import { canViewTab, createAuthenticatedAccount, getAllowedNav, getStaffTabFromHash } from './data/authSession';
@@ -29,6 +29,11 @@ import { requestAssistantReply } from './services/greenAssistant';
 const WorkOrderWorkspace = React.lazy(() => import('./components/WorkOrderWorkspace').then(module => ({ default: module.WorkOrderWorkspace })));
 const ImportRunsView = React.lazy(() => import('./components/ImportRunsView').then(module => ({ default: module.ImportRunsView })));
 const MaintenanceDesktopView = React.lazy(() => import('./components/MaintenanceDesktopView').then(module => ({ default: module.MaintenanceDesktopView })));
+
+const PortalManagementView = React.lazy(() => import('./components/PortalManagementView').then(module => ({ default: module.PortalManagementView })));
+const GroundedAssistantWorkspace = React.lazy(() => import('./components/SadExtensionPanels').then(module => ({ default: module.GroundedAssistantWorkspace })));
+const ResidentPortalView = React.lazy(() => import('./components/ResidentPortalView').then(module => ({ default: module.ResidentPortalView })));
+const SettingsPanel = React.lazy(() => import('./components/PortalExtraPanels').then(module => ({ default: module.SettingsPanel })));
 
 const tabFromLocation = () => getStaffTabFromHash(window.location.hash);
 
@@ -155,16 +160,16 @@ export default function App() {
     }
   };
 
-  if (!account) return <StaffLogin onLogin={login} notice={sessionNotice} error={loginError} isLoading={isLoggingIn} />;
+  if (!account) return <StaffLogin client={clientRef.current} onLogin={login} notice={sessionNotice} error={loginError} isLoading={isLoggingIn} />;
   if (account.mustChangePassword) return <PasswordChange username={account.username} onChangePassword={changePassword}
     onLogout={logout} error={passwordChangeError} isLoading={isChangingPassword} />;
-  if (account.isResident) return <ResidentPortalView account={account} client={clientRef.current}
-    onLogout={logout} onSwitchSite={switchSite} isSwitchingSite={isSwitchingSite} siteSwitchError={siteSwitchError} />;
-  return <StaffWorkspace key={`${account.workspaceKey}:${workspaceReset}`} account={account} client={clientRef.current}
+  if (account.isResident) return <React.Suspense fallback={<p role="status">Đang mở cổng cư dân…</p>}><ResidentPortalView key={`${account.workspaceKey}:${workspaceReset}`} onChangePassword={changePassword} passwordChangeError={passwordChangeError} onLogoutAll={() => { clearAccountAssistantHistory(); setAccount(null); setSessionNotice("Đã thu hồi tất cả phiên. Hãy đăng nhập lại."); }} account={account} client={clientRef.current}
+    onLogout={logout} onSwitchSite={switchSite} isSwitchingSite={isSwitchingSite} siteSwitchError={siteSwitchError} /></React.Suspense>;
+  return <StaffWorkspace onChangePassword={changePassword} passwordChangeError={passwordChangeError} onLogoutAll={() => { clearAccountAssistantHistory(); setAccount(null); setSessionNotice("Phiên đã được thu hồi. Hãy đăng nhập lại."); }} key={`${account.workspaceKey}:${workspaceReset}`} account={account} client={clientRef.current}
     onLogout={logout} onSwitchSite={switchSite} isSwitchingSite={isSwitchingSite} siteSwitchError={siteSwitchError} />;
 }
 
-function StaffWorkspace({ account, client, onLogout, onSwitchSite, isSwitchingSite, siteSwitchError }) {
+function StaffWorkspace({ account, client, onLogout, onSwitchSite, isSwitchingSite, siteSwitchError, onChangePassword, onLogoutAll, passwordChangeError }) {
   const availableNav = useMemo(() => getAllowedNav(account), [account]);
   const [currentTab, setCurrentTab] = useState(tabFromLocation);
   const [collapsed, setCollapsed] = useState(false);
@@ -306,9 +311,9 @@ function StaffWorkspace({ account, client, onLogout, onSwitchSite, isSwitchingSi
       <div className="desktop-content">
         <Header onSearch={() => setSearchOpen(true)} onNotifications={() => changeTab('notifications')} unreadCount={unreadCount} activeBreadcrumb={allowed ? activeName : 'Ngoài phạm vi'} roleLabel={account.label} />
         <main id="main-content" ref={mainRef} tabIndex={-1} className="desktop-main">
-          <div className="demo-notice"><Info size={16} aria-hidden="true" /><span><strong>Phiên và phạm vi do backend quyết định.</strong> {scopeNotice}</span></div>
+          <div className="scope-notice"><Info size={16} aria-hidden="true" /><span><strong>Phiên và phạm vi do backend quyết định.</strong> {scopeNotice}</span></div>
           {allowed ? <>
-            {currentTab === 'overview' && (account.canViewExecutiveDashboard
+            {currentTab === 'settings' && <React.Suspense fallback={<p role="status">Đang mở thông tin tài khoản…</p>}><StateForAccount error={passwordChangeError} /><SettingsPanel client={client} onChangePassword={onChangePassword} onLogoutAll={onLogoutAll} /></React.Suspense>}{currentTab === 'workforce' && <MyWorkPanel client={client} />}{currentTab === 'overview' && (account.canViewExecutiveDashboard
               ? <ExecutiveDashboardView account={account} client={client} onToast={showToast} onNavigate={changeTab}
                 initialAsOf={dashboardAsOf} onAsOfChange={setDashboardAsOf} />
               : <SessionDashboard account={account} items={tasks} total={requestState.total} loading={requestState.loading} error={requestState.error} onRetry={() => setRetryKey(value => value + 1)} onNavigate={changeTab} onSelectTask={setSelectedTask} onFilterTasks={filterFromDashboard} />)}
@@ -319,6 +324,8 @@ function StaffWorkspace({ account, client, onLogout, onSwitchSite, isSwitchingSi
             {currentTab === 'parcels' && <ParcelDeskView account={account} client={client} onToast={showToast} />}
             {currentTab === 'finance' && <BillingDesktopView account={account} client={client} onToast={showToast} />}
             {currentTab === 'imports' && <React.Suspense fallback={<div className="desktop-page" role="status">Đang mở màn nhập dữ liệu…</div>}><ImportRunsView account={account} client={client} /></React.Suspense>}
+            {currentTab === 'portal' && <React.Suspense fallback={<p role="status">Đang mở dịch vụ cư dân…</p>}><PortalManagementView account={account} client={client} /></React.Suspense>}
+            {currentTab === 'assistant' && <React.Suspense fallback={<p role="status">Đang mở trợ lý…</p>}><GroundedAssistantWorkspace client={client} roles={account.roles} /></React.Suspense>}
             {currentTab === 'residents' && <Unit360View client={client} scopeLabel={account.scope} />}
             {currentTab === 'notifications' && <NotificationsDesktopView account={account} client={client} onToast={showToast} onUnreadChange={setUnreadCount}
               asOf={account.canViewExecutiveDashboard ? dashboardAsOf : undefined} onOpen={item => {
@@ -346,3 +353,5 @@ function StaffWorkspace({ account, client, onLogout, onSwitchSite, isSwitchingSi
     <GreenAssistant accountId={account.accountId} contextKey={currentTab} historyKey={`${ASSISTANT_STORAGE_KEY}:${account.workspaceKey}`} requestReply={assistantReply} suggestions={['Xem công việc quá hạn', 'Hướng dẫn xem thông báo']} />
   </>;
 }
+
+function StateForAccount({ error }) { return error ? <p role="alert">{error.message}</p> : null; }

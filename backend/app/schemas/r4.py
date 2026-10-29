@@ -132,27 +132,42 @@ class UnmatchedPaymentMatch(InputModel):
 
 class FeePolicyCreate(InputModel):
     building_id: UUID
+    area_field: Literal['area_m2','net_area_m2','gross_area_m2'] = 'area_m2'
     code: str = Field(min_length=2, max_length=50, pattern=r"^[A-Z0-9][A-Z0-9_-]*$")
     name: str = Field(min_length=2, max_length=200)
     effective_from: date
     unit_rate_vnd: StrictInt = Field(ge=0)
     rounding_unit_vnd: StrictInt = Field(default=1, ge=1)
+    basis: Literal['UNIT_AREA_M2', 'FIXED_UNIT', 'SERVICE_UNIT'] = 'UNIT_AREA_M2'
+    commodity: Literal['WATER', 'ELECTRICITY'] | None = None
+    uom: str | None = Field(default=None, min_length=1, max_length=30)
 
 
 class FeePolicyVersionCreate(InputModel):
     effective_from: date
+    area_field: Literal['area_m2','net_area_m2','gross_area_m2'] = 'area_m2'
     unit_rate_vnd: StrictInt = Field(ge=0)
     rounding_unit_vnd: StrictInt = Field(default=1, ge=1)
+    basis: Literal['UNIT_AREA_M2', 'FIXED_UNIT', 'SERVICE_UNIT'] = 'UNIT_AREA_M2'
+    commodity: Literal['WATER', 'ELECTRICITY'] | None = None
+    uom: str | None = Field(default=None, min_length=1, max_length=30)
+
+
+class FeePolicyVersionEdit(FeePolicyVersionCreate):
+    expected_version: int = Field(ge=1)
 
 
 class FeePolicyVersionView(ApiModel):
     id: UUID
+    version: int
+    area_field: str = 'area_m2'
     fee_policy_id: UUID
     version_number: int
     effective_from: date
     effective_to: date | None
     unit_rate_vnd: StrictInt
-    basis: Literal["UNIT_AREA_M2"]
+    basis: Literal['UNIT_AREA_M2', 'FIXED_UNIT', 'PER_VEHICLE', 'PER_BOOKING', 'SERVICE_UNIT']
+    tariff: dict = Field(default_factory=dict)
     rounding_unit_vnd: StrictInt
     published_at: datetime | None
 
@@ -241,9 +256,11 @@ class BillingInvoiceItemView(ApiModel):
     rounding_unit_vnd_snapshot: StrictInt
     amount_vnd: StrictInt
     source_pending_charge_id: UUID | None
+    calculation_snapshot: dict = Field(default_factory=dict)
 
 
 class BillingInvoiceView(ApiModel):
+    responsibility_snapshot: dict = Field(default_factory=dict)
     id: UUID
     billing_account_id: UUID
     billing_run_id: UUID

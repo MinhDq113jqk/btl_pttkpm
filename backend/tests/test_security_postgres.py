@@ -4,10 +4,12 @@ from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
 import os
 import secrets
+from pathlib import Path
 from threading import Barrier
 from uuid import UUID, uuid4
 
 import pytest
+from alembic.script import ScriptDirectory
 from fastapi import Header, Request
 from fastapi.testclient import TestClient
 from sqlalchemy import delete, event, func, select, text, update
@@ -360,9 +362,11 @@ def test_login_throttle_bounds_unknown_identity_rows(case):
 
 
 def test_postgres_tls_and_head(case):
+    heads = ScriptDirectory(str(Path(__file__).resolve().parents[1] / 'alembic')).get_heads()
+    assert len(heads) == 1
     with case[1].engine.connect() as connection:
         assert connection.scalar(text("SELECT ssl FROM pg_stat_ssl WHERE pid=pg_backend_pid()"))
-        assert connection.scalar(text("SELECT version_num FROM greencity.alembic_version")) == "0018"
+        assert connection.scalars(text("SELECT version_num FROM greencity.alembic_version")).all() == heads
 
 
 def test_seed_repeat_keeps_expected_counts(case):

@@ -3,6 +3,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
     Date,
     DateTime,
@@ -10,11 +11,13 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     Index,
     Integer,
+    JSON,
     Numeric,
     String,
     UniqueConstraint,
     Uuid,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -131,7 +134,7 @@ class FeePolicyVersion(IdentityTimestampMixin, Base):
         UniqueConstraint("fee_policy_id", "version_number", name="uq_billing_fee_policy_versions_policy_version"),
         UniqueConstraint("fee_policy_id", "effective_from", name="uq_billing_fee_policy_versions_policy_effective"),
         CheckConstraint("unit_rate_vnd >= 0", name="billing_fee_policy_versions_rate_nonnegative"),
-        CheckConstraint("basis IN ('UNIT_AREA_M2')", name="billing_fee_policy_versions_basis"),
+        CheckConstraint("basis IN ('UNIT_AREA_M2','FIXED_UNIT','PER_VEHICLE','PER_BOOKING','SERVICE_UNIT')", name="billing_fee_policy_versions_basis"),
         CheckConstraint("rounding_unit_vnd > 0", name="billing_fee_policy_versions_rounding_unit"),
         CheckConstraint("version_number > 0", name="billing_fee_policy_versions_version_positive"),
         CheckConstraint("effective_to IS NULL OR effective_to >= effective_from", name="billing_fee_policy_versions_dates"),
@@ -143,12 +146,15 @@ class FeePolicyVersion(IdentityTimestampMixin, Base):
     building_id: Mapped[UUID] = mapped_column(Uuid, nullable=False)
     fee_policy_id: Mapped[UUID] = mapped_column(Uuid, nullable=False)
     version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    area_field: Mapped[str] = mapped_column(String(30), nullable=False, default='area_m2', server_default='area_m2')
     effective_from: Mapped[date] = mapped_column(Date, nullable=False)
     effective_to: Mapped[date | None] = mapped_column(Date, nullable=True)
     unit_rate_vnd: Mapped[int] = mapped_column(BigInteger, nullable=False)
     basis: Mapped[str] = mapped_column(String(30), nullable=False, default="UNIT_AREA_M2")
     rounding_unit_vnd: Mapped[int] = mapped_column(BigInteger, nullable=False, default=1)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_by_id: Mapped[UUID | None] = mapped_column(ForeignKey('greencity.accounts.id'), nullable=True)
+    tariff: Mapped[dict] = mapped_column(JSON, default=dict, server_default='{}')
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
 
 
@@ -230,7 +236,8 @@ class BillingInvoice(IdentityTimestampMixin, Base):
         ),
         UniqueConstraint("id", "building_id", name="uq_billing_invoices_id_building"),
         UniqueConstraint("site_id", "invoice_number", name="uq_billing_invoices_site_number"),
-        UniqueConstraint("billing_account_id", "accounting_period_id", name="uq_billing_invoices_account_period"),
+        Index("uq_billing_invoices_account_period", "billing_account_id", "accounting_period_id", unique=True,
+              postgresql_where=text("supplemental = false")),
         CheckConstraint("status IN ('DRAFT','ISSUED','PARTIALLY_PAID','PAID','VOID')", name="billing_invoices_status"),
         CheckConstraint("total_vnd >= 0 AND outstanding_vnd >= 0 AND outstanding_vnd <= total_vnd", name="billing_invoices_amounts"),
         Index("ix_billing_invoices_scope_status", "tenant_id", "site_id", "building_id", "status"),
@@ -243,6 +250,8 @@ class BillingInvoice(IdentityTimestampMixin, Base):
     billing_run_id: Mapped[UUID] = mapped_column(Uuid, nullable=False)
     accounting_period_id: Mapped[UUID] = mapped_column(Uuid, nullable=False)
     invoice_number: Mapped[str] = mapped_column(String(80), nullable=False)
+    responsibility_snapshot: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict, server_default=text("'{}'::json"))
+    supplemental: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     issued_on: Mapped[date | None] = mapped_column(Date, nullable=True)
     due_on: Mapped[date | None] = mapped_column(Date, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="DRAFT")
@@ -291,6 +300,7 @@ class BillingInvoiceItem(IdentityTimestampMixin, Base):
     unit_rate_vnd_snapshot: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     rounding_unit_vnd_snapshot: Mapped[int] = mapped_column(BigInteger, nullable=False, default=1)
     amount_vnd: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    calculation_snapshot: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict, server_default=text("'{}'::json"))
 
 
 class Payment(IdentityTimestampMixin, Base):

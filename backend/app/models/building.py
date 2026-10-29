@@ -18,5 +18,8 @@ class Building(IdentityTimestampMixin, Base):
     code: Mapped[str] = mapped_column(String(50), nullable=False)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     floors_count: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    zone_id: Mapped[UUID | None] = mapped_column(ForeignKey('greencity.property_nodes.id', use_alter=True, name='fk_buildings_zone'), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default='ACTIVE', server_default='ACTIVE')
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default='1')
 
     site = relationship("Site", backref="buildings")

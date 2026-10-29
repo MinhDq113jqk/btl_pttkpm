@@ -5,7 +5,7 @@ import time
 from uuid import UUID
 
 from fastapi import Header, Request
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, or_, select, tuple_
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import AppError
@@ -15,6 +15,7 @@ from app.models.auth_session import AuthSession
 from app.models.building import Building
 from app.models.enums import RoleEnum
 from app.models.person import UnitPersonRelationship
+from app.models.resident_portal import ResidentDelegation
 from app.models.site import Site
 from app.models.unit import Unit
 
@@ -53,10 +54,18 @@ class UserContext:
     role_grants: tuple[UnitGrant, ...] = ()
     resident_person_id: UUID | None = None
     resident_unit_ids: tuple[UUID, ...] = ()
+    resident_delegations: tuple[tuple[UUID, tuple[str, ...]], ...] = ()
+    resident_delegation_grantors: tuple[tuple[UUID, UUID, tuple[str, ...]], ...] = ()
     must_change_password: bool = False
 
     def is_admin(self) -> bool:
         return "admin" in self.roles
+
+    def resident_units_for(self, permission: str) -> tuple[UUID, ...]:
+        return tuple(dict.fromkeys((*self.resident_unit_ids, *(
+            unit_id for unit_id, permissions in self.resident_delegations
+            if permission in permissions
+        ))))
 
     def can_access_site(self, site_id: UUID) -> bool:
         return site_id in (self.allowed_site_ids or [])
@@ -132,27 +141,62 @@ def context_for_account(session: Session, account: Account,
     valid_building = or_(AccountRole.building_id.is_(None),
                         AccountRole.building_id.in_(select(Building.id).where(
                             Building.site_id == AccountRole.site_id)))
-    known_role = AccountRole.role.in_([role.value for role in RoleEnum])
+    known_role = and_(AccountRole.role.in_([role.value for role in RoleEnum]), AccountRole.effective_at())
     resident_role_exists = session.scalar(select(AccountRole.id).where(
         AccountRole.account_id == account.id,
         AccountRole.role == RESIDENT_ROLE,
+        AccountRole.effective_at(),
         valid_building,
     ).limit(1)) is not None
     resident_scope_rows = ()
+    delegation_rows = ()
     if resident_role_exists and account.person_id is not None:
+        from app.services.property import person_family
+        person_ids = person_family(session, account.tenant_id, account.person_id)
         # Authorization is effective now, so a former resident loses access
         # immediately even if an already-issued session token is replayed.
         resident_scope_rows = session.execute(select(
             UnitPersonRelationship.site_id,
             UnitPersonRelationship.unit_id,
         ).distinct().where(
-            UnitPersonRelationship.person_id == account.person_id,
+            UnitPersonRelationship.person_id.in_(person_ids),
             UnitPersonRelationship.tenant_id == account.tenant_id,
             UnitPersonRelationship.valid_from <= date.today(),
             or_(
                 UnitPersonRelationship.valid_to.is_(None),
                 UnitPersonRelationship.valid_to > date.today(),
             ),
+        )).all()
+        grantor_ids = select(ResidentDelegation.account_id).where(
+            ResidentDelegation.tenant_id == account.tenant_id,
+            ResidentDelegation.delegate_person_id.in_(person_ids),
+            ResidentDelegation.revoked_at.is_(None),
+            ResidentDelegation.valid_from <= date.today(),
+            ResidentDelegation.valid_to > date.today(),
+        )
+        grantors = session.scalars(select(Account).where(Account.id.in_(grantor_ids),
+            Account.tenant_id == account.tenant_id, Account.is_active.is_(True), Account.person_id.is_not(None))).all()
+        owner_pairs = [(grantor.id, person_id) for grantor in grantors
+            for person_id in person_family(session, account.tenant_id, grantor.person_id)]
+        owner_identity = tuple_(Account.id, UnitPersonRelationship.person_id).in_(owner_pairs)
+        delegation_rows = session.execute(select(
+            ResidentDelegation.site_id, ResidentDelegation.unit_id, ResidentDelegation.permissions, ResidentDelegation.account_id,
+        ).join(Account, Account.id == ResidentDelegation.account_id).join(
+            UnitPersonRelationship, and_(
+                owner_identity,
+                UnitPersonRelationship.unit_id == ResidentDelegation.unit_id,
+                UnitPersonRelationship.tenant_id == account.tenant_id,
+                UnitPersonRelationship.relationship_type == "owner",
+                UnitPersonRelationship.valid_from <= date.today(),
+                or_(UnitPersonRelationship.valid_to.is_(None), UnitPersonRelationship.valid_to > date.today()),
+            ),
+        ).where(
+            ResidentDelegation.tenant_id == account.tenant_id,
+            Account.is_active.is_(True),
+            ResidentDelegation.delegate_person_id.in_(person_ids),
+            ResidentDelegation.revoked_at.is_(None),
+            ResidentDelegation.valid_from <= date.today(),
+            ResidentDelegation.valid_to > date.today(),
         )).all()
     grant = select(AccountRole.id).where(
         AccountRole.account_id == account.id,
@@ -168,6 +212,9 @@ def context_for_account(session: Session, account: Account,
     for resident_site_id in sorted({row.site_id for row in resident_scope_rows}, key=str):
         if resident_site_id not in site_ids:
             site_ids.append(resident_site_id)
+    for delegated_site_id in sorted({row.site_id for row in delegation_rows}, key=str):
+        if delegated_site_id not in site_ids:
+            site_ids.append(delegated_site_id)
     if active_site_id is not None and active_site_id not in site_ids:
         raise scope_not_found()
     if active_site_id is None:
@@ -182,8 +229,10 @@ def context_for_account(session: Session, account: Account,
     resident_unit_ids = tuple(
         row.unit_id for row in resident_scope_rows if row.site_id == active_site_id
     )
+    resident_delegations = tuple((row.unit_id, tuple(row.permissions)) for row in delegation_rows
+                                if row.site_id == active_site_id)
     role_names = {grant.role for grant in roles}
-    if resident_unit_ids:
+    if resident_unit_ids or resident_delegations:
         role_names.add(RESIDENT_ROLE)
     role_grants = tuple(UnitGrant(grant.role, grant.building_id) for grant in roles)
     unit_grants = tuple(UnitGrant(grant.role, grant.building_id) for grant in roles
@@ -199,8 +248,10 @@ def context_for_account(session: Session, account: Account,
         allowed_site_ids=site_ids,
         unit_grants=unit_grants,
         role_grants=role_grants,
-        resident_person_id=account.person_id if resident_unit_ids else None,
+        resident_person_id=account.person_id if resident_unit_ids or resident_delegations else None,
         resident_unit_ids=resident_unit_ids,
+        resident_delegations=resident_delegations,
+        resident_delegation_grantors=tuple((row.unit_id, row.account_id, tuple(row.permissions)) for row in delegation_rows if row.site_id == active_site_id),
         must_change_password=account.must_change_password,
     )
 

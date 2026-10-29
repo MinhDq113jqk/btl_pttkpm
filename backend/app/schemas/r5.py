@@ -20,6 +20,7 @@ class NotificationView(ApiModel):
     delivery_status: DeliveryStatus
     delivered_at: datetime | None
     read_at: datetime | None
+    acknowledged_at: datetime | None = None
     last_error: str | None
     created_at: datetime
 

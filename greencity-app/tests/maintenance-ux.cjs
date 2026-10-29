@@ -1,6 +1,11 @@
 const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
 const { randomUUID } = require('node:crypto');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const evidenceDir = process.env.UX_EVIDENCE_DIR;
+if (evidenceDir) fs.mkdirSync(evidenceDir, { recursive: true });
 
 const siteId = randomUUID();
 const buildingId = randomUUID();
@@ -58,7 +63,7 @@ async function openAs(browser, role) {
     if (url.pathname.endsWith('/maintenance/assigned-work-orders')) return route.fulfill(json(role === 'technician' && workOrder?.assigned_to_id === technicianId ? [orderView()] : []));
     if (url.pathname.endsWith('/maintenance/assets') && req.method() === 'GET') return route.fulfill(json(asset ? [asset] : []));
     if (url.pathname.endsWith('/assets') && req.method() === 'POST') {
-      asset = { id: assetId, tenant_id: randomUUID(), site_id: siteId, building_id: body.building_id, unit_id: null, code: body.code, name: body.name, description: body.description, status: 'ACTIVE', version: 1 };
+      asset = { id: assetId, tenant_id: randomUUID(), site_id: siteId, building_id: body.building_id, unit_id: null, code: `AST-${body.code}-0001`, name: body.name, description: body.description, status: 'ACTIVE', version: 1 };
       return route.fulfill(json(asset, 201));
     }
     if (url.pathname.endsWith(`/maintenance/assets/${assetId}/plans`) && req.method() === 'GET') return route.fulfill(json(plan ? [plan] : []));
@@ -118,12 +123,16 @@ async function openAs(browser, role) {
   const browser = await chromium.launch({ headless: true, channel: 'msedge' });
   try {
     const lead = await openAs(browser, 'technical_lead');
-    await lead.page.getByLabel('Mã Asset').fill('PUMP-001');
+    const assetType = lead.page.getByLabel('Mã loại tài sản (tự cấp mã AST)', { exact: true });
+    check('asset type input describes the server-generated asset code', await assetType.getAttribute('aria-describedby') === 'maintenance-asset-type-hint'
+      && await lead.page.locator('#maintenance-asset-type-hint').isVisible());
+    if (evidenceDir) await lead.page.screenshot({ path: path.join(evidenceDir, 'maintenance-asset-type-hint.png'), fullPage: true });
+    await assetType.fill('PUMP');
     await lead.page.getByLabel('Tên thiết bị').fill('Bơm nước tầng hầm');
     await lead.page.getByLabel('Mô tả').fill('Thiết bị bơm chính tòa A.');
     await lead.page.getByRole('button', { name: 'Tạo Asset' }).click();
     await lead.page.getByText('Đã tạo Asset.', { exact: true }).waitFor();
-    check('technical lead creates Asset through the scoped API', asset?.building_id === buildingId);
+    check('technical lead creates Asset through the scoped API with a generated code', asset?.building_id === buildingId && asset?.code === 'AST-PUMP-0001');
     await lead.page.getByLabel('Mã kế hoạch').fill('PUMP-MONTHLY');
     await lead.page.getByLabel('Tên kế hoạch').fill('Kiểm tra bơm nước');
     await lead.page.getByRole('button', { name: 'Tạo Maintenance Plan' }).click();

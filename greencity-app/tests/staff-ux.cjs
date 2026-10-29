@@ -152,9 +152,9 @@ let createRequestCount = 0;
     await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
     await page.getByRole('heading', { name: 'Tiếp nhận & chăm sóc cư dân' }).waitFor();
     const staffNavigation = page.getByRole('navigation', { name: 'Điều hướng chính' });
-    const staffMenu = (await staffNavigation.getByRole('button').allTextContents()).map(label => label.trim());
+    const staffMenu = await staffNavigation.getByRole('button').evaluateAll(buttons => buttons.map(button => button.getAttribute('aria-label')));
     check('CSKH sees only implemented pages permitted for the server role', JSON.stringify(staffMenu) === JSON.stringify([
-      'Tổng quan', 'Công việc & Yêu cầu', 'Bưu phẩm & Bàn giao', 'Khách hàng & Cư dân', 'Nhập dữ liệu căn hộ', 'Thông báo',
+      'Tổng quan', 'Công việc & Yêu cầu', 'Đào tạo & Nhận việc', 'Trợ lý & CSKH', 'Bưu phẩm & Bàn giao', 'Khách hàng & Cư dân', 'Dịch vụ cư dân', 'Nhập dữ liệu căn hộ', 'Tài khoản', 'Thông báo',
     ]));
     check('unsupported prototype pages are absent from the role menu', await staffNavigation.getByRole('button', { name: 'Kỹ thuật & Bảo trì' }).count() === 0
       && await staffNavigation.getByRole('button', { name: 'Báo cáo điều hành' }).count() === 0

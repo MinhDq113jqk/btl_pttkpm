@@ -17,7 +17,6 @@ const residentPersonId = randomUUID();
 const notificationId = randomUUID();
 const notificationCorrelation = randomUUID();
 const token = randomUUID();
-const asOfValues = [];
 const requests = [];
 let serviceRequests = [];
 let failNextCreate = true;
@@ -43,7 +42,7 @@ const requestView = body => ({
     const request = route.request();
     const url = new URL(request.url());
     const body = request.postData() ? request.postDataJSON() : null;
-    requests.push({ path: url.pathname, method: request.method(), body, idempotencyKey: request.headers()['idempotency-key'] });
+    requests.push({ path: url.pathname, url: request.url(), method: request.method(), body, idempotencyKey: request.headers()['idempotency-key'] });
     const headers = { 'Content-Type': 'application/json', 'X-Correlation-ID': randomUUID() };
     const respond = (payload, status = 200) => route.fulfill({ status, headers, body: JSON.stringify(payload) });
     if (url.pathname.endsWith('/auth/login')) return respond({ access_token: token });
@@ -52,6 +51,14 @@ const requestView = body => ({
       roles: ['resident'], active_site_id: siteId, allowed_sites: [{ id: siteId, code: 'GC-WEST', name: 'GreenCity West' }],
       resident_person_id: residentPersonId, resident_unit_ids: [unitId],
     });
+    if (url.pathname.endsWith('/portal/profile')) return respond({
+      person: { id: residentPersonId, full_name: 'Nguyễn Văn An', phone_masked: '***', email_masked: '***' },
+      selected_unit_id: unitId,
+      units: [{ id: unitId, unit_number: 'W1-0101', building_id: buildingId, building_name: 'Tòa W1', area_m2: 50, permissions: ['profile', 'requests', 'finance', 'parking', 'booking', 'documents'] }],
+      relationships: [{ relationship_type: 'owner' }], relationship_history: [],
+    });
+    if (/\/portal\/requests\/[^/]+\/messages$/.test(url.pathname)) return respond({ items: [] });
+    if (url.pathname.endsWith('/portal/finance/ar')) return respond({ items: [], cases: [], ledger: [], aging: {}, ledger_balance_vnd: 250000 });
     if (url.pathname.endsWith('/resident/service-request-options')) return respond({
       buildings: [{ id: buildingId, code: 'W1', name: 'Tòa W1' }],
       categories: [{ id: categoryId, code: 'TECHNICAL', name: 'Yêu cầu kỹ thuật', building_id: buildingId }],
@@ -68,9 +75,9 @@ const requestView = body => ({
     }
     if (url.pathname.endsWith('/timeline')) return respond({ items: serviceRequests.length ? [{ id: randomUUID(), event_type: 'ResidentServiceRequestCreated', action: 'create', before_status: null, after_status: 'NEW', before_priority: null, after_priority: 'HIGH', created_at: '2026-09-30T01:00:00Z' }] : [] });
     if (url.pathname.endsWith('/evidence')) return respond({ items: [] });
-    if (url.pathname.includes('/resident/billing/summary')) { asOfValues.push(url.searchParams.get('as_of')); return respond({ as_of: url.searchParams.get('as_of'), total_ar_balance_vnd: 250000, items: [{ unit_id: unitId, ar_balance_vnd: 250000 }] }); }
-    if (url.pathname.includes('/resident/billing/invoices')) { asOfValues.push(url.searchParams.get('as_of')); return respond({ as_of: url.searchParams.get('as_of'), items: [{ id: randomUUID(), unit_id: unitId, invoice_number: 'INV-2026-09-0101', issued_on: '2026-09-30', due_on: '2026-10-10', total_vnd: 250000, items: [{ line_number: 1, description: 'Phí quản lý tháng', basis: 'UNIT_AREA_M2', basis_quantity: 50, unit_rate_vnd_snapshot: 5000, rounding_unit_vnd_snapshot: 1, amount_vnd: 250000 }] }] }); }
-    if (url.pathname.includes('/resident/billing/payments')) { asOfValues.push(url.searchParams.get('as_of')); return respond({ as_of: url.searchParams.get('as_of'), items: [] }); }
+    if (url.pathname.includes('/resident/billing/summary')) { return respond({ as_of: url.searchParams.get('as_of'), total_ar_balance_vnd: 250000, items: [{ unit_id: unitId, ar_balance_vnd: 250000 }] }); }
+    if (url.pathname.includes('/resident/billing/invoices')) { return respond({ as_of: url.searchParams.get('as_of'), items: [{ id: randomUUID(), unit_id: unitId, invoice_number: 'INV-2026-09-0101', issued_on: '2026-09-30', due_on: '2026-10-10', total_vnd: 250000, items: [{ line_number: 1, description: 'Phí quản lý tháng', basis: 'UNIT_AREA_M2', basis_quantity: 50, unit_rate_vnd_snapshot: 5000, rounding_unit_vnd_snapshot: 1, amount_vnd: 250000 }] }] }); }
+    if (url.pathname.includes('/resident/billing/payments')) { return respond({ as_of: url.searchParams.get('as_of'), items: [] }); }
     if (url.pathname.endsWith('/resident/notifications') && request.method() === 'GET') return respond({
       items: [{ id: notificationId, template_code: 'R6_WELCOME', template_snapshot: { title: 'Chào mừng cư dân', body: 'Hồ sơ của bạn đã được xác minh.' }, delivery_status: 'PUBLISHED', delivered_at: '2026-09-30T02:00:00Z', read_at: notificationRead ? '2026-09-30T03:00:00Z' : null, correlation_id: notificationCorrelation, created_at: '2026-09-30T02:00:00Z' }], page: 1, page_size: 50, total: 1, unread_count: notificationRead ? 0 : 1,
     });
@@ -87,7 +94,10 @@ const requestView = body => ({
     await page.locator('.resident-shell').waitFor();
     check('Resident shell is selected from server role', await page.getByText('Cổng cư dân', { exact: true }).isVisible());
     check('Resident scope shows active site', await page.getByLabel('Site hiện hành').inputValue() === siteId);
-    check('Resident navigation exposes only three self-service surfaces', await page.getByRole('tab').count() === 3);
+    check('Resident navigation exposes profile and core self-service surfaces', await page.getByRole('tab', { name: 'Hồ sơ & căn hộ', exact: true }).isVisible()
+      && await page.getByRole('tab', { name: 'Yêu cầu dịch vụ', exact: true }).isVisible()
+      && await page.getByRole('tab', { name: 'Công nợ & hóa đơn', exact: true }).isVisible());
+    await page.getByRole('tab', { name: 'Yêu cầu dịch vụ', exact: true }).click();
     check('Resident request list starts empty', await page.getByText('Chưa có yêu cầu nào', { exact: true }).isVisible());
 
     await page.getByRole('button', { name: 'Tạo yêu cầu', exact: true }).first().click();
@@ -122,7 +132,15 @@ const requestView = body => ({
     await page.getByRole('tab', { name: 'Công nợ & hóa đơn' }).click();
     await page.getByText('250.000 ₫', { exact: true }).first().waitFor();
     check('Billing panel displays integer VND from server', await page.getByText('250.000 ₫', { exact: true }).first().isVisible());
-    check('All billing requests share one fixed as_of', asOfValues.length >= 3 && new Set(asOfValues).size === 1);
+    const cutoffGroups = new Map();
+    const billingReads = requests.filter(r => r.method === 'GET' && /\/resident\/billing\/(summary|invoices|payments)$/.test(r.path));
+    for (const request of billingReads) {
+      const cutoff = new URL(request.url).searchParams.get('as_of');
+      if (!cutoffGroups.has(cutoff)) cutoffGroups.set(cutoff, new Set());
+      cutoffGroups.get(cutoff).add(request.path.split('/').at(-1));
+    }
+    check('Billing reads share a cutoff within each refresh', billingReads.length >= 3
+      && [...cutoffGroups].every(([cutoff, kinds]) => cutoff && ['summary', 'invoices', 'payments'].every(k => kinds.has(k))));
     check('Invoice snapshot is read-only in resident portal', await page.getByText('INV-2026-09-0101', { exact: true }).isVisible() && await page.getByText(/Phí quản lý tháng/).isVisible());
 
     await page.getByRole('tab', { name: 'Thông báo' }).click();

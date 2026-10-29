@@ -30,7 +30,7 @@
 .assistant-header .icon-button:hover, .assistant-history-heading .icon-button:hover { background: #edf6ef; color: var(--chat-accent); }
 .assistant-conversation-label { display: flex; align-items: center; gap: 16px; justify-content: space-between; padding: 10px 20px; background: var(--chat-wash); font-size: 11px; color: var(--chat-muted); }
 .assistant-conversation-label > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.assistant-demo-badge { flex-shrink: 0; border: 1px solid #d3e1d8; border-radius: 4px; font-size: 10px; padding: 1px 5px; background: white; }
+.assistant-source-badge { flex-shrink: 0; border: 1px solid #d3e1d8; border-radius: 4px; font-size: 10px; padding: 1px 5px; background: white; }
 .assistant-log-wrap { min-height: 0; flex: 1; position: relative; display: flex; }
 .assistant-messages { overflow-y: auto; overscroll-behavior: contain; flex: 1; padding: 22px 20px; min-width: 0; scroll-padding: 12px; background: linear-gradient(180deg, #f5faf6 0, #fff 220px); }
 .assistant-welcome { padding: 8px 1px 12px; text-align: center; }

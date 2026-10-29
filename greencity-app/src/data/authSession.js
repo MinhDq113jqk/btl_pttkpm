@@ -20,7 +20,7 @@ const AUDIT_ROLES = new Set(['admin', 'director', 'accountant']);
 const IMPORT_ROLES = new Set(['admin', 'cskh']);
 const MAINTENANCE_ROLES = new Set(['technical_lead', 'technician']);
 const STAFF_WORKSPACE_TABS = new Set([
-  'overview', 'tasks', 'maintenance', 'cleaning', 'security', 'parcels', 'residents', 'finance', 'imports', 'notifications',
+  'settings', 'workforce', 'overview', 'tasks', 'maintenance', 'cleaning', 'security', 'parcels', 'residents', 'finance', 'imports', 'notifications', 'portal', 'assistant',
 ]);
 
 const ROLE_POLICIES = {
@@ -85,6 +85,10 @@ export function createAuthenticatedAccount(user) {
   if (canViewBilling) menu.push('finance');
   if (canViewUnits) menu.push('residents');
   if (canImportUnits) menu.push('imports');
+  if (roles.some(r => ['admin', 'director', 'cskh', 'accountant', 'security', 'technical_lead', 'cleaning'].includes(r))) menu.push('portal');
+  if (roles.some(r => ['admin', 'director', 'cskh', 'accountant', 'technical_lead', 'technician', 'cleaning', 'security'].includes(r))) menu.push('assistant');
+  if (roles.some(r => ['admin', 'director', 'cskh', 'technical_lead', 'technician', 'cleaning', 'security'].includes(r))) menu.push('workforce');
+  if (policies.length) menu.push('settings');
   menu.push('notifications');
   const roleLabel = policies.length ? policies.map(policy => policy.label).join(' · ') : primary.label;
 

@@ -1,3 +1,4 @@
+from billing_review_support import finish_run
 """R4 Task 2 acceptance tests on the disposable PostgreSQL cluster."""
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime
@@ -72,7 +73,27 @@ def _policy(case, *, effective_from: str, rate: int = 12000, rounding_unit: int 
         "rounding_unit_vnd": rounding_unit,
     })
     assert response.status_code == 201, response.text
-    return response.json()
+    policy = response.json()
+    publish_policy_version(case, policy['versions'][0]['id'])
+    listing = case['client'].get('/api/v1/billing/fee-policies', headers=case['auth']['accountant'])
+    assert listing.status_code == 200
+    return next(p for p in listing.json()['items'] if p['id'] == policy['id'])
+
+
+def publish_policy_version(case, version_id):
+    if 'fee_checker' not in case['auth']:
+        with case['database'].get_session() as session:
+            checker = Account(tenant_id=case['tenant'].id, username='fee_checker_' + uuid4().hex, full_name='Synthetic fee checker', hashed_password='token-only-test-account')
+            session.add(checker); session.flush()
+            session.add(AccountRole(account_id=checker.id, site_id=case['sites'][0].id, role='admin')); session.commit()
+        case['auth']['fee_checker'] = {'Authorization': 'Bearer ' + mint_session_token(case['database'], checker.id, case['settings'].auth_secret(), claims={'active_site_id': str(case['sites'][0].id)})}
+    record = case['client'].post('/api/v1/portal/operations/records', headers=_key(case, 'publication'), json={'building_id': str(case['buildings'][0].id), 'kind': 'FEE_PUBLICATION', 'title': 'Synthetic policy publication', 'data': {'fee_version_id': version_id, 'evidence_reference': 'SYN-POLICY'}})
+    assert record.status_code == 201, record.text
+    row = record.json()
+    for action, actor in [('PREVIEW', 'accountant'), ('SUBMIT', 'accountant'), ('APPROVE', 'fee_checker')]:
+        result = case['client'].post(f"/api/v1/portal/operations/records/{row['id']}/actions", headers={**case['auth'][actor], 'Idempotency-Key': uuid4().hex}, json={'action': action, 'expected_version': row['version'], 'reason': 'Synthetic approved tariff', 'data': {}})
+        assert result.status_code == 200, result.text; row = result.json()
+
 
 
 def _period(case, *, key: str, start: str, end: str, cutoff: str):
@@ -88,12 +109,13 @@ def _period(case, *, key: str, start: str, end: str, cutoff: str):
 
 
 def _run(case, period_id: str, version_id: str):
-    return case["client"].post("/api/v1/billing/runs", headers=_key(case, "run"), json={
+    response = case["client"].post("/api/v1/billing/runs", headers=_key(case, "run"), json={
         "accounting_period_id": period_id,
         "fee_policy_version_id": version_id,
         "run_key": f"run-{uuid4().hex}",
     })
 
+    return finish_run(case, response)
 
 def test_r4_golden_flow_policy_period_run_issues_immutable_snapshot_and_ledger(issue_case):
     case = issue_case
@@ -111,11 +133,14 @@ def test_r4_golden_flow_policy_period_run_issues_immutable_snapshot_and_ledger(i
     assert invoices.status_code == 200
     invoice = next(item for item in invoices.json()["items"] if item["accounting_period_id"] == period["id"])
     assert invoice["total_vnd"] == invoice["outstanding_vnd"] == 963000
-    assert invoice["items"] == [{
+    assert [{key: value for key, value in item.items() if key != "calculation_snapshot"} for item in invoice["items"]] == [{
         "id": invoice["items"][0]["id"], "line_number": 1, "description": "UNIT AREA M2",
         "basis": "UNIT_AREA_M2", "basis_quantity": 80.25, "unit_rate_vnd_snapshot": 12000,
         "rounding_unit_vnd_snapshot": 1, "amount_vnd": 963000, "source_pending_charge_id": None,
     }]
+    assert invoice["items"][0]["calculation_snapshot"]["method"] == "ACTUAL_DAYS"
+    assert invoice["items"][0]["calculation_snapshot"]["active_days"] == 30
+    assert invoice["items"][0]["calculation_snapshot"]["amount_vnd"] == 963000
     with case["database"].get_session() as session:
         stored = session.scalar(select(BillingInvoice).where(BillingInvoice.id == invoice["id"]))
         ledger = session.scalar(select(ArLedgerEntry).where(
@@ -150,6 +175,7 @@ def test_r4_run_failure_is_atomic_and_retry_reuses_the_same_run(issue_case):
     )
     assert retried.status_code == 200, retried.text
     assert retried.json()["id"] == failed.json()["id"]
+    retried = finish_run(case, retried)
     assert retried.json()["status"] == "POSTED"
     assert retried.json()["retry_count"] == 1
     with case["database"].get_session() as session:
@@ -200,6 +226,12 @@ def test_r4_two_concurrent_accountants_have_one_billing_run_winner():
             )
             session.add_all((unit, accountant))
             session.flush()
+            from app.models.person import Person, UnitPersonRelationship
+            from decimal import Decimal
+            person = Person(tenant_id=tenant.id, full_name='Synthetic owner', phone_masked='***', email_masked='***')
+            session.add(person); session.flush()
+            session.add(UnitPersonRelationship(tenant_id=tenant.id, site_id=site.id, building_id=building.id, unit_id=unit.id,
+                person_id=person.id, relationship_type='owner', ownership_ratio=Decimal(1), valid_from=date(2020,1,1)))
             session.add(AccountRole(account_id=accountant.id, role="accountant", site_id=site.id, building_id=None))
             billing_account = BillingAccount(
                 tenant_id=tenant.id, site_id=site.id, building_id=building.id, unit_id=unit.id,
@@ -245,7 +277,7 @@ def test_r4_two_concurrent_accountants_have_one_billing_run_winner():
         assert rejected.json()["error"]["code"] == "ERR-RUN-DUPLICATE"
         with database.get_session() as session:
             assert len(session.scalars(select(BillingRun).where(BillingRun.accounting_period_id == period.id)).all()) == 1
-            assert len(session.scalars(select(BillingInvoice).where(BillingInvoice.accounting_period_id == period.id)).all()) == 1
+            assert len(session.scalars(select(BillingInvoice).where(BillingInvoice.accounting_period_id == period.id)).all()) == 0
     finally:
         database.close()
 
@@ -307,12 +339,17 @@ def test_r4_void_requires_open_unallocated_invoice_and_preserves_history(issue_c
     voided = case["client"].post(f"/api/v1/billing/invoices/{invoice['id']}/void", headers=case["auth"]["accountant"], json={
         "expected_version": invoice["version"], "reason": "Lập lại theo yêu cầu kế toán",
     })
-    assert voided.status_code == 200, voided.text
+    assert voided.status_code == 409, voided.text
+    from billing_review_support import finish_command
+    finish_command(case,{'kind':'INVOICE_VOID','period_id':period['id'],'target_id':invoice['id'],
+        'reason':'Synthetic invoice cancellation','evidence_reference':'SYN-VOID'})
+    voided=case['client'].get(f"/api/v1/billing/invoices/{invoice['id']}",headers=case['auth']['accountant'])
+    assert voided.status_code == 200,voided.text
     assert voided.json()["status"] == "VOID" and voided.json()["total_vnd"] == invoice["total_vnd"]
     assert voided.json()["outstanding_vnd"] == 0 and len(voided.json()["items"]) == 1
     with case["database"].get_session() as session:
         reversal = session.scalar(select(ArLedgerEntry).where(
-            ArLedgerEntry.source_id == invoice["id"], ArLedgerEntry.entry_type == "REVERSAL",
+            ArLedgerEntry.billing_account_id == invoice['billing_account_id'], ArLedgerEntry.entry_type == "REVERSAL",
         ))
         assert reversal is not None and reversal.credit_vnd == invoice["total_vnd"]
     repeat = case["client"].post(f"/api/v1/billing/invoices/{invoice['id']}/void", headers=case["auth"]["accountant"], json={

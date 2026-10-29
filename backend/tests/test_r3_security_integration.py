@@ -264,6 +264,9 @@ def test_revoked_building_grant_hides_assigned_security_resources(security_case)
     start = datetime.now(UTC) + timedelta(days=1)
 
     def create_shift(building, points):
+        from sad_assignment_support import prepare_worker, accept_work
+        prepare_worker(case, guard, building.id, 'security')
+        case['auth']['revocation_guard'] = headers
         body = {
             "building_id": str(building.id), "assignee_id": str(guard.id),
             "scheduled_start_at": start.isoformat(),
@@ -283,7 +286,8 @@ def test_revoked_building_grant_hides_assigned_security_resources(security_case)
             json=body,
         )
         assert response.status_code == 201, response.text
-        return response.json()
+        accept_work(case, response.json()['id'], 'revocation_guard')
+        return case['client'].get(f"/api/v1/security/shifts/{response.json()['id']}", headers=headers).json()
 
     shift_b1 = create_shift(building_b1, case["points"])
     shift_b2 = create_shift(building_b2, points_b2)
@@ -420,8 +424,12 @@ def test_mixed_manager_security_grants_and_site_only_security_fail_closed(securi
     start = datetime.now(UTC) + timedelta(days=2)
 
     def create_shift(building, assignee, point, day_offset):
+        from sad_assignment_support import prepare_worker, accept_work
+        # The site-only guard stays an invalid assignee in this scope regression.
+        if assignee.id != site_only.id:
+            prepare_worker(case, assignee, building.id, 'security')
         shift_start = start + timedelta(days=day_offset)
-        return case["client"].post(
+        response = case["client"].post(
             "/api/v1/security/shifts",
             headers=with_key(case, "director", f"security-mixed-{uuid4().hex}"),
             json={
@@ -435,6 +443,10 @@ def test_mixed_manager_security_grants_and_site_only_security_fail_closed(securi
                 }],
             },
         )
+        if response.status_code == 201:
+            case['auth']['mixed_assignment_receiver'] = _auth(case, assignee)
+            accept_work(case, response.json()['id'], 'mixed_assignment_receiver')
+        return response
 
     own_b1 = create_shift(building_b1, mixed, case["points"][0], 0)
     other_b1 = create_shift(building_b1, case["guards"]["guard_a"], case["points"][0], 1)
@@ -559,6 +571,8 @@ def test_mixed_manager_security_grants_and_site_only_security_fail_closed(securi
 
 
 def _create_shift(case, key):
+    from sad_assignment_support import prepare_worker, accept_work
+    prepare_worker(case, case['guards']['guard_a'], case['buildings'][0].id, 'security')
     start = datetime.now(UTC) + timedelta(hours=3)
     body = {
         "building_id": str(case["buildings"][0].id),
@@ -572,6 +586,9 @@ def _create_shift(case, key):
     }
     response = case["client"].post("/api/v1/security/shifts", headers=with_key(case, "director", key), json=body)
     assert response.status_code == 201, response.text
+    accept_work(case, response.json()['id'], 'guard_a')
+    response = case['client'].get(f"/api/v1/security/shifts/{response.json()['id']}", headers=case['auth']['guard_a'])
+    assert response.status_code == 200, response.text
     return response.json(), body
 
 

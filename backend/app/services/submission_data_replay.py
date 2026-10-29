@@ -69,7 +69,7 @@ def _scope_account(
     if account is None or not account.is_active:
         raise SubmissionReplayError(error_code)
     grants = session.scalars(select(AccountRole).where(
-        AccountRole.account_id == account.id, AccountRole.role.in_(roles),
+        AccountRole.account_id == account.id, AccountRole.effective_at(), AccountRole.role.in_(roles),
     )).all()
     if not any(
         grant.site_id == site_id

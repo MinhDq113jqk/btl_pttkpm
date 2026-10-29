@@ -4,10 +4,10 @@ import { GreenCityLogo } from './GreenCityLogo';
 
 const icons = { LayoutDashboard, CheckSquare, Wrench, Sparkles, ShieldCheck, Package, Users, BadgePercent, Upload, Bell };
 const groups = [
-  { label: 'Không gian làm việc', ids: ['overview', 'tasks'] },
-  { label: 'Vận hành khu đô thị', ids: ['maintenance', 'cleaning', 'security', 'parcels', 'residents', 'finance'] },
+  { label: 'Không gian làm việc', ids: ['overview', 'tasks', 'workforce', 'assistant'] },
+  { label: 'Vận hành khu đô thị', ids: ['maintenance', 'cleaning', 'security', 'parcels', 'residents', 'portal', 'finance'] },
   { label: 'Dữ liệu căn hộ', ids: ['imports'] },
-  { label: 'Thông báo', ids: ['notifications'] },
+  { label: 'Thông báo', ids: ['settings', 'notifications'] },
 ];
 export const Sidebar = ({ currentTab, setCurrentTab, navItems, collapsed, setCollapsed, activeSite, activeSiteId,
   allowedSites = [], onSwitchSite, isSwitchingSite = false, siteSwitchError, taskCount, unreadCount, account, onLogout }) => (

@@ -25,20 +25,20 @@ const makeUser = (roles, extras = {}) => ({
 
 test('workspace menu is derived from the server roles for all supported roles', () => {
   const expectedMenus = new Map([
-    ['admin', ['overview', 'tasks', 'cleaning', 'security', 'parcels', 'finance', 'residents', 'imports', 'notifications']],
-    ['director', ['overview', 'tasks', 'cleaning', 'security', 'parcels', 'finance', 'residents', 'notifications']],
-    ['accountant', ['overview', 'tasks', 'finance', 'residents', 'notifications']],
-    ['cskh', ['overview', 'tasks', 'parcels', 'residents', 'imports', 'notifications']],
-    ['technical_lead', ['overview', 'tasks', 'maintenance', 'residents', 'notifications']],
-    ['technician', ['overview', 'tasks', 'maintenance', 'notifications']],
-    ['cleaning', ['overview', 'cleaning', 'notifications']],
-    ['security', ['overview', 'security', 'parcels', 'residents', 'notifications']],
+    ['admin', ['overview', 'tasks', 'cleaning', 'security', 'parcels', 'finance', 'residents', 'imports', 'portal', 'workforce', 'notifications']],
+    ['director', ['overview', 'tasks', 'cleaning', 'security', 'parcels', 'finance', 'residents', 'portal', 'workforce', 'notifications']],
+    ['accountant', ['overview', 'tasks', 'finance', 'residents', 'portal', 'notifications']],
+    ['cskh', ['overview', 'tasks', 'parcels', 'residents', 'imports', 'portal', 'workforce', 'notifications']],
+    ['technical_lead', ['overview', 'tasks', 'maintenance', 'residents', 'portal', 'workforce', 'notifications']],
+    ['technician', ['overview', 'tasks', 'maintenance', 'workforce', 'notifications']],
+    ['cleaning', ['overview', 'cleaning', 'portal', 'workforce', 'notifications']],
+    ['security', ['overview', 'security', 'parcels', 'residents', 'portal', 'workforce', 'notifications']],
     ['resident', ['overview', 'notifications']],
   ]);
 
   for (const [role, expected] of expectedMenus) {
     const account = createAuthenticatedAccount(makeUser([role]));
-    const expectedSet = [...expected].sort();
+    const expectedSet = [...expected, 'settings', ...(role === 'resident' ? [] : ['assistant'])].sort();
     assert.deepEqual([...account.menu].sort(), expectedSet, role);
     assert.deepEqual(getAllowedNav(account).map(item => item.id).sort(), expectedSet, role);
   }
@@ -51,13 +51,14 @@ test('unrecognized and client-supplied menu values never grant extra pages', () 
   }));
 
   assert.deepEqual(account.menu, ['overview', 'notifications']);
-  for (const tab of ['refund-form', 'settings', 'media', 'amenities', 'reports']) {
+  for (const tab of ['refund-form', 'settings', 'media', 'amenities', 'reports', 'assistant']) {
     assert.equal(canViewTab(account, tab), false, tab);
   }
 });
 
 test('only supported workspace hashes resolve to a tab', () => {
   assert.equal(getStaffTabFromHash('#/maintenance'), 'maintenance');
+  assert.equal(getStaffTabFromHash('#/assistant'), 'assistant');
   for (const hash of ['#/refund-form', '#/media', '#/unknown', '']) {
     assert.equal(getStaffTabFromHash(hash), 'overview', hash);
   }

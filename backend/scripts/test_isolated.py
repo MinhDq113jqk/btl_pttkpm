@@ -17,6 +17,8 @@ import tempfile
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 DEMO_ACCOUNT_USERNAMES = (
     "admin_demo", "director_west", "cskh_west", "cskh_east", "accountant_west",
     "techlead_west", "technician_west", "cleaning_west", "security_west", "resident_west",
@@ -118,6 +120,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--pg-bin", type=Path, required=True)
     parser.add_argument("--openssl", type=Path, required=True)
+    parser.add_argument("--head-only", action="store_true", help="Skip historical migration paths already checked")
+    parser.add_argument("--pytest-target", nargs="*", default=[], help="Optional focused test paths")
     args = parser.parse_args()
     extension = ".exe" if os.name == "nt" else ""
     binaries = {name: args.pg_bin / (name + extension) for name in ("initdb", "pg_ctl")}
@@ -134,6 +138,8 @@ def main():
         SECRET_KEY=secrets.token_urlsafe(48),
         PYTHONIOENCODING="utf-8",
         GREENCITY_DISABLE_DOTENV="1",
+        VNPAY_ENABLED="false",
+        SMTP_ENABLED="false",
         DEMO_SEED_ENABLED="true",
         DEMO_SEED_CREDENTIALS_JSON=json.dumps(demo_credentials),
     )
@@ -178,20 +184,31 @@ def main():
         env["DATABASE_URL"] = f"postgresql://test_migrator:{password}@127.0.0.1:{port}/postgres"
         env["DATABASE_SSL_ROOT_CERT"] = str(cert)
         env["GREENCITY_ISOLATED_MIGRATION_PATH_TESTS"] = "1"
-        run([sys.executable, "-m", "scripts.test_migration_0005"], env, "AC-03 migration paths", show_output=True)
-        run([sys.executable, "-m", "scripts.test_migration_0007"], env, "R3 migration paths", show_output=True)
-        run([sys.executable, "-m", "scripts.test_migration_0008"], env, "R4 migration paths", show_output=True)
-        run([sys.executable, "-m", "scripts.test_migration_0009"], env, "R4 Task 2 migration paths", show_output=True)
-        run([sys.executable, "-m", "scripts.test_migration_0010"], env, "R4 Task 3 migration paths", show_output=True)
-        run([sys.executable, "-m", "scripts.test_migration_0011"], env, "R5 outbox migration paths", show_output=True)
-        run([sys.executable, "-m", "scripts.test_migration_0012"], env, "R6 resident identity migration paths", show_output=True)
-        run([sys.executable, "-m", "scripts.test_migration_0013"], env, "R6 resident request evidence migration paths", show_output=True)
-        run([sys.executable, "-m", "scripts.test_migration_0014"], env, "V1 parcel foundation migration paths", show_output=True)
-        run([sys.executable, "-m", "scripts.test_migration_0015"], env, "V1 parcel case/evidence migration paths", show_output=True)
-        run([sys.executable, "-m", "scripts.test_migration_0016"], env, "Auth-session and forced-password migration paths", show_output=True)
-        run([sys.executable, "-m", "scripts.test_migration_0017"], env, "Login-throttle migration paths", show_output=True)
-        run([sys.executable, "-m", "scripts.test_migration_0018"], env, "Submission import migration paths", show_output=True)
-        run([sys.executable, "-m", "scripts.migrate", "upgrade", "head"], env, "Empty DB migration")
+        if not args.head_only:
+            run([sys.executable, "-m", "scripts.test_migration_0005"], env, "AC-03 migration paths", show_output=True)
+            run([sys.executable, "-m", "scripts.test_migration_0007"], env, "R3 migration paths", show_output=True)
+            run([sys.executable, "-m", "scripts.test_migration_0008"], env, "R4 migration paths", show_output=True)
+            run([sys.executable, "-m", "scripts.test_migration_0009"], env, "R4 Task 2 migration paths", show_output=True)
+            run([sys.executable, "-m", "scripts.test_migration_0010"], env, "R4 Task 3 migration paths", show_output=True)
+            run([sys.executable, "-m", "scripts.test_migration_0011"], env, "R5 outbox migration paths", show_output=True)
+            run([sys.executable, "-m", "scripts.test_migration_0012"], env, "R6 resident identity migration paths", show_output=True)
+            run([sys.executable, "-m", "scripts.test_migration_0013"], env, "R6 resident request evidence migration paths", show_output=True)
+            run([sys.executable, "-m", "scripts.test_migration_0014"], env, "V1 parcel foundation migration paths", show_output=True)
+            run([sys.executable, "-m", "scripts.test_migration_0015"], env, "V1 parcel case/evidence migration paths", show_output=True)
+            run([sys.executable, "-m", "scripts.test_migration_0016"], env, "Auth-session and forced-password migration paths", show_output=True)
+            run([sys.executable, "-m", "scripts.test_migration_0017"], env, "Login-throttle migration paths", show_output=True)
+            run([sys.executable, "-m", "scripts.test_migration_0018"], env, "Submission import migration paths", show_output=True)
+        if not args.head_only:
+            run([sys.executable, "-m", "scripts.test_migration_0020"], env, "Fee proration migration paths", show_output=True)
+            run([sys.executable, "-m", "scripts.test_migration_0021"], env, "Property/finance migration paths", show_output=True)
+            env["GREENCITY_ISOLATED_SECURITY_TESTS"] = "1"
+            run([sys.executable, "-m", "scripts.test_migration_0022"], env, "Operational migration paths", show_output=True)
+        env["GREENCITY_ISOLATED_SECURITY_TESTS"] = "1"
+        run([sys.executable, "-m", "scripts.test_migration_0023"], env, "SAD T01-T08 migration paths", show_output=True)
+        run([sys.executable, "-m", "scripts.test_migration_0024"], env, "SAD T10-T11 migration paths", show_output=True)
+        run([sys.executable, "-m", "scripts.test_migration_0025"], env, "SAD remaining-task migration paths", show_output=True)
+        run([sys.executable, "-m", "scripts.test_migration_0026"], env, "SAD extension migration paths", show_output=True)
+        run([sys.executable, "-m", "scripts.migrate", "upgrade", "head"], env, "Empty DB migration", show_output=True)
         run([sys.executable, "-m", "scripts.migrate", "upgrade", "head"], env, "Migration repeat")
         env["GREENCITY_ISOLATED_SECURITY_TESTS"] = "1"
         run([sys.executable, "-m", "scripts.test_submission_pack_isolated"], env,
@@ -211,7 +228,7 @@ def main():
         env["DEMO_SEED_CREDENTIALS_JSON"] = env.pop("ROTATED_DEMO_CREDENTIALS_JSON")
         run([sys.executable, "-m", "pytest", "-q", "--tb=short", "-o",
              f"cache_dir={workspace / 'pytest-cache'}", "--basetemp",
-             str(workspace / "pytest-temp")], env,
+             str(workspace / "pytest-temp"), *args.pytest_target], env,
             "Isolated PostgreSQL regression", show_output=True)
         success = True
     except Exception as exc:

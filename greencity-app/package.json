@@ -7,7 +7,7 @@
     "dev": "vite --configLoader runner",
     "build": "vite build --configLoader runner",
     "preview": "vite preview --configLoader runner",
-    "test": "node --test tests/logic.test.js tests/assistant.test.js tests/staff.test.js tests/frontend-integration.test.js tests/runtime-config.test.js tests/markdown-links.test.js",
+    "test": "node --test tests/logic.test.js tests/assistant.test.js tests/staff.test.js tests/frontend-integration.test.js tests/runtime-config.test.js tests/markdown-links.test.js tests/operational-forms.test.js tests/parking-reconciliation.test.js tests/sad-completion.test.js tests/sad-extensions.test.js tests/review-regressions.test.js tests/review-r04.test.js tests/review-r05.test.js tests/review-r06.test.js",
     "test:ux": "node tests/desktop-ux.cjs",
     "test:assistant": "node tests/assistant-ux.cjs",
     "test:assistant:security": "npm run build && node tests/assistant-security.cjs",
@@ -16,6 +16,7 @@
     "test:security": "node tests/security-ux.cjs && node tests/security-manager-ux.cjs",
     "test:parcel": "node tests/parcel-ux.cjs",
     "test:billing": "node tests/billing-ux.cjs",
+    "test:review:r03": "node tests/review-r03-ux.cjs && node tests/parcel-ux.cjs && node tests/billing-ux.cjs",
     "test:payments": "node tests/payment-ux.cjs",
     "test:notifications": "node tests/notification-ux.cjs",
     "test:dashboard": "node tests/dashboard-ux.cjs",
@@ -25,7 +26,10 @@
     "test:maintenance": "node tests/maintenance-ux.cjs",
     "test:golden-flows": "node tests/golden-flows.cjs",
     "check:links": "node scripts/check-markdown-links.mjs",
-    "check:source": "node scripts/check-source-hygiene.mjs"
+    "check:source": "node scripts/check-source-hygiene.mjs",
+    "test:review:r04": "node tests/review-r04-ux.cjs && node tests/payment-ux.cjs && node tests/notification-ux.cjs && node tests/import-ux.cjs",
+    "test:review:r05": "node tests/review-r05-ux.cjs",
+    "test:review:r06": "node tests/review-r06-sources-ux.cjs"
   },
   "dependencies": {
     "lucide-react": "^0.475.0",

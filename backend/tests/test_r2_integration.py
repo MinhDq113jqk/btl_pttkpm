@@ -88,16 +88,25 @@ def r2_case():
         session.add_all(units)
         session.flush()
 
+        from app.models.person import Person, UnitPersonRelationship
+        from decimal import Decimal
+        from datetime import date
+        for synthetic_unit, synthetic_building, synthetic_site in zip(units, buildings, sites):
+            synthetic_owner = Person(tenant_id=tenant.id, full_name='Synthetic financial owner', phone_masked='***', email_masked='***')
+            session.add(synthetic_owner); session.flush()
+            session.add(UnitPersonRelationship(tenant_id=tenant.id, site_id=synthetic_site.id, building_id=synthetic_building.id,
+                unit_id=synthetic_unit.id, person_id=synthetic_owner.id, relationship_type='owner', ownership_ratio=Decimal('1'), valid_from=date(2020,1,1)))
+
         hashed = hash_password(password)
         accounts = {}
         grants = {
             "cskh": [("cskh", sites[0].id, buildings[0].id)],
             "cskh_no_building": [("cskh", sites[0].id, None)],
             "lead": [("technical_lead", sites[0].id, buildings[0].id)],
-            "tech": [("technician", sites[0].id, None)],
-            "tech_other": [("technician", sites[0].id, None)],
+            "tech": [("technician", sites[0].id, buildings[0].id)],
+            "tech_other": [("technician", sites[0].id, buildings[0].id)],
             "accountant": [("accountant", sites[0].id, None)],
-            "maker": [("technician", sites[0].id, None),
+            "maker": [("technician", sites[0].id, buildings[0].id),
                       ("accountant", sites[0].id, None)],
             "director": [("director", sites[0].id, None)],
             "cskh_other": [("cskh", sites[1].id, buildings[1].id)],
@@ -440,6 +449,8 @@ def test_work_order_detail_lists_and_assignee_options_keep_building_scope(r2_cas
 
 
 def assign_and_start(case, work_order: dict, *, technician="tech"):
+    from sad_assignment_support import prepare_worker, accept_work
+    prepare_worker(case, case['accounts'][technician], work_order['building_id'], 'repair')
     response = case["client"].post(
         f"/api/v1/work-orders/{work_order['id']}/assign",
         headers=case["auth"]["lead"],
@@ -448,6 +459,9 @@ def assign_and_start(case, work_order: dict, *, technician="tech"):
             "expected_version": work_order["version"],
         },
     )
+    assert response.status_code == 200, response.text
+    accept_work(case, work_order['id'], technician)
+    response = case['client'].get(f"/api/v1/work-orders/{work_order['id']}", headers=case['auth'][technician])
     assert response.status_code == 200, response.text
     response = case["client"].post(
         f"/api/v1/work-orders/{work_order['id']}/start",
@@ -505,7 +519,7 @@ def submit_work_order(case, work_order: dict, *, technician="tech"):
 def test_r2_readiness_reports_migrated_head(r2_case):
     response = r2_case["client"].get("/api/v1/readiness")
     assert response.status_code == 200
-    assert response.json()["schema_revision"] == "0018"
+    assert response.json()["schema_revision"] == "0026"
 
 
 def test_r2_request_idempotency_and_scope_are_enforced(r2_case):
@@ -632,7 +646,11 @@ def test_service_request_list_contract_scope_filter_and_pagination(
         },
     )
     assert spoofed_scope.status_code == 200
-    assert {item["id"] for item in spoofed_scope.json()["items"]} == set(expected_ids)
+    # Explicit building filter now narrows visibility; it never grants hidden scope.
+    assert spoofed_scope.json()["items"] == []
+    spoofed_tenant = case["client"].get("/api/v1/service-requests",headers=case["auth"]["cskh"],
+        params={"status":"WAITING_INFO","page_size":100,"tenant_id":str(data["hidden_tenant"].tenant_id)})
+    assert {item["id"] for item in spoofed_tenant.json()["items"]} == set(expected_ids)
 
     assert case["client"].get("/api/v1/service-requests").status_code == 401
     for params in ({"status": "INVALID"}, {"page": 0}, {"page_size": 101}):

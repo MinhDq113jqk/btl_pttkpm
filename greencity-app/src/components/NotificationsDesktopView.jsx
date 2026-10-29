@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { NotificationAcknowledgement } from './NotificationAcknowledgement';
 import {
   AlertCircle,
   AlertTriangle,
@@ -115,6 +116,7 @@ export function NotificationsDesktopView({
 
   const errorRef = useRef(null);
   const intentsRef = useRef(new Map());
+  const pendingLoad = useRef(null);
   const onUnreadChangeRef = useRef(onUnreadChange);
   const inboxPanelId = useId();
   const outboxPanelId = useId();
@@ -149,7 +151,10 @@ export function NotificationsDesktopView({
     if (actionError || error) errorRef.current?.focus();
   }, [actionError, error]);
 
-  const loadData = useCallback(async signal => {
+  const loadData = useCallback(async () => {
+    pendingLoad.current?.abort();
+    const controller = new AbortController(); pendingLoad.current = controller;
+    const { signal } = controller;
     if (!isApiMode) {
       setNotifications(fallbackNotifications);
       setLoading(false);
@@ -159,15 +164,17 @@ export function NotificationsDesktopView({
     setError(null);
     try {
       const notifResult = await client.listNotifications({ includeRead: true, asOf, signal });
+      if (signal.aborted) return;
       setNotifications(notifResult.items);
       onUnreadChangeRef.current?.(notifResult.items.filter(item => !item.read_at).length);
       if (canManageOutbox && client.listOutboxEvents) {
         try {
           const outboxResult = await client.listOutboxEvents({ limit: 50, asOf, signal });
+          if (signal.aborted) return;
           setOutboxEvents(outboxResult.items);
           setOutboxError(null);
         } catch (outboxErr) {
-          if (outboxErr?.name === 'AbortError') throw outboxErr;
+          if (signal.aborted || outboxErr?.name === 'AbortError') throw outboxErr;
           setOutboxError(outboxErr);
           if (outboxErr?.code === 'ERR-NETWORK') setIsOffline(true);
         }
@@ -176,19 +183,18 @@ export function NotificationsDesktopView({
         setOutboxError(null);
       }
     } catch (err) {
-      if (err?.name !== 'AbortError') {
+      if (!signal.aborted && err?.name !== 'AbortError') {
         setError(err);
         if (err?.code === 'ERR-NETWORK') setIsOffline(true);
       }
     } finally {
-      setLoading(false);
+      if (!signal.aborted) setLoading(false);
     }
   }, [asOf, canManageOutbox, client, fallbackNotifications, isApiMode]);
 
   useEffect(() => {
-    const controller = new AbortController();
-    loadData(controller.signal);
-    return () => controller.abort();
+    loadData();
+    return () => pendingLoad.current?.abort();
   }, [loadData]);
 
   const handleMarkRead = async notification => {
@@ -505,7 +511,7 @@ export function NotificationsDesktopView({
             {visibleNotifications.map(item => {
               const isUnread = item.read_at === null || item.unread;
               const title = item.template_snapshot?.title || item.template_code || item.title || 'Thông báo hệ thống';
-              const detail = item.template_snapshot?.detail || item.template_snapshot?.message || item.detail || 'Chi tiết thông báo từ hệ thống.';
+              const detail = item.template_snapshot?.body || item.template_snapshot?.detail || item.template_snapshot?.message || item.detail || 'Chi tiết thông báo từ hệ thống.';
               const taskId = item.template_snapshot?.task_id || item.taskId;
               const isBusy = busy[`read:${item.id}`];
 
@@ -526,6 +532,7 @@ export function NotificationsDesktopView({
                       <span className="notification-time">{formatTime(item.created_at || item.time)}</span>
                     </div>
                     <p>{detail}</p>
+                    {item.template_snapshot?.requires_ack && <NotificationAcknowledgement key={item.id} client={client} row={item} onDone={() => loadData()} />}
                     {item.last_error && (
                       <div className="notification-error-box">
                         <AlertTriangle size={14} aria-hidden="true" />

@@ -138,7 +138,7 @@ def _account_has_security_grant(session, context: UserContext, account_id: UUID,
         Account.id == account_id,
         Account.tenant_id == context.tenant_id,
         Account.is_active.is_(True),
-        AccountRole.role == "security",
+        AccountRole.effective_at(), AccountRole.role == "security",
         AccountRole.site_id == context.assert_active_site(),
         AccountRole.building_id == building_id,
     ).limit(1)) is not None
@@ -354,7 +354,7 @@ def list_security_assignees(
         accounts = session.scalars(select(Account).join(AccountRole).where(
             Account.tenant_id == current_user.tenant_id,
             Account.is_active.is_(True),
-            AccountRole.role == "security",
+            AccountRole.effective_at(), AccountRole.role == "security",
             AccountRole.site_id == current_user.assert_active_site(),
             AccountRole.building_id == building_id,
         ).distinct().order_by(Account.full_name, Account.id)).all()
@@ -375,6 +375,8 @@ def create_security_shift(
         raise AppError("ERR-CONFLICT", "Mỗi điểm tuần tra chỉ có một cửa sổ trong ca này.", 409)
     payload = body.model_dump(mode="json")
     with request.app.state.database.get_session() as session:
+        from app.services.operational_control import financial_lock
+        financial_lock(session, current_user)
         replay = idempotency_replay(session, current_user, operation="security-shift.create",
                                     key=idempotency_key, payload=payload)
         if replay:
@@ -407,7 +409,7 @@ def create_security_shift(
             tenant_id=current_user.tenant_id,
             site_id=current_user.assert_active_site(),
             building_id=body.building_id,
-            assigned_to_id=body.assignee_id,
+            assigned_to_id=None,
             scheduled_start_at=body.scheduled_start_at.astimezone(UTC),
             scheduled_end_at=body.scheduled_end_at.astimezone(UTC),
             status="PLANNED",
@@ -415,6 +417,8 @@ def create_security_shift(
             updated_by_id=current_user.account_id,
         )
         session.add(shift)
+        from app.services.sad_work import queue_direct_assignment
+        queue_direct_assignment(session, current_user, shift, body.assignee_id, 'SECURITY', body.scheduled_start_at, body.scheduled_end_at)
         session.flush()
         session.add_all(PatrolWindow(
             tenant_id=shift.tenant_id,
@@ -429,7 +433,7 @@ def create_security_shift(
         ) for item in body.patrol_windows)
         audit(session, current_user, request, event_type="SecurityShiftCreated", action="create",
               resource_type="SecurityShift", resource_id=shift.id, building_id=shift.building_id,
-              after={"assignee_id": str(shift.assigned_to_id), "patrol_window_count": len(point_ids)})
+              after={"pending_assignee_id": str(body.assignee_id), "acceptance_status": "PENDING", "patrol_window_count": len(point_ids)})
         emit(session, current_user, request, event_type="SecurityShiftCreated",
              resource_type="SecurityShift", resource_id=shift.id,
              payload={"patrol_window_count": len(point_ids)})
@@ -465,11 +469,15 @@ def start_security_shift(
     current_user: UserContext = Depends(get_current_user_context),
 ):
     with request.app.state.database.get_session() as session:
+        from app.services.operational_control import financial_lock
+        financial_lock(session, current_user)
         shift = _scoped_shift(session, current_user, shift_id, lock=True)
         _assert_shift_operator(current_user, shift)
         require_version(shift.version, body.expected_version)
         if shift.status != "PLANNED":
             raise AppError("ERR-STATE-TRANSITION", "Ca trực chưa sẵn sàng để bắt đầu.", 409)
+        from app.services.sad_work import require_work_ack
+        require_work_ack(session, shift, current_user, 'SECURITY')
         shift.status = "IN_PROGRESS"
         shift.updated_by_id = current_user.account_id
         shift.version += 1

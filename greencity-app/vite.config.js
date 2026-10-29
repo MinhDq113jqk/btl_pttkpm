@@ -23,6 +23,16 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_');
   return {
     plugins: [react()],
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            const modulePath = id.replace(/\\/g, '/');
+            if (/\/node_modules\/(react|react-dom|scheduler)\//.test(modulePath)) return 'react-vendor';
+          }
+        }
+      }
+    },
     server: {
       port: 3000,
       open: false,

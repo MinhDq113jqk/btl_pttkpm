@@ -2,8 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { AlertCircle, ArrowRight, Building2, ShieldCheck, LockKeyhole, LoaderCircle, Monitor, Info } from 'lucide-react';
 import { GreenCityLogo } from '../GreenCityLogo';
 import './staff.css';
+const RecoveryForm = React.lazy(() => import('../PortalExtraPanels').then(module => ({ default: module.RecoveryForm })));
+const InvitationActivationForm = React.lazy(() => import('../OperationalWorkspacePanel').then(module => ({ default: module.InvitationActivationForm })));
 
-export function StaffLogin({ onLogin, notice = '', error = null, isLoading = false }) {
+export function StaffLogin({ client, onLogin, notice = '', error = null, isLoading = false }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [help, setHelp] = useState(false);
@@ -39,7 +41,8 @@ export function StaffLogin({ onLogin, notice = '', error = null, isLoading = fal
       </form>
       <button type="button" className="button-text staff-login-help" aria-expanded={help} onClick={() => setHelp(!help)}>Cần hỗ trợ đăng nhập?</button>
       {help && <p className="context-note">Tài khoản và quyền do Admin cấp. Liên hệ quản trị viên của Ban quản lý nếu không đăng nhập được. Không gửi mật khẩu hoặc mã phiên qua kênh hỗ trợ.</p>}
-      <p className="staff-login-disclaimer"><Info size={15} aria-hidden="true" />Bạn không thể chọn hoặc thay đổi vai trò tại màn hình này. Mọi quyền hiển thị lấy từ <code>/auth/me</code>.</p>
+      {help && client && <React.Suspense fallback={<p role="status">Đang mở hỗ trợ tài khoản…</p>}><RecoveryForm client={client} /><InvitationActivationForm client={client} /></React.Suspense>}
+      <p className="staff-login-disclaimer"><Info size={15} aria-hidden="true" /><span>Bạn không thể chọn hoặc thay đổi vai trò tại màn hình này. Quyền truy cập được xác nhận sau khi đăng nhập.</span></p>
     </div><p className="staff-login-copyright">GreenCity · Hệ thống quản lý vận hành khu đô thị</p></section>
   </main>;
 }

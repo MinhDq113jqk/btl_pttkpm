@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, ForeignKeyConstraint, Index, Integer, String, Text, UniqueConstraint, Uuid, func
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, ForeignKeyConstraint, Index, Integer, JSON, String, Text, UniqueConstraint, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, IdentityTimestampMixin
@@ -66,6 +66,10 @@ class ServiceRequest(IdentityTimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="NEW")
     sla_started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     sla_duration_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    sla_policy_snapshot: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict, server_default='{}')
+    sla_pauses: Mapped[list] = mapped_column(JSON, nullable=False, default=list, server_default='[]')
+    handoff: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict, server_default='{}')
+    repeat_cause: Mapped[str | None] = mapped_column(String(200), nullable=True)
     sla_breached_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     owner_account_id: Mapped[UUID] = mapped_column(ForeignKey("greencity.accounts.id", ondelete="RESTRICT"), nullable=False, index=True)
     created_by_id: Mapped[UUID] = mapped_column(ForeignKey("greencity.accounts.id", ondelete="RESTRICT"), nullable=False)
@@ -107,6 +111,8 @@ class WorkOrder(IdentityTimestampMixin, Base):
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="DRAFT")
+    asset_id: Mapped[UUID | None] = mapped_column(ForeignKey('greencity.assets.id'), nullable=True, index=True)
+    asset_snapshot: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     assigned_to_id: Mapped[UUID | None] = mapped_column(ForeignKey("greencity.accounts.id", ondelete="RESTRICT"), nullable=True)
     created_by_id: Mapped[UUID] = mapped_column(ForeignKey("greencity.accounts.id", ondelete="RESTRICT"), nullable=False)
     updated_by_id: Mapped[UUID] = mapped_column(ForeignKey("greencity.accounts.id", ondelete="RESTRICT"), nullable=False)
@@ -205,7 +211,7 @@ class CaseRecord(IdentityTimestampMixin, Base):
     __table_args__ = scope_args() + (
         CheckConstraint("status IN ('NEW','TRIAGED','IN_PROGRESS','RESOLVED','CLOSED')", name="cases_status"),
         CheckConstraint(
-            "num_nonnulls(source_work_order_id, source_parcel_id) = 1",
+            "num_nonnulls(source_work_order_id, source_parcel_id, source_service_request_id) = 1",
             name="cases_one_source",
         ),
         UniqueConstraint("source_parcel_id", name="uq_cases_source_parcel_id"),
@@ -218,6 +224,9 @@ class CaseRecord(IdentityTimestampMixin, Base):
     building_id: Mapped[UUID] = mapped_column(Uuid, nullable=False)
     source_work_order_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("greencity.work_orders.id", ondelete="RESTRICT"), nullable=True,
+    )
+    source_service_request_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("greencity.service_requests.id", ondelete="RESTRICT"), nullable=True, index=True,
     )
     source_parcel_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("greencity.parcels.id", ondelete="RESTRICT"), nullable=True,

@@ -109,7 +109,7 @@ kbd { font-family: inherit; font-size: 11px; white-space: nowrap; border: 1px so
 .desktop-main { flex: 1; min-height: 0; overflow: auto; scroll-padding: 20px 0 112px; scrollbar-gutter: stable; }
 .desktop-main:focus { outline: none !important; }
 .desktop-main button { min-height: 28px; min-width: 28px; }
-.demo-notice { display: flex; gap: 8px; align-items: center; padding: 8px 28px; color: #475569; background: #edf2f7; border-bottom: 1px solid var(--line); font-size: 12px; }
+.scope-notice { display: flex; gap: 8px; align-items: center; padding: 8px 28px; color: #475569; background: #edf2f7; border-bottom: 1px solid var(--line); font-size: 12px; }
 .desktop-statusbar { display: flex; justify-content: space-between; gap: 12px; padding: 5px 20px; background: white; border-top: 1px solid var(--line); color: #64748b; font-size: 11px; }
 .desktop-page { padding: 28px; max-width: 1600px; margin: auto; }
 .page-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 24px; }
@@ -870,7 +870,7 @@ input[type=radio], input[type=checkbox] { accent-color: var(--primary); width: 1
   .search-trigger { max-width: none; flex-basis: 100%; }
   .header-actions { width: 100%; justify-content: space-between; }
   .desktop-page { padding: 14px; }
-  .demo-notice { padding: 10px 14px; align-items: flex-start; }
+  .scope-notice { padding: 10px 14px; align-items: flex-start; }
   .page-heading { align-items: flex-start; flex-wrap: wrap; gap: 12px; }
   .page-heading h1 { font-size: 23px; }
   .unit-search-row { flex-direction: column; }
@@ -1114,6 +1114,9 @@ input[type=radio], input[type=checkbox] { accent-color: var(--primary); width: 1
 .resident-nav-note p { color: #527161; font-size: 11px; line-height: 1.55; }
 .resident-nav-note strong { display: block; color: #14532d; font-size: 12px; margin-bottom: 2px; }
 .resident-main { min-width: 0; min-height: 0; overflow: auto; outline: none; }
+.resident-access-notice { margin: 28px 36px; padding: 22px; }
+.resident-access-notice h2 { color: #0f2f20; font-size: 20px; font-weight: 680; line-height: 1.3; }
+.resident-access-notice p { margin-top: 10px; color: #527161; font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
 .resident-page { max-width: 1280px; margin: 0 auto; padding: 34px 36px 48px; }
 .resident-page-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 24px; }
 .resident-eyebrow { margin-bottom: 6px; color: #15803d; font-size: 10px; font-weight: 800; letter-spacing: .11em; text-transform: uppercase; }
@@ -1282,6 +1285,7 @@ input[type=radio], input[type=checkbox] { accent-color: var(--primary); width: 1
   .resident-nav > button { flex: 0 0 auto; min-height: 44px; width: auto; padding: 9px 11px; white-space: nowrap; }
   .resident-nav > button span { flex: 0 1 auto; }
   .resident-main { overflow: visible; }
+  .resident-access-notice { margin: 16px 14px; padding: 18px; }
   .resident-page { padding: 23px 14px 32px; }
   .resident-page-heading { flex-direction: column; gap: 14px; }
   .resident-page-heading h1 { font-size: 24px; }

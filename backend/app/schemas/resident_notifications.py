@@ -13,6 +13,7 @@ class ResidentNotificationView(BaseModel):
     delivery_status: DeliveryStatus
     delivered_at: datetime | None
     read_at: datetime | None
+    acknowledged_at: datetime | None = None
     correlation_id: UUID
     created_at: datetime
 

@@ -6,6 +6,24 @@ import { canAccessAuditEvents, canAccessCleaning, canAccessExecutiveDashboard, c
 import { mapServiceRequest } from '../src/data/serviceRequestView.js';
 
 const correlationId = '11111111-1111-4111-8111-111111111111';
+
+test('SAD tariff creation and draft editing retain commodity, unit, basis and version', async () => {
+  const calls = []; const token = 'synthetic-session-token';
+  const client = createApiClient({ baseUrl: '/api/v1', fetchImpl: async (url, options) => {
+    calls.push({ url, options });
+    if (url.endsWith('/auth/login')) return jsonResponse({ access_token: token });
+    if (url.endsWith('/auth/me')) return jsonResponse(userInfo(['accountant']));
+    return jsonResponse({ id: 'synthetic-version', version: 2 });
+  } });
+  await client.authenticate('synthetic.accountant', 'synthetic-password-only');
+  const values = { effective_from: '2026-09-01', basis: 'SERVICE_UNIT', commodity: 'WATER', uom: 'm3', unit_rate_vnd: 100, rounding_unit_vnd: 1 };
+  await client.createBillingFeePolicyVersion('policy-a', values, { idempotencyKey: 'draft-create' });
+  await client.editBillingFeePolicyVersion('policy-a', 'version-a', { ...values, expected_version: 1 }, { idempotencyKey: 'draft-edit' });
+  assert.deepEqual(JSON.parse(calls.find(c => c.url.endsWith('/versions')).options.body), values);
+  const edited = calls.find(c => c.url.endsWith('/versions/version-a/edit'));
+  assert.equal(edited.options.headers['Idempotency-Key'], 'draft-edit');
+  assert.deepEqual(JSON.parse(edited.options.body), { ...values, expected_version: 1 });
+});
 const userInfo = (roles = ['cskh']) => ({
   account_id: randomUUID(),
   tenant_id: randomUUID(),
@@ -47,6 +65,33 @@ const unit360 = (id = '33333333-3333-4333-8333-333333333333') => ({
 const jsonResponse = (payload, status = 200, id = correlationId) => new Response(JSON.stringify(payload), {
   status,
   headers: { 'Content-Type': 'application/json', 'X-Correlation-ID': id },
+});
+
+test('fee preview passes its server version/hash to posting and exposes a stale calculation error', async () => {
+  const sourceId = randomUUID(); const periodId = randomUUID(); const token = randomUUID(); const calls = [];
+  const preview = { source_version: 3, calculation_hash: 'a'.repeat(64), posted_invoice_id: null,
+    calculation: { method: 'ACTUAL_DAYS', amount_vnd: 200000, active_days: 20, period_days: 30 } };
+  const client = createApiClient({ baseUrl: '/api/v1', fetchImpl: async (url, options) => {
+    calls.push({ url, options });
+    if (url.endsWith('/auth/login')) return jsonResponse({ access_token: token });
+    if (url.endsWith('/auth/me')) return jsonResponse(userInfo(['accountant']));
+    if (url.includes('/preview?')) return jsonResponse(preview);
+    return jsonResponse({ error: { code: 'ERR-FEE-PREVIEW-STALE', message: 'Cần xem trước lại.',
+      details: null, correlation_id: correlationId } }, 409);
+  } });
+  await client.authenticate('synthetic.accountant', `test-${randomUUID()}`);
+  const result = await client.portalGet(`/fee-sources/${sourceId}/preview`, { period_id: periodId });
+  assert.deepEqual(result, preview);
+  await assert.rejects(client.portalCommand(`/fee-sources/${sourceId}/post`, {
+    period_id: periodId, expected_version: result.source_version, calculation_hash: result.calculation_hash,
+  }, { idempotencyKey: 'fee-preview-confirmation' }), error =>
+    error instanceof ApiError && error.code === 'ERR-FEE-PREVIEW-STALE' && error.correlationId === correlationId);
+  const query = calls.find(call => call.url.includes('/preview?'));
+  assert.equal(query.url, `/api/v1/portal/fee-sources/${sourceId}/preview?period_id=${periodId}`);
+  const posting = calls.find(call => call.url.endsWith('/post'));
+  assert.equal(posting.options.headers.Authorization, `Bearer ${token}`);
+  assert.equal(posting.options.headers['Idempotency-Key'], 'fee-preview-confirmation');
+  assert.deepEqual(JSON.parse(posting.options.body), { period_id: periodId, expected_version: 3, calculation_hash: 'a'.repeat(64) });
 });
 
 const cleaningTask = (overrides = {}) => ({
@@ -617,7 +662,7 @@ test('account menus are derived only from roles returned by /auth/me', () => {
   const cskh = createAuthenticatedAccount({ ...userInfo(['cskh']), role: 'admin', menu: ['settings'] });
   assert.ok(canViewTab(cskh, 'tasks'));
   assert.ok(canViewTab(cskh, 'residents'));
-  assert.ok(!canViewTab(cskh, 'settings'));
+  assert.ok(canViewTab(cskh, 'settings'));
   assert.ok(!canViewTab(cskh, 'refund-form'));
   assert.match(cskh.scope, /Phạm vi do máy chủ cấp/);
 
@@ -631,7 +676,7 @@ test('account menus are derived only from roles returned by /auth/me', () => {
 
   const cleaning = createAuthenticatedAccount(userInfo(['cleaning']));
   assert.ok(!canViewTab(cleaning, 'tasks'));
-  assert.deepEqual(cleaning.menu, ['overview', 'cleaning', 'notifications']);
+  assert.deepEqual(cleaning.menu, ['overview', 'cleaning', 'portal', 'assistant', 'workforce', 'settings', 'notifications']);
   assert.ok(canViewTab(cleaning, 'cleaning'));
   assert.equal(canAccessCleaning(cleaning), true);
   assert.equal(canManageCleaning(cleaning), false);
@@ -1131,26 +1176,27 @@ test('resident API client keeps scope identifiers server-owned and reuses one as
 
 test('role menus expose only implemented staff pages and unsupported legacy tabs stay hidden', () => {
   const expectedMenus = new Map([
-    ['admin', ['overview', 'tasks', 'cleaning', 'security', 'parcels', 'finance', 'residents', 'imports', 'notifications']],
-    ['director', ['overview', 'tasks', 'cleaning', 'security', 'parcels', 'finance', 'residents', 'notifications']],
-    ['accountant', ['overview', 'tasks', 'finance', 'residents', 'notifications']],
-    ['cskh', ['overview', 'tasks', 'parcels', 'residents', 'imports', 'notifications']],
-    ['technical_lead', ['overview', 'tasks', 'maintenance', 'residents', 'notifications']],
-    ['technician', ['overview', 'tasks', 'maintenance', 'notifications']],
-    ['cleaning', ['overview', 'cleaning', 'notifications']],
-    ['security', ['overview', 'security', 'parcels', 'residents', 'notifications']],
+    ['admin', ['overview', 'tasks', 'cleaning', 'security', 'parcels', 'finance', 'residents', 'imports', 'portal', 'assistant', 'workforce', 'notifications']],
+    ['director', ['overview', 'tasks', 'cleaning', 'security', 'parcels', 'finance', 'residents', 'portal', 'assistant', 'workforce', 'notifications']],
+    ['accountant', ['overview', 'tasks', 'finance', 'residents', 'portal', 'assistant', 'notifications']],
+    ['cskh', ['overview', 'tasks', 'parcels', 'residents', 'imports', 'portal', 'assistant', 'workforce', 'notifications']],
+    ['technical_lead', ['overview', 'tasks', 'maintenance', 'residents', 'portal', 'assistant', 'workforce', 'notifications']],
+    ['technician', ['overview', 'tasks', 'maintenance', 'assistant', 'workforce', 'notifications']],
+    ['cleaning', ['overview', 'cleaning', 'portal', 'assistant', 'workforce', 'notifications']],
+    ['security', ['overview', 'security', 'parcels', 'residents', 'portal', 'assistant', 'workforce', 'notifications']],
     ['resident', ['overview', 'notifications']],
   ]);
 
   for (const [role, expected] of expectedMenus) {
     const account = createAuthenticatedAccount(userInfo([role]));
-    assert.deepEqual(account.menu, expected, `${role} menu policy`);
-    assert.deepEqual(getAllowedNav(account).map(item => item.id).sort(), [...expected].sort(), `${role} rendered staff menu`);
+    const withSettings = [...expected.slice(0, -1), 'settings', 'notifications'];
+    assert.deepEqual(account.menu, withSettings, `${role} menu policy`);
+    assert.deepEqual(getAllowedNav(account).map(item => item.id).sort(), [...withSettings].sort(), `${role} rendered staff menu`);
   }
 
   const staleAccount = { menu: ['overview', 'tasks', 'technical', 'reports', 'media', 'amenities', 'projects', 'settings', 'refund-form', 'notifications'] };
-  assert.deepEqual(getAllowedNav(staleAccount).map(item => item.id).sort(), ['overview', 'tasks', 'notifications'].sort());
-  for (const tab of ['technical', 'reports', 'media', 'amenities', 'projects', 'settings', 'refund-form']) {
+  assert.deepEqual(getAllowedNav(staleAccount).map(item => item.id).sort(), ['overview', 'tasks', 'settings', 'notifications'].sort());
+  for (const tab of ['technical', 'reports', 'media', 'amenities', 'projects', 'refund-form']) {
     assert.equal(canViewTab(staleAccount, tab), false, `${tab} must stay unavailable even in stale session data`);
   }
 
@@ -1159,7 +1205,8 @@ test('role menus expose only implemented staff pages and unsupported legacy tabs
   assert.equal(getStaffTabFromHash('#/imports'), 'imports');
   assert.equal(canViewTab(createAuthenticatedAccount(userInfo(['cskh'])), 'imports'), true);
   assert.equal(canViewTab(createAuthenticatedAccount(userInfo(['technical_lead'])), 'imports'), false);
-  for (const hash of ['#/technical', '#/reports', '#/media', '#/amenities', '#/projects', '#/settings', '#/refund-form', '#/unknown']) {
+  assert.equal(getStaffTabFromHash('#/settings'), 'settings');
+  for (const hash of ['#/technical', '#/reports', '#/media', '#/amenities', '#/projects', '#/refund-form', '#/unknown']) {
     assert.equal(getStaffTabFromHash(hash), 'overview', `${hash} must normalize to the implemented Overview route`);
   }
   assert.equal(canViewTab(createAuthenticatedAccount(userInfo(['cskh'])), getStaffTabFromHash('#/finance')), false,

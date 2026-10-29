@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import and_, func, select
@@ -34,16 +35,19 @@ def _as_of_utc(as_of: datetime) -> datetime:
     return as_of.astimezone(UTC)
 
 
-def _resident_account_conditions(context: UserContext):
+def _resident_account_conditions(context: UserContext, unit_id: UUID | None = None):
+    if unit_id is not None and unit_id not in context.resident_unit_ids:
+        raise scope_not_found()
     return (
         *context.scope_conditions(BillingAccount),
-        BillingAccount.unit_id.in_(context.resident_unit_ids),
+        BillingAccount.unit_id.in_((unit_id,) if unit_id else context.resident_unit_ids),
     )
 
 
 @router.get("/resident/billing/summary", response_model=ResidentBillingSummaryResponse)
 def get_resident_billing_summary(
     request: Request,
+    unit_id: UUID | None = None,
     as_of: datetime = Query(..., description="RFC3339 timestamp including a timezone."),
     current_user: UserContext = Depends(get_current_user_context),
 ):
@@ -58,7 +62,7 @@ def get_resident_billing_summary(
             *current_user.scope_conditions(ArLedgerEntry),
             ArLedgerEntry.effective_at <= cutoff,
         )).where(
-            *_resident_account_conditions(current_user),
+            *_resident_account_conditions(current_user, unit_id),
         ).group_by(BillingAccount.id, BillingAccount.unit_id).order_by(
             BillingAccount.account_number, BillingAccount.id,
         )).all()
@@ -98,6 +102,7 @@ def _resident_invoice_view(
 @router.get("/resident/billing/invoices", response_model=ResidentBillingInvoiceListResponse)
 def list_resident_billing_invoices(
     request: Request,
+    unit_id: UUID | None = None,
     as_of: datetime = Query(..., description="RFC3339 timestamp including a timezone."),
     current_user: UserContext = Depends(get_current_user_context),
 ):
@@ -111,7 +116,7 @@ def list_resident_billing_invoices(
             ),
         ).where(
             *current_user.scope_conditions(BillingInvoice),
-            *_resident_account_conditions(current_user),
+            *_resident_account_conditions(current_user, unit_id),
             BillingInvoice.issued_on.is_not(None),
             # Invoices retain a date rather than an issuance timestamp.  The cutoff
             # semantics are therefore calendar-day based; AR stays timestamp exact.
@@ -138,6 +143,7 @@ def list_resident_billing_invoices(
 @router.get("/resident/billing/payments", response_model=ResidentPaymentListResponse)
 def list_resident_payments(
     request: Request,
+    unit_id: UUID | None = None,
     as_of: datetime = Query(..., description="RFC3339 timestamp including a timezone."),
     current_user: UserContext = Depends(get_current_user_context),
 ):
@@ -151,7 +157,7 @@ def list_resident_payments(
             ),
         ).where(
             *current_user.scope_conditions(Payment),
-            *_resident_account_conditions(current_user),
+            *_resident_account_conditions(current_user, unit_id),
             Payment.received_at <= cutoff,
         ).order_by(Payment.received_at.desc(), Payment.id.desc())).all()
         return ResidentPaymentListResponse(

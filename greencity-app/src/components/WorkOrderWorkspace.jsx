@@ -1,3 +1,4 @@
+import { SourceLinks } from './SadCompletionPanels';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2, ClipboardCheck, RefreshCw, Upload } from 'lucide-react';
 import './WorkOrderWorkspace.css';
@@ -249,6 +250,7 @@ export function WorkOrderCard({ account, client, workOrder, technicians, busy, s
   const status = workOrder.status;
   return <article className="workflow-order-card">
     <div className="workflow-order-header"><div><span className={`workflow-status workflow-status-${status.toLowerCase()}`}>{STATUS_LABELS[status] || status}</span><h4>{workOrder.code} · {workOrder.title}</h4><p>{workOrder.description}</p></div><span className="workflow-order-version">v{workOrder.version}</span></div>
+    {(isLead || isCskh) && <SourceLinks client={client} source="work_orders" id={workOrder.id} />}{workOrder.asset_snapshot && <section className="workflow-order-section"><h5>Tài sản tại lúc giao việc</h5><p>{workOrder.asset_snapshot.code} · {workOrder.asset_snapshot.location || 'Chưa ghi vị trí'}</p><p>Bảo hành đến: {workOrder.asset_snapshot.warranty_until || 'Chưa có thông tin'}{workOrder.asset_snapshot.decision?.warranty_decision && ` · Quyết định: ${workOrder.asset_snapshot.decision.warranty_decision}`}</p></section>}
     <div className="workflow-order-grid">
       <section className="workflow-order-section"><h5>Checklist</h5>
         {workOrder.checklist.map(item => <div className="workflow-checklist-row" key={item.id}>
@@ -264,7 +266,7 @@ export function WorkOrderCard({ account, client, workOrder, technicians, busy, s
       </section>
     </div>
 
-    {isLead && ['DRAFT', 'ASSIGNED'].includes(status) && <div className="workflow-action-row"><label>Giao cho kỹ thuật viên<select value={assigneeId} onChange={event => setAssigneeId(event.target.value)}><option value="">Chọn kỹ thuật viên</option>{technicians.map(person => <option value={person.id} key={person.id}>{person.full_name}</option>)}</select></label><button className="button-secondary" type="button" disabled={Boolean(busy) || !assigneeId} onClick={() => perform('assign', () => client.assignWorkOrder(workOrder.id, { assignee_id: assigneeId, expected_version: workOrder.version }), 'Đã phân công Work Order.')}>Phân công</button></div>}
+    {isLead && ['DRAFT', 'ASSIGNED'].includes(status) && <div className="workflow-action-row"><label>Giao cho kỹ thuật viên<select value={assigneeId} onChange={event => setAssigneeId(event.target.value)}><option value="">Chọn kỹ thuật viên</option>{technicians.map(person => <option value={person.id} key={person.id}>{person.full_name}</option>)}</select></label><button className="button-secondary" type="button" disabled={Boolean(busy) || !assigneeId} onClick={() => perform('assign', () => client.assignWorkOrder(workOrder.id, { assignee_id: assigneeId, expected_version: workOrder.version }), 'Đã gửi phân công; nhân viên tiếp nhận tại Đào tạo & Nhận việc.')}>Phân công</button></div>}
     {canPerform && ['ASSIGNED', 'ON_HOLD'].includes(status) && <button className="button-primary" type="button" disabled={Boolean(busy)} onClick={() => perform('start', () => client.startWorkOrder(workOrder.id, workOrder.version), 'Đã bắt đầu xử lý.')}>Bắt đầu xử lý</button>}
 
     {canAddCost && ['IN_PROGRESS', 'WAITING_ACCEPTANCE'].includes(status) && <section className="workflow-order-section workflow-cost-section"><h5>Chi phí</h5>

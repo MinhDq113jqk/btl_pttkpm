@@ -82,6 +82,7 @@ class NotificationReadModel(IdentityTimestampMixin, Base):
     delivery_status: Mapped[str] = mapped_column(String(24), nullable=False, default="PENDING")
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_error: Mapped[str | None] = mapped_column(String(80), nullable=True)
 
 

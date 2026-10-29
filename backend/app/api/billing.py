@@ -55,9 +55,9 @@ from app.services.billing import (
     execute_run,
     match_unmatched_payment_command,
     receive_payment_command,
-    void_invoice,
 )
 from app.services.r2 import audit, emit, idempotency_replay, remember_idempotency, require_version
+from app.services.financial_control import prepare_run_review
 
 
 router = APIRouter(tags=["R4 billing foundation"])
@@ -184,6 +184,7 @@ def _invoice_view(session, invoice: BillingInvoice) -> BillingInvoiceView:
         "status": invoice.status,
         "total_vnd": invoice.total_vnd,
         "outstanding_vnd": invoice.outstanding_vnd,
+        "responsibility_snapshot": invoice.responsibility_snapshot,
         "voided_at": invoice.voided_at,
         "void_reason": invoice.void_reason,
         "version": invoice.version,
@@ -203,6 +204,12 @@ def _assert_publish_does_not_change_closing_period(session, policy: FeePolicy, e
             "Kỳ đang CLOSING giữ nguyên snapshot; version mới chỉ được hiệu lực từ kỳ sau.",
             409,
         )
+    posted = session.scalar(select(BillingRun.id).join(AccountingPeriod, AccountingPeriod.id == BillingRun.accounting_period_id)
+        .join(FeePolicyVersion, FeePolicyVersion.id == BillingRun.fee_policy_version_id).where(
+            FeePolicyVersion.fee_policy_id == policy.id, BillingRun.status == "POSTED",
+            AccountingPeriod.period_end >= effective_from).limit(1))
+    if posted is not None:
+        raise AppError("ERR-POLICY-EFFECTIVE-NEXT-PERIOD", "Biểu phí đã được dùng phát hành hóa đơn; ngày hiệu lực mới phải sau các kỳ đã phát hành.", 409)
 
 
 @router.get("/billing/accounts", response_model=BillingAccountListResponse)
@@ -489,15 +496,18 @@ def create_fee_policy(
             version_number=1,
             effective_from=body.effective_from,
             unit_rate_vnd=body.unit_rate_vnd,
-            basis="UNIT_AREA_M2",
+            area_field=body.area_field,
+            basis=body.basis,
+            created_by_id=current_user.account_id,
+            tariff={"commodity": body.commodity, "uom": body.uom},
             rounding_unit_vnd=body.rounding_unit_vnd,
-            published_at=datetime.now(UTC),
+            published_at=None,
         )
         session.add(version)
-        audit(session, current_user, request, event_type="FeePolicyVersionPublished", action="create",
+        audit(session, current_user, request, event_type="FeePolicyVersionDrafted", action="create",
               resource_type="FeePolicy", resource_id=policy.id, building_id=policy.building_id,
               after={"code": policy.code, "version": 1, "effective_from": str(version.effective_from)})
-        emit(session, current_user, request, event_type="FeePolicyVersionPublished",
+        emit(session, current_user, request, event_type="FeePolicyVersionDrafted",
              resource_type="FeePolicy", resource_id=policy.id, payload={"version": 1})
         remember_idempotency(session, current_user, operation="billing-fee-policy.create", key=idempotency_key,
                              payload=payload, resource_type="FeePolicy", resource_id=policy.id,
@@ -536,18 +546,21 @@ def publish_fee_policy_version(
             building_id=policy.building_id,
             fee_policy_id=policy.id,
             version_number=latest + 1,
+            area_field=body.area_field,
             effective_from=body.effective_from,
             unit_rate_vnd=body.unit_rate_vnd,
-            basis="UNIT_AREA_M2",
+            basis=body.basis,
+            created_by_id=current_user.account_id,
+            tariff={"commodity": body.commodity, "uom": body.uom},
             rounding_unit_vnd=body.rounding_unit_vnd,
-            published_at=datetime.now(UTC),
+            published_at=None,
         )
         session.add(version)
         session.flush()
-        audit(session, current_user, request, event_type="FeePolicyVersionPublished", action="publish",
+        audit(session, current_user, request, event_type="FeePolicyVersionDrafted", action="publish",
               resource_type="FeePolicyVersion", resource_id=version.id, building_id=policy.building_id,
               after={"version": version.version_number, "effective_from": str(version.effective_from)})
-        emit(session, current_user, request, event_type="FeePolicyVersionPublished",
+        emit(session, current_user, request, event_type="FeePolicyVersionDrafted",
              resource_type="FeePolicyVersion", resource_id=version.id,
              payload={"fee_policy_id": str(policy.id), "version": version.version_number})
         remember_idempotency(session, current_user, operation="billing-fee-policy.publish", key=idempotency_key,
@@ -559,6 +572,31 @@ def publish_fee_policy_version(
             session.rollback()
             raise AppError("ERR-DUPLICATE-FEE-POLICY-VERSION", "Version hoặc ngày hiệu lực đã tồn tại.", 409) from None
         return FeePolicyVersionView.model_validate(version)
+
+
+from app.schemas.r4 import FeePolicyVersionEdit
+
+
+@router.post('/billing/fee-policies/{fee_policy_id}/versions/{version_id}/edit', response_model=FeePolicyVersionView)
+def edit_fee_draft(request: Request, fee_policy_id: UUID, version_id: UUID, body: FeePolicyVersionEdit, current_user: UserContext = Depends(get_current_user_context), idempotency_key: str = Header(..., alias='Idempotency-Key')):
+    payload = {'fee_policy_id': str(fee_policy_id), 'version_id': str(version_id), **body.model_dump(mode='json')}
+    with request.app.state.database.get_session() as session:
+        replay = idempotency_replay(session, current_user, operation='billing-fee-policy.edit-draft', key=idempotency_key, payload=payload)
+        if replay: return FeePolicyVersionView.model_validate(_scoped_record(session, current_user, FeePolicyVersion, replay.resource_id))
+        policy = _scoped_record(session, current_user, FeePolicy, fee_policy_id, lock=True)
+        version = _scoped_record(session, current_user, FeePolicyVersion, version_id, lock=True)
+        if version.fee_policy_id != policy.id: raise scope_not_found()
+        require_version(version.version, body.expected_version)
+        if version.published_at or version.created_by_id is None:
+            raise AppError('ERR-FEE-IMMUTABLE', 'Chỉ sửa phiên bản nháp; dữ liệu đã công bố hoặc dữ liệu cũ được giữ nguyên.', 409)
+        _assert_publish_does_not_change_closing_period(session, policy, body.effective_from)
+        for key in ('effective_from', 'basis', 'area_field', 'unit_rate_vnd', 'rounding_unit_vnd'):
+            setattr(version, key, getattr(body, key))
+        version.tariff = {'commodity': body.commodity, 'uom': body.uom}; version.version += 1; version.created_by_id = current_user.account_id
+        session.flush()
+        audit(session, current_user, request, event_type='FeePolicyDraftEdited', action='edit', resource_type='FeePolicyVersion', resource_id=version.id, building_id=policy.building_id, after={'version': version.version})
+        remember_idempotency(session, current_user, operation='billing-fee-policy.edit-draft', key=idempotency_key, payload=payload, resource_type='FeePolicyVersion', resource_id=version.id, response_status=200)
+        session.commit(); return FeePolicyVersionView.model_validate(version)
 
 
 @router.get("/billing/periods", response_model=AccountingPeriodListResponse)
@@ -630,6 +668,14 @@ def transition_accounting_period(
         if body.status not in R4_PUBLIC_PERIOD_TRANSITIONS[period.status]:
             raise AppError("ERR-STATE-TRANSITION", "Chuyển trạng thái kỳ không hợp lệ.", 409)
         before = period.status
+        if body.status == 'CLOSED':
+            from app.models.financial_control import BillingReview, FinanceCommand
+            pending = session.scalar(select(BillingReview.id).where(BillingReview.period_id == period.id,
+                BillingReview.status.in_(('DRAFT','SUBMITTED','WAITING_INFO','APPROVED'))).limit(1))
+            decisions = session.scalar(select(FinanceCommand.id).where(FinanceCommand.period_id == period.id,
+                FinanceCommand.status.in_(('SUBMITTED','APPROVED','RECONCILIATION'))).limit(1))
+            if pending or decisions:
+                raise AppError('ERR-PERIOD-PENDING','Còn bản tính/hồ sơ tài chính chờ xử lý trước khi chốt kỳ.',409)
         period.status = body.status
         period.version += 1
         audit(session, current_user, request, event_type="PeriodStateChanged", action="transition",
@@ -655,12 +701,27 @@ def _run_context(session, current_user: UserContext, body: BillingRunCreate):
 
 
 def _record_run_outcome(session, current_user: UserContext, request: Request, run: BillingRun, *, retry: bool) -> None:
-    event_type = "BillingRunCompleted" if run.status == "POSTED" else "BillingRunFailed"
+    event_type = "BillingDraftCalculated" if run.status == "REVIEW" else "BillingRunFailed"
     audit(session, current_user, request, event_type=event_type, action="retry" if retry else "run",
           resource_type="BillingRun", resource_id=run.id, building_id=run.building_id,
           after={"status": run.status, "failure_code": run.failure_code, "retry_count": run.retry_count})
     emit(session, current_user, request, event_type=event_type, resource_type="BillingRun", resource_id=run.id,
          payload={"status": run.status, "failure_code": run.failure_code})
+
+
+def _prepare_review(session, run, period, policy_version, actor):
+    from app.services.r2 import utc_now
+    try:
+        with session.begin_nested():
+            prepare_run_review(session, run, period, policy_version, actor)
+            session.flush()
+        run.failure_code = None; run.failure_detail = None; run.failed_at = None
+    except (AppError, IntegrityError) as error:
+        run.status = 'FAILED'
+        run.failure_code = error.code if isinstance(error, AppError) else 'ERR-RUN-DUPLICATE'
+        run.failure_detail = error.message if isinstance(error, AppError) else 'Nguồn hoặc tập hóa đơn không còn nhất quán.'
+        run.failed_at = utc_now()
+    run.version += 1
 
 
 @router.get("/billing/runs", response_model=BillingRunListResponse)
@@ -716,7 +777,7 @@ def start_billing_run(
         audit(session, current_user, request, event_type="BillingRunStarted", action="start",
               resource_type="BillingRun", resource_id=run.id, building_id=run.building_id,
               after={"run_key": run.run_key, "cutoff_at": run.cutoff_at.isoformat()})
-        execute_run(session, run, period, policy_version, current_user.account_id)
+        _prepare_review(session, run, period, policy_version, current_user.account_id)
         _record_run_outcome(session, current_user, request, run, retry=False)
         remember_idempotency(session, current_user, operation="billing-run.start", key=idempotency_key,
                              payload=payload, resource_type="BillingRun", resource_id=run.id,
@@ -746,7 +807,7 @@ def retry_billing_run(
         if period.status not in {"OPEN", "CLOSING"}:
             raise AppError("ERR-ACCOUNTING-PERIOD-CLOSED", "Kỳ kế toán không thể retry Billing Run.", 409)
         run.retry_count += 1
-        execute_run(session, run, period, policy_version, current_user.account_id)
+        _prepare_review(session, run, period, policy_version, current_user.account_id)
         _record_run_outcome(session, current_user, request, run, retry=True)
         remember_idempotency(session, current_user, operation="billing-run.retry", key=idempotency_key,
                              payload=payload, resource_type="BillingRun", resource_id=run.id,
@@ -789,12 +850,8 @@ def void_billing_invoice(
         invoice = _scoped_record(session, current_user, BillingInvoice, billing_invoice_id, lock=True)
         require_version(invoice.version, body.expected_version)
         period = _scoped_record(session, current_user, AccountingPeriod, invoice.accounting_period_id, lock=True)
-        before = invoice.status
-        void_invoice(session, invoice, period, current_user.account_id, body.reason)
-        audit(session, current_user, request, event_type="InvoiceVoided", action="void",
-              resource_type="BillingInvoice", resource_id=invoice.id, building_id=invoice.building_id,
-              before={"status": before}, after={"status": invoice.status}, reason=invoice.void_reason)
-        emit(session, current_user, request, event_type="InvoiceVoided",
-             resource_type="BillingInvoice", resource_id=invoice.id, payload={"reason": invoice.void_reason})
-        session.commit()
-        return _invoice_view(session, invoice)
+        from types import SimpleNamespace
+        from app.services.financial_control import command_snapshot
+        command_snapshot(session,current_user,SimpleNamespace(kind='INVOICE_VOID',target_id=invoice.id,
+            amount_vnd=invoice.total_vnd,data={}),period)
+        raise AppError('ERR-FINANCE-WORKFLOW','Lập đề nghị INVOICE_VOID, trình duyệt độc lập và ghi nhận thực hiện tại Kiểm soát tài chính.',409)
