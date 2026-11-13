@@ -173,33 +173,6 @@ dashboard/audit và notification. Các suite dùng API fixture ở browser để
 UX, error/retry và contract; chúng không thay thế real-backend rehearsal bên
 dưới.
 
-### 9. Import synthetic pack + browser Golden Flow trên backend thật
-
-Đây là đường walkthrough đầy đủ để **reset → migrate → seed/import → chạy
-backend/frontend → browser verify → restart → verify lại** mà không cần chuẩn bị
-DB thủ công. Runner chỉ dùng PostgreSQL disposable do chính nó tạo.
-
-Từ repository root, sau khi backend đã có `.venv` và frontend đã `npm ci`:
-
-~~~powershell
-$env:PHASE3_REAL_BROWSER = '1'
-try {
-  & .\backend\.venv\Scripts\python.exe `
-    .\backend\scripts\phase3_real_backend_browser.py `
-    --pg-bin "C:\Program Files\PostgreSQL\18\bin" `
-    --openssl "C:\Program Files\Git\usr\bin\openssl.exe" `
-    --node (Get-Command node).Source `
-    --evidence-dir ".\.local\submission-data\real-browser"
-  if ($LASTEXITCODE -ne 0) { throw 'Real-backend browser rehearsal failed.' }
-} finally {
-  Remove-Item Env:PHASE3_REAL_BROWSER -ErrorAction SilentlyContinue
-}
-~~~
-
-PASS cuối phải có `REAL_BACKEND_BROWSER_REHEARSAL: PASS`. Runner preflight và
-import synthetic pack, thực hiện GF-01/GF-02 trên browser/backend thật, restart
-backend rồi verify dữ liệu import/readback GF-03..08. Evidence local nằm dưới
-`.local/` và không thuộc gói nộp.
 
 
 
