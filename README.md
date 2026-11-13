@@ -13,13 +13,6 @@ Các phân hệ hiện có trong mã nguồn:
 - Yêu cầu dịch vụ, Work Order, bảo trì, vệ sinh và an ninh.
 - Bưu phẩm, cư dân, hóa đơn/công nợ, thanh toán và thông báo.
 - Nhập dữ liệu, dashboard điều hành, nhật ký kiểm toán và inbox/outbox.
-- Green Assistant là tính năng tùy chọn; mặc định đang tắt và khóa nhà cung
-  cấp chỉ được đặt phía backend.
-
-Dự án được thiết kế và kiểm chứng cho môi trường local với dữ liệu demo hoặc
-synthetic. Điều đó không tương đương với xác nhận triển khai production hay
-pilot chính thức.
-
 ## Hướng dẫn cài đặt
 
 ### 1. Lấy mã nguồn
